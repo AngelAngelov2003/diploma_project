@@ -1,3 +1,5 @@
+data/bulgaria-shp/
+server/uploads/
 node_modules/
 dist/
 build/
