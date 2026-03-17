@@ -1,68 +1,86 @@
-const express = require('express');
-const cors = require('cors');
-const pool = require('./db');
-const axios = require('axios'); 
-require('dotenv').config(); 
+const express = require("express");
+const cors = require("cors");
+const path = require("path");
+require("dotenv").config();
+
+const authRoutes = require("./routes/authRoutes");
+const devRoutes = require("./routes/devRoutes");
+const profileRoutes = require("./routes/profileRoutes");
+const catchRoutes = require("./routes/catchRoutes");
+const alertRoutes = require("./routes/alertRoutes");
+const waterBodyRoutes = require("./routes/waterBodyRoutes");
+const reservationRoutes = require("./routes/reservationRoutes");
+const ownerRoutes = require("./routes/ownerRoutes");
+const adminRoutes = require("./routes/adminRoutes");
+
+const {
+  ensureAlertJobRunsTable,
+  ensureUserNotificationPreferencesTable,
+  ensureLakeOwnerClaimRequestsTable,
+  ensureSubscriptionDeliveriesTable,
+} = require("./setup/ensureTables");
+
+const {
+  startDailyCron,
+  startWeeklyCron,
+  runStartupCatchUp,
+} = require("./services/alertService");
 
 const app = express();
+const PORT = Number(process.env.PORT || 5000);
+
 app.use(cors());
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
-app.get('/water-bodies', async (req, res) => {
-  try {
-    const allWaterBodies = await pool.query("SELECT * FROM water_bodies");
-    res.json(allWaterBodies.rows);
-  } catch (err) {
-    console.error(err.message);
-    res.status(500).send("Грешка на сървъра");
-  }
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+
+app.get("/", (req, res) => {
+  res.json({ ok: true, message: "Server is running" });
 });
 
-app.get('/forecast/:lat/:lng', async (req, res) => {
-  const { lat, lng } = req.params;
-  const apiKey = process.env.WEATHER_API_KEY;
+app.use(authRoutes);
+app.use(profileRoutes);
+app.use(devRoutes);
+app.use(catchRoutes);
+app.use(alertRoutes);
+app.use(waterBodyRoutes);
+app.use(reservationRoutes);
+app.use(ownerRoutes);
+app.use(adminRoutes);
 
-  try {
-    const weatherUrl = `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lng}&appid=${apiKey}&units=metric&lang=bg`;
-    const weatherResponse = await axios.get(weatherUrl);
-    const data = weatherResponse.data;
-
-    const currentConditions = {
-        lat: lat,
-        lng: lng,
-        temp: data.main.temp,
-        pressure: data.main.pressure,
-        wind: data.wind.speed
-    };
-
-    let aiResult = { total_score: 50, breakdown: null };
-    
-    try {
-        const mlResponse = await axios.post('http://localhost:5001/predict', currentConditions);
-        
-        aiResult = mlResponse.data;
-        console.log("Python отговори:", aiResult);
-    } catch (mlError) {
-        console.error("ВНИМАНИЕ: Python сървърът не отговаря!", mlError.message);
-    }
-
-    res.json({
-      location: data.name,
-      temp: Math.round(data.main.temp),
-      pressure: data.main.pressure,
-      desc: data.weather[0].description,
-      wind: data.wind.speed,
-      
-      total_score: aiResult.total_score,
-      breakdown: aiResult.breakdown 
-    });
-
-  } catch (err) {
-    console.error("Грешка с OpenWeatherMap:", err.message);
-    res.status(500).json({ error: "Няма данни за времето" });
-  }
+app.use((req, res) => {
+  res.status(404).json({ error: "Route not found" });
 });
 
-app.listen(5000, () => {
-  console.log("Node.js сървърът работи на порт 5000");
+app.use((err, req, res, next) => {
+  console.error(err);
+  res.status(err.status || 500).json({
+    error: err.message || "Internal server error",
+  });
+});
+
+const startServer = async () => {
+  await ensureAlertJobRunsTable();
+  await ensureUserNotificationPreferencesTable();
+  await ensureLakeOwnerClaimRequestsTable();
+  await ensureSubscriptionDeliveriesTable();
+
+  startDailyCron();
+  startWeeklyCron();
+
+  app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+
+    setTimeout(() => {
+      runStartupCatchUp().catch((err) => {
+        console.error("Startup catch-up failed:", err);
+      });
+    }, 10000);
+  });
+};
+
+startServer().catch((err) => {
+  console.error("Failed to start server:", err);
+  process.exit(1);
 });

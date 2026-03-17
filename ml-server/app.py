@@ -13,122 +13,196 @@ models_cache = {}
 def get_moon_phase(date_obj):
     try:
         moon = ephem.Moon(date_obj)
-        return moon.phase 
+        return moon.phase
     except:
         return 0
 
 def calculate_moon_score(moon_phase):
     if moon_phase >= 90 or moon_phase <= 10:
-        return 100 
+        return 100
     elif 40 <= moon_phase <= 60:
-        return 20  
+        return 20
     else:
-        return 50  
+        return 50
 
 def calculate_weather_score(temp, pressure, wind):
     score = 50
-    
-    if 1012 <= pressure <= 1018: score += 25
-    elif pressure < 1000 or pressure > 1030: score -= 25
-    
-    if 15 <= temp <= 25: score += 25
-    elif temp < 5: score -= 30
-    
-    if wind < 10: score += 15
-    elif wind > 30: score -= 25
-
+    if 1012 <= pressure <= 1018:
+        score += 25
+    elif pressure < 1000 or pressure > 1030:
+        score -= 25
+    if 15 <= temp <= 25:
+        score += 25
+    elif temp < 5:
+        score -= 30
+    if wind < 10:
+        score += 15
+    elif wind > 30:
+        score -= 25
     return max(0, min(100, score))
 
 def calculate_trend_score(current_pressure, prev_pressure):
     diff = current_pressure - prev_pressure
-    if abs(diff) <= 2: 
-        return 80 
-    elif diff < -5: 
-        return 10 
+    if abs(diff) <= 2:
+        return 80
+    elif diff < -5:
+        return 10
     elif diff > 5:
-        return 30 
+        return 30
     return 50
 
 def calculate_total_score(row):
-    w_score = calculate_weather_score(row['temperature_2m_max'], row['surface_pressure_mean'], row['wind_speed_10m_max'])
-    
-    m_score = calculate_moon_score(row['moon_phase'])
-    
-    p_trend_score = calculate_trend_score(row['surface_pressure_mean'], row['prev_pressure'])
+    w_score = calculate_weather_score(
+        row["temperature_2m_max"],
+        row["surface_pressure_mean"],
+        row["wind_speed_10m_max"]
+    )
+    m_score = calculate_moon_score(row.get("moon_phase", 50))
+    p_trend_score = calculate_trend_score(
+        row["surface_pressure_mean"],
+        row.get("prev_pressure", row["surface_pressure_mean"])
+    )
+    return (w_score * 0.4) + (m_score * 0.3) + (p_trend_score * 0.3)
 
-    final_score = (w_score * 0.4) + (m_score * 0.3) + (p_trend_score * 0.3)
-    
-    return final_score
+def get_or_train_model(lat, lng, force_refresh=True):
+    zone_lat = round(float(lat), 1)
+    zone_lng = round(float(lng), 1)
+    location_key = f"{zone_lat}_{zone_lng}"
 
-def get_or_train_model(lat, lng):
-    location_key = f"{lat}_{lng}"
-    if location_key in models_cache:
-        print(f"⚡ Кеширан модел за {location_key}")
+    if location_key in models_cache and not force_refresh:
         return models_cache[location_key]
 
-    print(f"⏳ Обучение на PRO модел за {location_key}...")
     try:
-        url = f"https://archive-api.open-meteo.com/v1/archive?latitude={lat}&longitude={lng}&start_date=2022-01-01&end_date=2024-01-01&daily=temperature_2m_max,surface_pressure_mean,wind_speed_10m_max&timezone=auto"
+        url = (
+            f"https://archive-api.open-meteo.com/v1/archive?"
+            f"latitude={lat}&longitude={lng}"
+            f"&start_date=2022-01-01&end_date=2024-01-01"
+            f"&daily=temperature_2m_max,surface_pressure_mean,wind_speed_10m_max"
+            f"&timezone=auto"
+        )
         res = requests.get(url).json()
-        
-        if 'daily' not in res: return None
+        df = pd.DataFrame(res["daily"])
+        df["score"] = df.apply(calculate_total_score, axis=1)
 
-        df = pd.DataFrame(res['daily'])
-        df = df.dropna()
+        try:
+            catch_res = requests.get("http://localhost:5000/ml/training-data").json()
+            if catch_res and len(catch_res) > 0:
+                df_real = pd.DataFrame(catch_res)
 
-        df['prev_pressure'] = df['surface_pressure_mean'].shift(1)
-        df = df.dropna() 
+                if "lat" in df_real.columns and "lng" in df_real.columns:
+                    df_real["lat_f"] = df_real["lat"].astype(float)
+                    df_real["lng_f"] = df_real["lng"].astype(float)
 
-        df['moon_phase'] = df['time'].apply(lambda x: get_moon_phase(datetime.strptime(x, "%Y-%m-%d")))
+                    TOLERANCE = 0.2
+                    regional_logs = df_real[
+                        (abs(df_real["lat_f"] - zone_lat) <= TOLERANCE) &
+                        (abs(df_real["lng_f"] - zone_lng) <= TOLERANCE)
+                    ]
 
-        df['score'] = df.apply(calculate_total_score, axis=1)
+                    if not regional_logs.empty:
+                        v1 = regional_logs.copy()
+                        v1["temp"] += 5
+                        v1["pressure"] += 5
 
-        X = df[['temperature_2m_max', 'surface_pressure_mean', 'wind_speed_10m_max', 'moon_phase']]
-        y = df['score']
+                        v2 = regional_logs.copy()
+                        v2["temp"] -= 5
+                        v2["pressure"] -= 5
 
-        model = RandomForestRegressor(n_estimators=100, random_state=42)
-        model.fit(X, y)
-        
+                        v3 = regional_logs.copy()
+                        v3["wind_speed"] += 10
+
+                        df_boosted_base = pd.concat(
+                            [regional_logs, v1, v2, v3],
+                            ignore_index=True
+                        )
+                        df_final_boost = pd.concat(
+                            [df_boosted_base] * 4000,
+                            ignore_index=True
+                        )
+
+                        df_real_mapped = pd.DataFrame({
+                            "temperature_2m_max": df_final_boost["temp"],
+                            "surface_pressure_mean": df_final_boost["pressure"],
+                            "wind_speed_10m_max": df_final_boost["wind_speed"],
+                            "score": 100
+                        })
+
+                        df = pd.concat([df, df_real_mapped], ignore_index=True)
+        except:
+            pass
+
+        X = df[
+            ["temperature_2m_max", "surface_pressure_mean", "wind_speed_10m_max"]
+        ]
+        y = df["score"]
+
+        model = RandomForestRegressor(
+            n_estimators=100,
+            random_state=42,
+            min_samples_leaf=1
+        )
+        model.fit(X.fillna(0), y.fillna(0))
+
         models_cache[location_key] = model
-        print("✅ Моделът е готов!")
         return model
-
-    except Exception as e:
-        print(f"❌ Грешка: {e}")
+    except:
         return None
 
-@app.route('/predict', methods=['POST'])
+@app.route("/predict", methods=["POST"])
 def predict():
     data = request.json
     try:
-        lat, lng = data.get('lat'), data.get('lng')
-        temp = float(data.get('temp'))
-        pressure = float(data.get('pressure'))
-        wind = float(data.get('wind')) * 3.6 
-
-        today = datetime.now()
-        moon_phase = get_moon_phase(today)
-        moon_score = calculate_moon_score(moon_phase)
+        lat = data.get("lat")
+        lng = data.get("lng")
+        temp = float(data.get("temp"))
+        pressure = float(data.get("pressure"))
+        wind = float(data.get("wind"))
 
         weather_score = calculate_weather_score(temp, pressure, wind)
+        moon_phase = get_moon_phase(datetime.now())
+        moon_score = calculate_moon_score(moon_phase)
 
-        model = get_or_train_model(lat, lng)
+        model = get_or_train_model(lat, lng, force_refresh=True)
+
         if model:
-            ai_score = model.predict([[temp, pressure, wind, moon_phase]])[0]
+            input_df = pd.DataFrame(
+                [[temp, pressure, wind]],
+                columns=[
+                    "temperature_2m_max",
+                    "surface_pressure_mean",
+                    "wind_speed_10m_max"
+                ]
+            )
+            ai_score = model.predict(input_df)[0]
         else:
             ai_score = 50
 
         return jsonify({
-            'total_score': round(ai_score),
-            'breakdown': {
-                'weather_score': weather_score,
-                'moon_score': moon_score,
-                'moon_phase': round(moon_phase)
+            "total_score": int(round(ai_score)),
+            "breakdown": {
+                "weather_score": weather_score,
+                "moon_score": moon_score,
+                "moon_phase": round(moon_phase)
             }
         })
-
     except Exception as e:
-        return jsonify({'error': str(e)}), 400
+        return jsonify({"error": str(e)}), 400
 
-if __name__ == '__main__':
+@app.route("/reset-model", methods=["POST"])
+def reset_model():
+    data = request.json
+    lat = data.get("lat")
+    lng = data.get("lng")
+
+    zone_lat = round(float(lat), 1)
+    zone_lng = round(float(lng), 1)
+    location_key = f"{zone_lat}_{zone_lng}"
+
+    if location_key in models_cache:
+        del models_cache[location_key]
+        return jsonify({"message": f"Cache cleared for {location_key}"}), 200
+
+    return jsonify({"message": "No cache found for this location"}), 200
+
+if __name__ == "__main__":
     app.run(port=5001, debug=True)
