@@ -1,7 +1,18 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import api from "../api/client";
 import { notifyError, notifySuccess } from "../ui/toast";
-import { FaChartBar, FaWater, FaUsers, FaStar, FaTrash, FaSave, FaSearch, FaFileAlt } from "react-icons/fa";
+import {
+  FaChartBar,
+  FaWater,
+  FaUsers,
+  FaStar,
+  FaTrash,
+  FaSave,
+  FaSearch,
+  FaFileAlt,
+  FaChevronLeft,
+  FaChevronRight,
+} from "react-icons/fa";
 
 const pageStyle = {
   padding: 24,
@@ -69,7 +80,9 @@ const tabButton = (active) => ({
   cursor: "pointer",
   fontWeight: 800,
   fontSize: 15,
-  boxShadow: active ? "0 10px 22px rgba(37,99,235,0.2)" : "0 3px 10px rgba(15,23,42,0.05)",
+  boxShadow: active
+    ? "0 10px 22px rgba(37,99,235,0.2)"
+    : "0 3px 10px rgba(15,23,42,0.05)",
   display: "inline-flex",
   alignItems: "center",
   gap: 8,
@@ -145,9 +158,17 @@ const statusBadgeStyle = (status) => ({
   fontSize: 12,
   fontWeight: 800,
   background:
-    status === "approved" ? "#dcfce7" : status === "rejected" ? "#fee2e2" : "#fef3c7",
+    status === "approved"
+      ? "#dcfce7"
+      : status === "rejected"
+        ? "#fee2e2"
+        : "#fef3c7",
   color:
-    status === "approved" ? "#166534" : status === "rejected" ? "#991b1b" : "#92400e",
+    status === "approved"
+      ? "#166534"
+      : status === "rejected"
+        ? "#991b1b"
+        : "#92400e",
 });
 
 const filterButton = (active) => ({
@@ -160,6 +181,40 @@ const filterButton = (active) => ({
   fontWeight: 700,
   fontSize: 13,
 });
+
+const paginationBtn = (active = false, disabled = false) => ({
+  minWidth: 40,
+  height: 40,
+  borderRadius: 10,
+  border: "1px solid #d1d5db",
+  background: disabled ? "#f8fafc" : active ? "#1d4ed8" : "white",
+  color: disabled ? "#94a3b8" : active ? "white" : "#0f172a",
+  cursor: disabled ? "not-allowed" : "pointer",
+  fontWeight: 800,
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: 6,
+});
+
+const PAGE_SIZE = 5;
+
+const paginateItems = (items, currentPage, pageSize = PAGE_SIZE) => {
+  const totalItems = items.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+  const safePage = Math.min(Math.max(1, currentPage), totalPages);
+  const startIndex = (safePage - 1) * pageSize;
+  const endIndex = startIndex + pageSize;
+
+  return {
+    items: items.slice(startIndex, endIndex),
+    totalItems,
+    totalPages,
+    currentPage: safePage,
+    startIndex,
+    endIndex: Math.min(endIndex, totalItems),
+  };
+};
 
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState("overview");
@@ -192,6 +247,25 @@ export default function AdminDashboard() {
   const [reviewSearch, setReviewSearch] = useState("");
   const [ownerClaimSearch, setOwnerClaimSearch] = useState("");
   const [ownerClaimStatusFilter, setOwnerClaimStatusFilter] = useState("pending");
+
+  const [waterBodiesPage, setWaterBodiesPage] = useState(1);
+  const [usersPage, setUsersPage] = useState(1);
+  const [reviewsPage, setReviewsPage] = useState(1);
+  const [ownerClaimsPage, setOwnerClaimsPage] = useState(1);
+
+  const waterBodiesSectionRef = useRef(null);
+  const usersSectionRef = useRef(null);
+  const reviewsSectionRef = useRef(null);
+  const ownerClaimsSectionRef = useRef(null);
+
+  const scrollToSectionTop = (ref) => {
+    setTimeout(() => {
+      ref?.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }, 0);
+  };
 
   const loadOverview = async () => {
     try {
@@ -260,7 +334,9 @@ export default function AdminDashboard() {
       const res = await api.get("/admin/owner-claim-requests");
       setOwnerClaimRequests(res.data || []);
     } catch (err) {
-      setOwnerClaimsError(err.response?.data?.error || "Failed to load owner claim requests");
+      setOwnerClaimsError(
+        err.response?.data?.error || "Failed to load owner claim requests",
+      );
       notifyError(err, "Failed to load owner claim requests");
       setOwnerClaimRequests([]);
     } finally {
@@ -290,7 +366,7 @@ export default function AdminDashboard() {
       ]
         .map((x) => String(x || "").toLowerCase())
         .join(" ")
-        .includes(q)
+        .includes(q),
     );
   }, [waterBodies, lakeSearch]);
 
@@ -301,7 +377,7 @@ export default function AdminDashboard() {
       [user.full_name, user.email, user.role]
         .map((x) => String(x || "").toLowerCase())
         .join(" ")
-        .includes(q)
+        .includes(q),
     );
   }, [users, userSearch]);
 
@@ -312,7 +388,7 @@ export default function AdminDashboard() {
       [review.comment, review.full_name, review.email, review.lake_name, review.rating]
         .map((x) => String(x || "").toLowerCase())
         .join(" ")
-        .includes(q)
+        .includes(q),
     );
   }, [reviews, reviewSearch]);
 
@@ -334,23 +410,65 @@ export default function AdminDashboard() {
         .includes(q);
 
       const matchesStatus =
-        ownerClaimStatusFilter === "all" ? true : String(item.status || "") === ownerClaimStatusFilter;
+        ownerClaimStatusFilter === "all"
+          ? true
+          : String(item.status || "") === ownerClaimStatusFilter;
 
       return matchesSearch && matchesStatus;
     });
   }, [ownerClaimRequests, ownerClaimSearch, ownerClaimStatusFilter]);
 
+  useEffect(() => {
+    setWaterBodiesPage(1);
+  }, [lakeSearch, waterBodies.length]);
+
+  useEffect(() => {
+    setUsersPage(1);
+  }, [userSearch, users.length]);
+
+  useEffect(() => {
+    setReviewsPage(1);
+  }, [reviewSearch, reviews.length]);
+
+  useEffect(() => {
+    setOwnerClaimsPage(1);
+  }, [ownerClaimSearch, ownerClaimStatusFilter, ownerClaimRequests.length]);
+
+  const paginatedWaterBodies = useMemo(
+    () => paginateItems(filteredWaterBodies, waterBodiesPage),
+    [filteredWaterBodies, waterBodiesPage],
+  );
+
+  const paginatedUsers = useMemo(
+    () => paginateItems(filteredUsers, usersPage),
+    [filteredUsers, usersPage],
+  );
+
+  const paginatedReviews = useMemo(
+    () => paginateItems(filteredReviews, reviewsPage),
+    [filteredReviews, reviewsPage],
+  );
+
+  const paginatedOwnerClaims = useMemo(
+    () => paginateItems(filteredOwnerClaims, ownerClaimsPage),
+    [filteredOwnerClaims, ownerClaimsPage],
+  );
+
   const updateLakeLocal = (lakeId, field, value) => {
-    setWaterBodies((prev) => prev.map((lake) => (lake.id === lakeId ? { ...lake, [field]: value } : lake)));
+    setWaterBodies((prev) =>
+      prev.map((lake) => (lake.id === lakeId ? { ...lake, [field]: value } : lake)),
+    );
   };
 
   const updateUserLocal = (userId, field, value) => {
-    setUsers((prev) => prev.map((user) => (user.id === userId ? { ...user, [field]: value } : user)));
+    setUsers((prev) =>
+      prev.map((user) => (user.id === userId ? { ...user, [field]: value } : user)),
+    );
   };
 
   const updateOwnerClaimLocal = (requestId, field, value) => {
     setOwnerClaimRequests((prev) =>
-      prev.map((item) => (item.id === requestId ? { ...item, [field]: value } : item))
+      prev.map((item) => (item.id === requestId ? { ...item, [field]: value } : item)),
     );
   };
 
@@ -506,6 +624,104 @@ export default function AdminDashboard() {
     </div>
   );
 
+  const renderPagination = ({
+    currentPage,
+    totalPages,
+    totalItems,
+    startIndex,
+    endIndex,
+    onPageChange,
+  }) => {
+    if (totalItems === 0) return null;
+
+    const pageNumbers = [];
+    const startPage = Math.max(1, currentPage - 2);
+    const endPage = Math.min(totalPages, currentPage + 2);
+
+    for (let p = startPage; p <= endPage; p += 1) {
+      pageNumbers.push(p);
+    }
+
+    return (
+      <div
+        style={{
+          marginTop: 18,
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          gap: 12,
+          flexWrap: "wrap",
+          borderTop: "1px solid #e5e7eb",
+          paddingTop: 14,
+        }}
+      >
+        <div style={{ fontSize: 13, color: "#64748b" }}>
+          Showing <strong>{totalItems === 0 ? 0 : startIndex + 1}</strong>–
+          <strong>{endIndex}</strong> of <strong>{totalItems}</strong>
+        </div>
+
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <button
+            type="button"
+            onClick={() => onPageChange(currentPage - 1)}
+            disabled={currentPage <= 1}
+            style={paginationBtn(false, currentPage <= 1)}
+          >
+            <FaChevronLeft />
+          </button>
+
+          {startPage > 1 && (
+            <>
+              <button
+                type="button"
+                onClick={() => onPageChange(1)}
+                style={paginationBtn(currentPage === 1)}
+              >
+                1
+              </button>
+              {startPage > 2 ? <span style={{ color: "#64748b" }}>...</span> : null}
+            </>
+          )}
+
+          {pageNumbers.map((page) => (
+            <button
+              key={page}
+              type="button"
+              onClick={() => onPageChange(page)}
+              style={paginationBtn(currentPage === page)}
+            >
+              {page}
+            </button>
+          ))}
+
+          {endPage < totalPages && (
+            <>
+              {endPage < totalPages - 1 ? (
+                <span style={{ color: "#64748b" }}>...</span>
+              ) : null}
+              <button
+                type="button"
+                onClick={() => onPageChange(totalPages)}
+                style={paginationBtn(currentPage === totalPages)}
+              >
+                {totalPages}
+              </button>
+            </>
+          )}
+
+          <button
+            type="button"
+            onClick={() => onPageChange(currentPage + 1)}
+            disabled={currentPage >= totalPages}
+            style={paginationBtn(false, currentPage >= totalPages)}
+          >
+            <FaChevronRight />
+          </button>
+        </div>
+      </div>
+    );
+  };
+
   const pendingOwnerClaimsCount = Number(analytics?.totals?.pending_owner_claims || 0);
 
   return (
@@ -513,14 +729,21 @@ export default function AdminDashboard() {
       <div style={shellStyle}>
         <div style={heroStyle}>
           <div style={{ fontSize: 13, opacity: 0.92, marginBottom: 8 }}>Administration</div>
-          <h1 style={{ margin: "0 0 8px 0", fontSize: 30, fontWeight: 900 }}>Admin Dashboard</h1>
+          <h1 style={{ margin: "0 0 8px 0", fontSize: 30, fontWeight: 900 }}>
+            Admin Dashboard
+          </h1>
           <div style={{ maxWidth: 900, lineHeight: 1.6, fontSize: 14, opacity: 0.98 }}>
-            Manage platform statistics, water bodies, users, reviews, and ownership verification requests from one place.
+            Manage platform statistics, water bodies, users, reviews, and ownership
+            verification requests from one place.
           </div>
         </div>
 
         <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 18 }}>
-          <button type="button" onClick={() => setActiveTab("overview")} style={tabButton(activeTab === "overview")}>
+          <button
+            type="button"
+            onClick={() => setActiveTab("overview")}
+            style={tabButton(activeTab === "overview")}
+          >
             <FaChartBar />
             Overview
           </button>
@@ -534,12 +757,20 @@ export default function AdminDashboard() {
             Water Bodies
           </button>
 
-          <button type="button" onClick={() => setActiveTab("users")} style={tabButton(activeTab === "users")}>
+          <button
+            type="button"
+            onClick={() => setActiveTab("users")}
+            style={tabButton(activeTab === "users")}
+          >
             <FaUsers />
             Users
           </button>
 
-          <button type="button" onClick={() => setActiveTab("reviews")} style={tabButton(activeTab === "reviews")}>
+          <button
+            type="button"
+            onClick={() => setActiveTab("reviews")}
+            style={tabButton(activeTab === "reviews")}
+          >
             <FaStar />
             Reviews
           </button>
@@ -636,7 +867,9 @@ export default function AdminDashboard() {
                       <div>Pending reservations: {analytics.totals?.pending_reservations ?? 0}</div>
                       <div>Approved reservations: {analytics.totals?.approved_reservations ?? 0}</div>
                       <div>Subscriptions: {analytics.totals?.subscriptions ?? 0}</div>
-                      <div>Pending ownership requests: {analytics.totals?.pending_owner_claims ?? 0}</div>
+                      <div>
+                        Pending ownership requests: {analytics.totals?.pending_owner_claims ?? 0}
+                      </div>
                     </div>
                   </div>
 
@@ -698,7 +931,7 @@ export default function AdminDashboard() {
         )}
 
         {activeTab === "water-bodies" && (
-          <div style={cardStyle}>
+          <div ref={waterBodiesSectionRef} style={cardStyle}>
             <div
               style={{
                 display: "flex",
@@ -740,173 +973,212 @@ export default function AdminDashboard() {
             ) : !filteredWaterBodies.length ? (
               <div style={mutedStyle}>No water bodies found.</div>
             ) : (
-              <div style={{ display: "grid", gap: 14 }}>
-                {filteredWaterBodies.map((lake) => (
-                  <div
-                    key={lake.id}
-                    style={{
-                      border: "1px solid #e5e7eb",
-                      borderRadius: 14,
-                      padding: 14,
-                      background: "#fff",
-                    }}
-                  >
+              <>
+                <div style={{ display: "grid", gap: 14 }}>
+                  {paginatedWaterBodies.items.map((lake) => (
                     <div
+                      key={lake.id}
                       style={{
-                        display: "grid",
-                        gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-                        gap: 12,
+                        border: "1px solid #e5e7eb",
+                        borderRadius: 14,
+                        padding: 14,
+                        background: "#fff",
                       }}
                     >
-                      <div>
-                        <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>Name</div>
-                        <input
-                          type="text"
-                          value={lake.name || ""}
-                          onChange={(e) => updateLakeLocal(lake.id, "name", e.target.value)}
-                          style={inputStyle}
+                      <div
+                        style={{
+                          display: "grid",
+                          gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+                          gap: 12,
+                        }}
+                      >
+                        <div>
+                          <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>Name</div>
+                          <input
+                            type="text"
+                            value={lake.name || ""}
+                            onChange={(e) => updateLakeLocal(lake.id, "name", e.target.value)}
+                            style={inputStyle}
+                          />
+                        </div>
+
+                        <div>
+                          <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>Type</div>
+                          <input
+                            type="text"
+                            value={lake.type || ""}
+                            onChange={(e) => updateLakeLocal(lake.id, "type", e.target.value)}
+                            style={inputStyle}
+                          />
+                        </div>
+
+                        <div>
+                          <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>
+                            Price per day
+                          </div>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={Number(lake.price_per_day || 0)}
+                            onChange={(e) =>
+                              updateLakeLocal(lake.id, "price_per_day", e.target.value)
+                            }
+                            style={inputStyle}
+                          />
+                        </div>
+
+                        <div>
+                          <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>Capacity</div>
+                          <input
+                            type="number"
+                            min="1"
+                            value={Number(lake.capacity || 1)}
+                            onChange={(e) => updateLakeLocal(lake.id, "capacity", e.target.value)}
+                            style={inputStyle}
+                          />
+                        </div>
+
+                        <div>
+                          <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>Private</div>
+                          <select
+                            value={lake.is_private ? "true" : "false"}
+                            onChange={(e) =>
+                              updateLakeLocal(lake.id, "is_private", e.target.value === "true")
+                            }
+                            style={inputStyle}
+                          >
+                            <option value="false">Public</option>
+                            <option value="true">Private</option>
+                          </select>
+                        </div>
+
+                        <div>
+                          <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>
+                            Reservable
+                          </div>
+                          <select
+                            value={lake.is_reservable ? "true" : "false"}
+                            onChange={(e) =>
+                              updateLakeLocal(
+                                lake.id,
+                                "is_reservable",
+                                e.target.value === "true",
+                              )
+                            }
+                            style={inputStyle}
+                          >
+                            <option value="false">Disabled</option>
+                            <option value="true">Enabled</option>
+                          </select>
+                        </div>
+
+                        <div>
+                          <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>Owner</div>
+                          <select
+                            value={lake.owner_id || ""}
+                            onChange={(e) =>
+                              updateLakeLocal(lake.id, "owner_id", e.target.value || null)
+                            }
+                            style={inputStyle}
+                          >
+                            <option value="">No owner</option>
+                            {users.map((user) => (
+                              <option key={user.id} value={user.id}>
+                                {user.full_name} ({user.email})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+
+                      <div style={{ marginTop: 12 }}>
+                        <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>Description</div>
+                        <textarea
+                          rows={3}
+                          value={lake.description || ""}
+                          onChange={(e) =>
+                            updateLakeLocal(lake.id, "description", e.target.value)
+                          }
+                          style={textareaStyle}
                         />
                       </div>
 
-                      <div>
-                        <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>Type</div>
-                        <input
-                          type="text"
-                          value={lake.type || ""}
-                          onChange={(e) => updateLakeLocal(lake.id, "type", e.target.value)}
-                          style={inputStyle}
+                      <div style={{ marginTop: 12 }}>
+                        <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>
+                          Availability notes
+                        </div>
+                        <textarea
+                          rows={3}
+                          value={lake.availability_notes || ""}
+                          onChange={(e) =>
+                            updateLakeLocal(lake.id, "availability_notes", e.target.value)
+                          }
+                          style={textareaStyle}
                         />
                       </div>
 
-                      <div>
-                        <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>Price per day</div>
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          value={Number(lake.price_per_day || 0)}
-                          onChange={(e) => updateLakeLocal(lake.id, "price_per_day", e.target.value)}
-                          style={inputStyle}
-                        />
-                      </div>
+                      <div
+                        style={{
+                          marginTop: 14,
+                          display: "flex",
+                          justifyContent: "space-between",
+                          gap: 10,
+                          alignItems: "center",
+                          flexWrap: "wrap",
+                        }}
+                      >
+                        <div style={{ fontSize: 13, color: "#64748b" }}>
+                          Owner:{" "}
+                          {lake.owner_name
+                            ? `${lake.owner_name} (${lake.owner_email})`
+                            : "No owner"}
+                        </div>
 
-                      <div>
-                        <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>Capacity</div>
-                        <input
-                          type="number"
-                          min="1"
-                          value={Number(lake.capacity || 1)}
-                          onChange={(e) => updateLakeLocal(lake.id, "capacity", e.target.value)}
-                          style={inputStyle}
-                        />
-                      </div>
+                        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                          <button
+                            type="button"
+                            disabled={savingWaterBodyId === lake.id}
+                            onClick={() => saveLake(lake)}
+                            style={primaryBtn}
+                          >
+                            <FaSave style={{ marginRight: 8 }} />
+                            {savingWaterBodyId === lake.id ? "Saving..." : "Save"}
+                          </button>
 
-                      <div>
-                        <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>Private</div>
-                        <select
-                          value={lake.is_private ? "true" : "false"}
-                          onChange={(e) => updateLakeLocal(lake.id, "is_private", e.target.value === "true")}
-                          style={inputStyle}
-                        >
-                          <option value="false">Public</option>
-                          <option value="true">Private</option>
-                        </select>
-                      </div>
-
-                      <div>
-                        <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>Reservable</div>
-                        <select
-                          value={lake.is_reservable ? "true" : "false"}
-                          onChange={(e) => updateLakeLocal(lake.id, "is_reservable", e.target.value === "true")}
-                          style={inputStyle}
-                        >
-                          <option value="false">Disabled</option>
-                          <option value="true">Enabled</option>
-                        </select>
-                      </div>
-
-                      <div>
-                        <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>Owner</div>
-                        <select
-                          value={lake.owner_id || ""}
-                          onChange={(e) => updateLakeLocal(lake.id, "owner_id", e.target.value || null)}
-                          style={inputStyle}
-                        >
-                          <option value="">No owner</option>
-                          {users.map((user) => (
-                            <option key={user.id} value={user.id}>
-                              {user.full_name} ({user.email})
-                            </option>
-                          ))}
-                        </select>
+                          <button
+                            type="button"
+                            disabled={deletingId === lake.id}
+                            onClick={() => deleteLake(lake.id)}
+                            style={dangerBtn}
+                          >
+                            <FaTrash style={{ marginRight: 8 }} />
+                            {deletingId === lake.id ? "Deleting..." : "Delete"}
+                          </button>
+                        </div>
                       </div>
                     </div>
+                  ))}
+                </div>
 
-                    <div style={{ marginTop: 12 }}>
-                      <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>Description</div>
-                      <textarea
-                        rows={3}
-                        value={lake.description || ""}
-                        onChange={(e) => updateLakeLocal(lake.id, "description", e.target.value)}
-                        style={textareaStyle}
-                      />
-                    </div>
-
-                    <div style={{ marginTop: 12 }}>
-                      <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>Availability notes</div>
-                      <textarea
-                        rows={3}
-                        value={lake.availability_notes || ""}
-                        onChange={(e) => updateLakeLocal(lake.id, "availability_notes", e.target.value)}
-                        style={textareaStyle}
-                      />
-                    </div>
-
-                    <div
-                      style={{
-                        marginTop: 14,
-                        display: "flex",
-                        justifyContent: "space-between",
-                        gap: 10,
-                        alignItems: "center",
-                        flexWrap: "wrap",
-                      }}
-                    >
-                      <div style={{ fontSize: 13, color: "#64748b" }}>
-                        Owner: {lake.owner_name ? `${lake.owner_name} (${lake.owner_email})` : "No owner"}
-                      </div>
-
-                      <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                        <button
-                          type="button"
-                          disabled={savingWaterBodyId === lake.id}
-                          onClick={() => saveLake(lake)}
-                          style={primaryBtn}
-                        >
-                          <FaSave style={{ marginRight: 8 }} />
-                          {savingWaterBodyId === lake.id ? "Saving..." : "Save"}
-                        </button>
-
-                        <button
-                          type="button"
-                          disabled={deletingId === lake.id}
-                          onClick={() => deleteLake(lake.id)}
-                          style={dangerBtn}
-                        >
-                          <FaTrash style={{ marginRight: 8 }} />
-                          {deletingId === lake.id ? "Deleting..." : "Delete"}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                {renderPagination({
+                  currentPage: paginatedWaterBodies.currentPage,
+                  totalPages: paginatedWaterBodies.totalPages,
+                  totalItems: paginatedWaterBodies.totalItems,
+                  startIndex: paginatedWaterBodies.startIndex,
+                  endIndex: paginatedWaterBodies.endIndex,
+                  onPageChange: (page) => {
+                    setWaterBodiesPage(page);
+                    scrollToSectionTop(waterBodiesSectionRef);
+                  },
+                })}
+              </>
             )}
           </div>
         )}
 
         {activeTab === "users" && (
-          <div style={cardStyle}>
+          <div ref={usersSectionRef} style={cardStyle}>
             <div
               style={{
                 display: "flex",
@@ -948,115 +1220,136 @@ export default function AdminDashboard() {
             ) : !filteredUsers.length ? (
               <div style={mutedStyle}>No users found.</div>
             ) : (
-              <div style={{ display: "grid", gap: 12 }}>
-                {filteredUsers.map((user) => (
-                  <div
-                    key={user.id}
-                    style={{
-                      border: "1px solid #e5e7eb",
-                      borderRadius: 14,
-                      padding: 14,
-                      background: "#fff",
-                    }}
-                  >
+              <>
+                <div style={{ display: "grid", gap: 12 }}>
+                  {paginatedUsers.items.map((user) => (
                     <div
+                      key={user.id}
                       style={{
-                        display: "grid",
-                        gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-                        gap: 12,
+                        border: "1px solid #e5e7eb",
+                        borderRadius: 14,
+                        padding: 14,
+                        background: "#fff",
                       }}
                     >
-                      <div>
-                        <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>Full name</div>
-                        <input
-                          type="text"
-                          value={user.full_name || ""}
-                          onChange={(e) => updateUserLocal(user.id, "full_name", e.target.value)}
-                          style={inputStyle}
-                        />
+                      <div
+                        style={{
+                          display: "grid",
+                          gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+                          gap: 12,
+                        }}
+                      >
+                        <div>
+                          <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>
+                            Full name
+                          </div>
+                          <input
+                            type="text"
+                            value={user.full_name || ""}
+                            onChange={(e) =>
+                              updateUserLocal(user.id, "full_name", e.target.value)
+                            }
+                            style={inputStyle}
+                          />
+                        </div>
+
+                        <div>
+                          <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>Email</div>
+                          <input
+                            type="email"
+                            value={user.email || ""}
+                            onChange={(e) => updateUserLocal(user.id, "email", e.target.value)}
+                            style={inputStyle}
+                          />
+                        </div>
+
+                        <div>
+                          <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>Role</div>
+                          <select
+                            value={user.role || "user"}
+                            onChange={(e) => updateUserLocal(user.id, "role", e.target.value)}
+                            style={inputStyle}
+                          >
+                            <option value="user">user</option>
+                            <option value="owner">owner</option>
+                            <option value="admin">admin</option>
+                          </select>
+                        </div>
+
+                        <div>
+                          <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>Active</div>
+                          <select
+                            value={user.is_active ? "true" : "false"}
+                            onChange={(e) =>
+                              updateUserLocal(user.id, "is_active", e.target.value === "true")
+                            }
+                            style={inputStyle}
+                          >
+                            <option value="true">Active</option>
+                            <option value="false">Inactive</option>
+                          </select>
+                        </div>
                       </div>
 
-                      <div>
-                        <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>Email</div>
-                        <input
-                          type="email"
-                          value={user.email || ""}
-                          onChange={(e) => updateUserLocal(user.id, "email", e.target.value)}
-                          style={inputStyle}
-                        />
-                      </div>
+                      <div
+                        style={{
+                          marginTop: 14,
+                          display: "flex",
+                          justifyContent: "space-between",
+                          gap: 10,
+                          alignItems: "center",
+                          flexWrap: "wrap",
+                        }}
+                      >
+                        <div style={{ fontSize: 13, color: "#64748b" }}>
+                          Created: {formatDateTime(user.created_at)} | Verified:{" "}
+                          {user.is_verified ? "Yes" : "No"}
+                        </div>
 
-                      <div>
-                        <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>Role</div>
-                        <select
-                          value={user.role || "user"}
-                          onChange={(e) => updateUserLocal(user.id, "role", e.target.value)}
-                          style={inputStyle}
-                        >
-                          <option value="user">user</option>
-                          <option value="owner">owner</option>
-                          <option value="admin">admin</option>
-                        </select>
-                      </div>
+                        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                          <button
+                            type="button"
+                            disabled={savingUserId === user.id}
+                            onClick={() => saveUser(user)}
+                            style={secondaryBtn}
+                          >
+                            <FaSave style={{ marginRight: 8 }} />
+                            {savingUserId === user.id ? "Saving..." : "Save"}
+                          </button>
 
-                      <div>
-                        <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>Active</div>
-                        <select
-                          value={user.is_active ? "true" : "false"}
-                          onChange={(e) => updateUserLocal(user.id, "is_active", e.target.value === "true")}
-                          style={inputStyle}
-                        >
-                          <option value="true">Active</option>
-                          <option value="false">Inactive</option>
-                        </select>
+                          <button
+                            type="button"
+                            disabled={deletingId === user.id}
+                            onClick={() => deleteUser(user.id)}
+                            style={dangerBtn}
+                          >
+                            <FaTrash style={{ marginRight: 8 }} />
+                            {deletingId === user.id ? "Deleting..." : "Delete"}
+                          </button>
+                        </div>
                       </div>
                     </div>
+                  ))}
+                </div>
 
-                    <div
-                      style={{
-                        marginTop: 14,
-                        display: "flex",
-                        justifyContent: "space-between",
-                        gap: 10,
-                        alignItems: "center",
-                        flexWrap: "wrap",
-                      }}
-                    >
-                      <div style={{ fontSize: 13, color: "#64748b" }}>
-                        Created: {formatDateTime(user.created_at)} | Verified: {user.is_verified ? "Yes" : "No"}
-                      </div>
-
-                      <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                        <button
-                          type="button"
-                          disabled={savingUserId === user.id}
-                          onClick={() => saveUser(user)}
-                          style={secondaryBtn}
-                        >
-                          <FaSave style={{ marginRight: 8 }} />
-                          {savingUserId === user.id ? "Saving..." : "Save"}
-                        </button>
-
-                        <button
-                          type="button"
-                          disabled={deletingId === user.id}
-                          onClick={() => deleteUser(user.id)}
-                          style={dangerBtn}
-                        >
-                          <FaTrash style={{ marginRight: 8 }} />
-                          {deletingId === user.id ? "Deleting..." : "Delete"}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                {renderPagination({
+                  currentPage: paginatedUsers.currentPage,
+                  totalPages: paginatedUsers.totalPages,
+                  totalItems: paginatedUsers.totalItems,
+                  startIndex: paginatedUsers.startIndex,
+                  endIndex: paginatedUsers.endIndex,
+                  onPageChange: (page) => {
+                    setUsersPage(page);
+                    scrollToSectionTop(usersSectionRef);
+                  },
+                })}
+              </>
             )}
           </div>
         )}
 
         {activeTab === "reviews" && (
-          <div style={cardStyle}>
+          <div ref={reviewsSectionRef} style={cardStyle}>
             <div
               style={{
                 display: "flex",
@@ -1098,79 +1391,93 @@ export default function AdminDashboard() {
             ) : !filteredReviews.length ? (
               <div style={mutedStyle}>No reviews found.</div>
             ) : (
-              <div style={{ display: "grid", gap: 12 }}>
-                {filteredReviews.map((review) => (
-                  <div
-                    key={review.id}
-                    style={{
-                      border: "1px solid #e5e7eb",
-                      borderRadius: 14,
-                      padding: 14,
-                      background: "#fff",
-                    }}
-                  >
+              <>
+                <div style={{ display: "grid", gap: 12 }}>
+                  {paginatedReviews.items.map((review) => (
                     <div
+                      key={review.id}
                       style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        gap: 12,
-                        alignItems: "start",
-                        flexWrap: "wrap",
+                        border: "1px solid #e5e7eb",
+                        borderRadius: 14,
+                        padding: 14,
+                        background: "#fff",
                       }}
                     >
-                      <div>
-                        <div style={{ fontSize: 16, fontWeight: 800, color: "#0f172a" }}>
-                          {review.full_name || "Unknown user"}
-                        </div>
-                        <div style={{ fontSize: 13, color: "#64748b", marginTop: 4 }}>
-                          {review.email || "No email"}
-                        </div>
-                        <div style={{ fontSize: 13, color: "#64748b", marginTop: 4 }}>
-                          Lake: {review.lake_name || "Unknown lake"}
-                        </div>
-                        <div style={{ fontSize: 13, color: "#64748b", marginTop: 4 }}>
-                          {formatDateTime(review.created_at)}
-                        </div>
-                      </div>
-
                       <div
                         style={{
-                          background: "#fef3c7",
-                          color: "#92400e",
-                          borderRadius: "999px",
-                          padding: "6px 10px",
-                          fontSize: 12,
-                          fontWeight: 800,
+                          display: "flex",
+                          justifyContent: "space-between",
+                          gap: 12,
+                          alignItems: "start",
+                          flexWrap: "wrap",
                         }}
                       >
-                        {review.rating} / 5
+                        <div>
+                          <div style={{ fontSize: 16, fontWeight: 800, color: "#0f172a" }}>
+                            {review.full_name || "Unknown user"}
+                          </div>
+                          <div style={{ fontSize: 13, color: "#64748b", marginTop: 4 }}>
+                            {review.email || "No email"}
+                          </div>
+                          <div style={{ fontSize: 13, color: "#64748b", marginTop: 4 }}>
+                            Lake: {review.lake_name || "Unknown lake"}
+                          </div>
+                          <div style={{ fontSize: 13, color: "#64748b", marginTop: 4 }}>
+                            {formatDateTime(review.created_at)}
+                          </div>
+                        </div>
+
+                        <div
+                          style={{
+                            background: "#fef3c7",
+                            color: "#92400e",
+                            borderRadius: "999px",
+                            padding: "6px 10px",
+                            fontSize: 12,
+                            fontWeight: 800,
+                          }}
+                        >
+                          {review.rating} / 5
+                        </div>
+                      </div>
+
+                      <div style={{ marginTop: 10, color: "#334155", lineHeight: 1.6 }}>
+                        {review.comment || "No comment provided."}
+                      </div>
+
+                      <div style={{ marginTop: 12, display: "flex", justifyContent: "flex-end" }}>
+                        <button
+                          type="button"
+                          disabled={deletingId === review.id}
+                          onClick={() => deleteReview(review.id)}
+                          style={dangerBtn}
+                        >
+                          <FaTrash style={{ marginRight: 8 }} />
+                          {deletingId === review.id ? "Deleting..." : "Delete review"}
+                        </button>
                       </div>
                     </div>
+                  ))}
+                </div>
 
-                    <div style={{ marginTop: 10, color: "#334155", lineHeight: 1.6 }}>
-                      {review.comment || "No comment provided."}
-                    </div>
-
-                    <div style={{ marginTop: 12, display: "flex", justifyContent: "flex-end" }}>
-                      <button
-                        type="button"
-                        disabled={deletingId === review.id}
-                        onClick={() => deleteReview(review.id)}
-                        style={dangerBtn}
-                      >
-                        <FaTrash style={{ marginRight: 8 }} />
-                        {deletingId === review.id ? "Deleting..." : "Delete review"}
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                {renderPagination({
+                  currentPage: paginatedReviews.currentPage,
+                  totalPages: paginatedReviews.totalPages,
+                  totalItems: paginatedReviews.totalItems,
+                  startIndex: paginatedReviews.startIndex,
+                  endIndex: paginatedReviews.endIndex,
+                  onPageChange: (page) => {
+                    setReviewsPage(page);
+                    scrollToSectionTop(reviewsSectionRef);
+                  },
+                })}
+              </>
             )}
           </div>
         )}
 
         {activeTab === "owner-claims" && (
-          <div style={cardStyle}>
+          <div ref={ownerClaimsSectionRef} style={cardStyle}>
             <div
               style={{
                 display: "flex",
@@ -1271,168 +1578,194 @@ export default function AdminDashboard() {
             ) : !filteredOwnerClaims.length ? (
               <div style={mutedStyle}>No ownership requests found.</div>
             ) : (
-              <div style={{ display: "grid", gap: 14 }}>
-                {filteredOwnerClaims.map((item) => (
-                  <div
-                    key={item.id}
-                    style={{
-                      border:
-                        item.status === "pending" ? "1px solid #facc15" : "1px solid #e5e7eb",
-                      borderRadius: 14,
-                      padding: 14,
-                      background: item.status === "pending" ? "#fffbea" : "#fff",
-                    }}
-                  >
+              <>
+                <div style={{ display: "grid", gap: 14 }}>
+                  {paginatedOwnerClaims.items.map((item) => (
                     <div
+                      key={item.id}
                       style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        gap: 12,
-                        alignItems: "start",
-                        flexWrap: "wrap",
+                        border:
+                          item.status === "pending"
+                            ? "1px solid #facc15"
+                            : "1px solid #e5e7eb",
+                        borderRadius: 14,
+                        padding: 14,
+                        background: item.status === "pending" ? "#fffbea" : "#fff",
                       }}
                     >
-                      <div style={{ display: "grid", gap: 6 }}>
-                        <div style={{ fontSize: 17, fontWeight: 800, color: "#0f172a" }}>
-                          {item.lake_name || "Unknown lake"}
-                        </div>
-                        <div style={{ fontSize: 14, color: "#334155" }}>
-                          {item.full_name} ({item.email})
-                        </div>
-                        <div style={{ fontSize: 13, color: "#64748b" }}>
-                          Phone: {item.phone || "Not provided"}
-                        </div>
-                        <div style={{ fontSize: 13, color: "#64748b" }}>
-                          Company: {item.company_name || "Not provided"}
-                        </div>
-                        <div style={{ fontSize: 13, color: "#64748b" }}>
-                          Submitted: {formatDateTime(item.created_at)}
-                        </div>
-                        {item.reviewed_at ? (
-                          <div style={{ fontSize: 13, color: "#64748b" }}>
-                            Reviewed: {formatDateTime(item.reviewed_at)}
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          gap: 12,
+                          alignItems: "start",
+                          flexWrap: "wrap",
+                        }}
+                      >
+                        <div style={{ display: "grid", gap: 6 }}>
+                          <div style={{ fontSize: 17, fontWeight: 800, color: "#0f172a" }}>
+                            {item.lake_name || "Unknown lake"}
                           </div>
-                        ) : null}
-                      </div>
+                          <div style={{ fontSize: 14, color: "#334155" }}>
+                            {item.full_name} ({item.email})
+                          </div>
+                          <div style={{ fontSize: 13, color: "#64748b" }}>
+                            Phone: {item.phone || "Not provided"}
+                          </div>
+                          <div style={{ fontSize: 13, color: "#64748b" }}>
+                            Company: {item.company_name || "Not provided"}
+                          </div>
+                          <div style={{ fontSize: 13, color: "#64748b" }}>
+                            Submitted: {formatDateTime(item.created_at)}
+                          </div>
+                          {item.reviewed_at ? (
+                            <div style={{ fontSize: 13, color: "#64748b" }}>
+                              Reviewed: {formatDateTime(item.reviewed_at)}
+                            </div>
+                          ) : null}
+                        </div>
 
-                      <div style={statusBadgeStyle(item.status)}>{String(item.status || "").toUpperCase()}</div>
-                    </div>
-
-                    <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
-                      <div>
-                        <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>Claim message</div>
-                        <div
-                          style={{
-                            border: "1px solid #e5e7eb",
-                            borderRadius: 12,
-                            padding: 12,
-                            background: "#f8fafc",
-                            color: "#334155",
-                            minHeight: 48,
-                          }}
-                        >
-                          {item.message || "No message provided."}
+                        <div style={statusBadgeStyle(item.status)}>
+                          {String(item.status || "").toUpperCase()}
                         </div>
                       </div>
 
-                      <div>
-                        <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>Proof document</div>
-                        {item.proof_document_url ? (
-                          <a
-                            href={`${api.defaults.baseURL || ""}/uploads/${item.proof_document_url}`}
-                            target="_blank"
-                            rel="noreferrer"
+                      <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
+                        <div>
+                          <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>
+                            Claim message
+                          </div>
+                          <div
                             style={{
-                              display: "inline-flex",
-                              alignItems: "center",
-                              gap: 8,
-                              color: "#2563eb",
-                              fontWeight: 700,
-                              textDecoration: "none",
+                              border: "1px solid #e5e7eb",
+                              borderRadius: 12,
+                              padding: 12,
+                              background: "#f8fafc",
+                              color: "#334155",
+                              minHeight: 48,
                             }}
                           >
-                            <FaFileAlt />
-                            Open document
-                          </a>
-                        ) : (
-                          <div style={mutedStyle}>No document uploaded.</div>
-                        )}
+                            {item.message || "No message provided."}
+                          </div>
+                        </div>
+
+                        <div>
+                          <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>
+                            Proof document
+                          </div>
+                          {item.proof_document_url ? (
+                            <a
+                              href={`${api.defaults.baseURL || ""}/uploads/${item.proof_document_url}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: 8,
+                                color: "#2563eb",
+                                fontWeight: 700,
+                                textDecoration: "none",
+                              }}
+                            >
+                              <FaFileAlt />
+                              Open document
+                            </a>
+                          ) : (
+                            <div style={mutedStyle}>No document uploaded.</div>
+                          )}
+                        </div>
+
+                        <div>
+                          <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>
+                            Admin note
+                          </div>
+                          <textarea
+                            rows={3}
+                            value={item.admin_note || ""}
+                            onChange={(e) =>
+                              updateOwnerClaimLocal(item.id, "admin_note", e.target.value)
+                            }
+                            style={textareaStyle}
+                          />
+                        </div>
                       </div>
 
-                      <div>
-                        <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>Admin note</div>
-                        <textarea
-                          rows={3}
-                          value={item.admin_note || ""}
-                          onChange={(e) => updateOwnerClaimLocal(item.id, "admin_note", e.target.value)}
-                          style={textareaStyle}
-                        />
+                      <div
+                        style={{
+                          marginTop: 14,
+                          display: "flex",
+                          justifyContent: "space-between",
+                          gap: 10,
+                          alignItems: "center",
+                          flexWrap: "wrap",
+                        }}
+                      >
+                        <div style={{ fontSize: 13, color: "#64748b" }}>
+                          Reviewed by: {item.reviewed_by_name || "Not reviewed yet"}
+                        </div>
+
+                        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                          {item.status !== "approved" ? (
+                            <button
+                              type="button"
+                              disabled={savingOwnerClaimId === item.id}
+                              onClick={() => reviewOwnerClaim(item.id, "approved")}
+                              style={successBtn}
+                            >
+                              {savingOwnerClaimId === item.id ? "Saving..." : "Approve"}
+                            </button>
+                          ) : null}
+
+                          {item.status !== "rejected" ? (
+                            <button
+                              type="button"
+                              disabled={savingOwnerClaimId === item.id}
+                              onClick={() => reviewOwnerClaim(item.id, "rejected")}
+                              style={dangerBtn}
+                            >
+                              {savingOwnerClaimId === item.id ? "Saving..." : "Reject"}
+                            </button>
+                          ) : null}
+
+                          {item.status !== "pending" ? (
+                            <button
+                              type="button"
+                              disabled={savingOwnerClaimId === item.id}
+                              onClick={() => reviewOwnerClaim(item.id, "pending")}
+                              style={warningBtn}
+                            >
+                              {savingOwnerClaimId === item.id ? "Saving..." : "Move to pending"}
+                            </button>
+                          ) : null}
+
+                          {item.status === "rejected" ? (
+                            <button
+                              type="button"
+                              disabled={deletingId === item.id}
+                              onClick={() => deleteOwnerClaim(item.id)}
+                              style={secondaryBtn}
+                            >
+                              {deletingId === item.id ? "Removing..." : "Hide rejected"}
+                            </button>
+                          ) : null}
+                        </div>
                       </div>
                     </div>
+                  ))}
+                </div>
 
-                    <div
-                      style={{
-                        marginTop: 14,
-                        display: "flex",
-                        justifyContent: "space-between",
-                        gap: 10,
-                        alignItems: "center",
-                        flexWrap: "wrap",
-                      }}
-                    >
-                      <div style={{ fontSize: 13, color: "#64748b" }}>
-                        Reviewed by: {item.reviewed_by_name || "Not reviewed yet"}
-                      </div>
-
-                      <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                        {item.status !== "approved" ? (
-                          <button
-                            type="button"
-                            disabled={savingOwnerClaimId === item.id}
-                            onClick={() => reviewOwnerClaim(item.id, "approved")}
-                            style={successBtn}
-                          >
-                            {savingOwnerClaimId === item.id ? "Saving..." : "Approve"}
-                          </button>
-                        ) : null}
-
-                        {item.status !== "rejected" ? (
-                          <button
-                            type="button"
-                            disabled={savingOwnerClaimId === item.id}
-                            onClick={() => reviewOwnerClaim(item.id, "rejected")}
-                            style={dangerBtn}
-                          >
-                            {savingOwnerClaimId === item.id ? "Saving..." : "Reject"}
-                          </button>
-                        ) : null}
-
-                        {item.status !== "pending" ? (
-                          <button
-                            type="button"
-                            disabled={savingOwnerClaimId === item.id}
-                            onClick={() => reviewOwnerClaim(item.id, "pending")}
-                            style={warningBtn}
-                          >
-                            {savingOwnerClaimId === item.id ? "Saving..." : "Move to pending"}
-                          </button>
-                        ) : null}
-
-                        {item.status === "rejected" ? (
-                          <button
-                            type="button"
-                            disabled={deletingId === item.id}
-                            onClick={() => deleteOwnerClaim(item.id)}
-                            style={secondaryBtn}
-                          >
-                            {deletingId === item.id ? "Removing..." : "Hide rejected"}
-                          </button>
-                        ) : null}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                {renderPagination({
+                  currentPage: paginatedOwnerClaims.currentPage,
+                  totalPages: paginatedOwnerClaims.totalPages,
+                  totalItems: paginatedOwnerClaims.totalItems,
+                  startIndex: paginatedOwnerClaims.startIndex,
+                  endIndex: paginatedOwnerClaims.endIndex,
+                  onPageChange: (page) => {
+                    setOwnerClaimsPage(page);
+                    scrollToSectionTop(ownerClaimsSectionRef);
+                  },
+                })}
+              </>
             )}
           </div>
         )}

@@ -36,7 +36,7 @@ const sectionTitleStyle = {
   color: "#0f172a",
 };
 
-export default function Profile() {
+export default function Profile({ setCurrentUser }) {
   const [loading, setLoading] = useState(true);
   const [savingProfile, setSavingProfile] = useState(false);
   const [savingPassword, setSavingPassword] = useState(false);
@@ -72,12 +72,13 @@ export default function Profile() {
         ]);
 
         setProfile(profileRes.data || {});
+        setCurrentUser(profileRes.data || null);
         setPreferences(
           preferencesRes.data || {
             email_alerts_enabled: true,
             default_notification_frequency: "daily",
             default_min_score: 0,
-          }
+          },
         );
       } catch (err) {
         notifyError(err, "Failed to load profile");
@@ -87,7 +88,7 @@ export default function Profile() {
     };
 
     load();
-  }, []);
+  }, [setCurrentUser]);
 
   const saveProfile = async (e) => {
     e.preventDefault();
@@ -108,7 +109,9 @@ export default function Profile() {
         full_name: String(profile.full_name || "").trim(),
         email: String(profile.email || "").trim(),
       });
+
       setProfile((prev) => ({ ...prev, ...(res.data || {}) }));
+      setCurrentUser(res.data || null);
       notifySuccess("Profile updated");
     } catch (err) {
       notifyError(err, "Failed to update profile");
@@ -120,7 +123,11 @@ export default function Profile() {
   const savePassword = async (e) => {
     e.preventDefault();
 
-    if (!passwordForm.current_password || !passwordForm.new_password || !passwordForm.confirm_password) {
+    if (
+      !passwordForm.current_password ||
+      !passwordForm.new_password ||
+      !passwordForm.confirm_password
+    ) {
       notifyError(null, "All password fields are required");
       return;
     }
@@ -167,7 +174,8 @@ export default function Profile() {
       setSavingPreferences(true);
       const res = await api.patch("/profile/notification-preferences", {
         email_alerts_enabled: Boolean(preferences.email_alerts_enabled),
-        default_notification_frequency: preferences.default_notification_frequency || "daily",
+        default_notification_frequency:
+          preferences.default_notification_frequency || "daily",
         default_min_score: score,
       });
       setPreferences(res.data || preferences);
@@ -197,7 +205,8 @@ export default function Profile() {
         >
           <h2 style={{ marginTop: 0, marginBottom: 8 }}>Profile Settings</h2>
           <div style={{ opacity: 0.95, lineHeight: 1.6, fontSize: 14 }}>
-            Manage your personal information, password, and notification preferences.
+            Manage your personal information, password, and notification
+            preferences.
           </div>
         </div>
 
@@ -217,32 +226,52 @@ export default function Profile() {
                 }}
               >
                 <div>
-                  <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>Full name</div>
+                  <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>
+                    Full name
+                  </div>
                   <input
                     type="text"
                     value={profile.full_name || ""}
-                    onChange={(e) => setProfile((prev) => ({ ...prev, full_name: e.target.value }))}
+                    onChange={(e) =>
+                      setProfile((prev) => ({
+                        ...prev,
+                        full_name: e.target.value,
+                      }))
+                    }
                     style={inputStyle}
                   />
                 </div>
 
                 <div>
-                  <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>Email</div>
+                  <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>
+                    Email
+                  </div>
                   <input
                     type="email"
                     value={profile.email || ""}
-                    onChange={(e) => setProfile((prev) => ({ ...prev, email: e.target.value }))}
+                    onChange={(e) =>
+                      setProfile((prev) => ({ ...prev, email: e.target.value }))
+                    }
                     style={inputStyle}
                   />
                 </div>
 
                 <div>
-                  <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>Role</div>
-                  <input type="text" value={profile.role || ""} disabled style={{ ...inputStyle, background: "#f8fafc" }} />
+                  <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>
+                    Role
+                  </div>
+                  <input
+                    type="text"
+                    value={profile.role || ""}
+                    disabled
+                    style={{ ...inputStyle, background: "#f8fafc" }}
+                  />
                 </div>
 
                 <div>
-                  <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>Verified</div>
+                  <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>
+                    Verified
+                  </div>
                   <input
                     type="text"
                     value={profile.is_verified ? "Yes" : "No"}
@@ -253,10 +282,19 @@ export default function Profile() {
               </div>
 
               <div style={{ marginTop: 12, fontSize: 13, color: "#64748b" }}>
-                Member since: {profile.created_at ? new Date(profile.created_at).toLocaleString() : "Unknown"}
+                Member since:{" "}
+                {profile.created_at
+                  ? new Date(profile.created_at).toLocaleString()
+                  : "Unknown"}
               </div>
 
-              <div style={{ marginTop: 14, display: "flex", justifyContent: "flex-end" }}>
+              <div
+                style={{
+                  marginTop: 14,
+                  display: "flex",
+                  justifyContent: "flex-end",
+                }}
+              >
                 <button
                   type="submit"
                   disabled={savingProfile}
@@ -292,37 +330,64 @@ export default function Profile() {
                 }}
               >
                 <div>
-                  <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>Current password</div>
+                  <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>
+                    Current password
+                  </div>
                   <input
                     type="password"
                     value={passwordForm.current_password}
-                    onChange={(e) => setPasswordForm((prev) => ({ ...prev, current_password: e.target.value }))}
+                    onChange={(e) =>
+                      setPasswordForm((prev) => ({
+                        ...prev,
+                        current_password: e.target.value,
+                      }))
+                    }
                     style={inputStyle}
                   />
                 </div>
 
                 <div>
-                  <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>New password</div>
+                  <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>
+                    New password
+                  </div>
                   <input
                     type="password"
                     value={passwordForm.new_password}
-                    onChange={(e) => setPasswordForm((prev) => ({ ...prev, new_password: e.target.value }))}
+                    onChange={(e) =>
+                      setPasswordForm((prev) => ({
+                        ...prev,
+                        new_password: e.target.value,
+                      }))
+                    }
                     style={inputStyle}
                   />
                 </div>
 
                 <div>
-                  <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>Confirm new password</div>
+                  <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>
+                    Confirm new password
+                  </div>
                   <input
                     type="password"
                     value={passwordForm.confirm_password}
-                    onChange={(e) => setPasswordForm((prev) => ({ ...prev, confirm_password: e.target.value }))}
+                    onChange={(e) =>
+                      setPasswordForm((prev) => ({
+                        ...prev,
+                        confirm_password: e.target.value,
+                      }))
+                    }
                     style={inputStyle}
                   />
                 </div>
               </div>
 
-              <div style={{ marginTop: 14, display: "flex", justifyContent: "flex-end" }}>
+              <div
+                style={{
+                  marginTop: 14,
+                  display: "flex",
+                  justifyContent: "flex-end",
+                }}
+              >
                 <button
                   type="submit"
                   disabled={savingPassword}
@@ -358,7 +423,9 @@ export default function Profile() {
                 }}
               >
                 <div>
-                  <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>Email alerts enabled</div>
+                  <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>
+                    Email alerts enabled
+                  </div>
                   <select
                     value={preferences.email_alerts_enabled ? "true" : "false"}
                     onChange={(e) =>
@@ -375,9 +442,13 @@ export default function Profile() {
                 </div>
 
                 <div>
-                  <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>Default frequency</div>
+                  <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>
+                    Default frequency
+                  </div>
                   <select
-                    value={preferences.default_notification_frequency || "daily"}
+                    value={
+                      preferences.default_notification_frequency || "daily"
+                    }
                     onChange={(e) =>
                       setPreferences((prev) => ({
                         ...prev,
@@ -392,7 +463,9 @@ export default function Profile() {
                 </div>
 
                 <div>
-                  <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>Default minimum score</div>
+                  <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>
+                    Default minimum score
+                  </div>
                   <input
                     type="number"
                     min="0"
@@ -409,7 +482,13 @@ export default function Profile() {
                 </div>
               </div>
 
-              <div style={{ marginTop: 14, display: "flex", justifyContent: "flex-end" }}>
+              <div
+                style={{
+                  marginTop: 14,
+                  display: "flex",
+                  justifyContent: "flex-end",
+                }}
+              >
                 <button
                   type="submit"
                   disabled={savingPreferences}
