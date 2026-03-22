@@ -4,7 +4,7 @@ import { FaLock } from "react-icons/fa";
 import api from "../api/client";
 import { notifyError, notifySuccess } from "../ui/toast";
 
-const Login = ({ setAuth }) => {
+const Login = ({ setAuth, setCurrentUser }) => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
@@ -18,14 +18,20 @@ const Login = ({ setAuth }) => {
 
     try {
       const res = await api.post("/auth/login", { email, password });
+
       localStorage.setItem("token", res.data.token);
+      setCurrentUser(res.data.user || null);
       setAuth(true);
+
       notifySuccess("Login successful");
       setMessage("Login successful");
       setTimeout(() => navigate("/"), 700);
     } catch (err) {
       notifyError(err, "Invalid credentials");
-      const msg = err.response?.data?.error || err.response?.data || "Invalid credentials";
+      const msg =
+        err.response?.data?.error ||
+        err.response?.data ||
+        "Invalid credentials";
       setMessage(typeof msg === "string" ? msg : "Invalid credentials");
     } finally {
       setSubmitting(false);
@@ -46,9 +52,22 @@ const Login = ({ setAuth }) => {
         <FaLock /> Login
       </h2>
 
-      {message && <p style={{ color: message.toLowerCase().includes("successful") ? "green" : "red" }}>{message}</p>}
+      {message && (
+        <p
+          style={{
+            color: message.toLowerCase().includes("successful")
+              ? "green"
+              : "red",
+          }}
+        >
+          {message}
+        </p>
+      )}
 
-      <form onSubmit={handleLogin} style={{ display: "flex", flexDirection: "column", gap: "15px" }}>
+      <form
+        onSubmit={handleLogin}
+        style={{ display: "flex", flexDirection: "column", gap: "15px" }}
+      >
         <input
           type="email"
           placeholder="Email"

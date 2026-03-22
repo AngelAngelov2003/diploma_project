@@ -4,7 +4,7 @@ import { FaUserPlus } from "react-icons/fa";
 import api from "../api/client";
 import { notifyError, notifySuccess } from "../ui/toast";
 
-const Register = ({ setAuth }) => {
+const Register = ({ setAuth, setCurrentUser }) => {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -25,7 +25,9 @@ const Register = ({ setAuth }) => {
       });
 
       localStorage.setItem("token", res.data.token);
+      setCurrentUser(res.data.user || null);
       setAuth(true);
+
       notifySuccess("Registration successful");
       setMessage("Registration successful");
       setTimeout(() => navigate("/"), 700);
@@ -52,9 +54,22 @@ const Register = ({ setAuth }) => {
         <FaUserPlus /> Register
       </h2>
 
-      {message && <p style={{ color: message.toLowerCase().includes("successful") ? "green" : "red" }}>{message}</p>}
+      {message && (
+        <p
+          style={{
+            color: message.toLowerCase().includes("successful")
+              ? "green"
+              : "red",
+          }}
+        >
+          {message}
+        </p>
+      )}
 
-      <form onSubmit={handleRegister} style={{ display: "flex", flexDirection: "column", gap: "15px" }}>
+      <form
+        onSubmit={handleRegister}
+        style={{ display: "flex", flexDirection: "column", gap: "15px" }}
+      >
         <input
           type="text"
           placeholder="Full Name"

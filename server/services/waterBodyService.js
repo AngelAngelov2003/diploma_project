@@ -1,18 +1,45 @@
 const pool = require("../db");
 
+const DEDUPE_KEY_SQL = `
+  LOWER(TRIM(name)),
+  ROUND((
+    CASE
+      WHEN geom IS NOT NULL THEN ST_Y(ST_Centroid(geom))
+      ELSE lat
+    END
+  )::numeric, 5),
+  ROUND((
+    CASE
+      WHEN geom IS NOT NULL THEN ST_X(ST_Centroid(geom))
+      ELSE lng
+    END
+  )::numeric, 5)
+`;
+
+const SELECT_FIELDS_SQL = `
+  id,
+  name,
+  description,
+  type,
+  is_private,
+  owner_id,
+  price_per_day,
+  capacity,
+  is_reservable,
+  availability_notes
+`;
+
+const ORDER_PRIORITY_SQL = `
+  CASE
+    WHEN type IN ('lake', 'reservoir') THEN 0
+    ELSE 1
+  END
+`;
+
 const getAllWaterBodies = async () => {
   const q = await pool.query(`
-    SELECT
-      id,
-      name,
-      description,
-      type,
-      is_private,
-      owner_id,
-      price_per_day,
-      capacity,
-      is_reservable,
-      availability_notes,
+    SELECT DISTINCT ON (${DEDUPE_KEY_SQL})
+      ${SELECT_FIELDS_SQL},
       CASE
         WHEN geom IS NOT NULL THEN ST_AsGeoJSON(geom)::json
         ELSE NULL
@@ -26,7 +53,13 @@ const getAllWaterBodies = async () => {
         ELSE lng
       END AS longitude
     FROM water_bodies
-    ORDER BY name ASC
+    ORDER BY
+      ${DEDUPE_KEY_SQL},
+      CASE WHEN geom IS NOT NULL THEN 0 ELSE 1 END,
+      ${ORDER_PRIORITY_SQL},
+      updated_at DESC NULLS LAST,
+      created_at DESC NULLS LAST,
+      id
   `);
 
   return q.rows;
@@ -35,17 +68,8 @@ const getAllWaterBodies = async () => {
 const searchWaterBodies = async (query) => {
   const q = await pool.query(
     `
-      SELECT
-        id,
-        name,
-        description,
-        type,
-        is_private,
-        owner_id,
-        price_per_day,
-        capacity,
-        is_reservable,
-        availability_notes,
+      SELECT DISTINCT ON (${DEDUPE_KEY_SQL})
+        ${SELECT_FIELDS_SQL},
         CASE
           WHEN geom IS NOT NULL THEN ST_AsGeoJSON(ST_SimplifyPreserveTopology(geom, 0.0001))::json
           ELSE NULL
@@ -64,14 +88,15 @@ const searchWaterBodies = async (query) => {
         OR description ILIKE $1
         OR type ILIKE $1
       ORDER BY
-        CASE
-          WHEN type IN ('lake', 'reservoir') THEN 0
-          ELSE 1
-        END,
-        name ASC
+        ${DEDUPE_KEY_SQL},
+        CASE WHEN geom IS NOT NULL THEN 0 ELSE 1 END,
+        ${ORDER_PRIORITY_SQL},
+        updated_at DESC NULLS LAST,
+        created_at DESC NULLS LAST,
+        id
       LIMIT 100
     `,
-    [`%${query}%`]
+    [`%${query}%`],
   );
 
   return q.rows;
@@ -84,7 +109,11 @@ const getWaterBodiesInBounds = async ({ west, south, east, north, zoom }) => {
   const parsedNorth = Number(north);
   const parsedZoom = Number(zoom);
 
-  if (![parsedWest, parsedSouth, parsedEast, parsedNorth, parsedZoom].every(Number.isFinite)) {
+  if (
+    ![parsedWest, parsedSouth, parsedEast, parsedNorth, parsedZoom].every(
+      Number.isFinite,
+    )
+  ) {
     throw new Error("Invalid bounds or zoom passed to getWaterBodiesInBounds");
   }
 
@@ -95,17 +124,8 @@ const getWaterBodiesInBounds = async ({ west, south, east, north, zoom }) => {
 
   const q = await pool.query(
     `
-      SELECT
-        id,
-        name,
-        description,
-        type,
-        is_private,
-        owner_id,
-        price_per_day,
-        capacity,
-        is_reservable,
-        availability_notes,
+      SELECT DISTINCT ON (${DEDUPE_KEY_SQL})
+        ${SELECT_FIELDS_SQL},
         CASE
           WHEN $5::numeric >= 10 AND geom IS NOT NULL
             THEN ST_AsGeoJSON(ST_SimplifyPreserveTopology(geom, 0.0001))::json
@@ -126,18 +146,19 @@ const getWaterBodiesInBounds = async ({ west, south, east, north, zoom }) => {
           ST_MakeEnvelope($1, $2, $3, $4, 4326)
         )
       ORDER BY
-        CASE
-          WHEN type IN ('lake', 'reservoir') THEN 0
-          ELSE 1
-        END,
-        name ASC
+        ${DEDUPE_KEY_SQL},
+        CASE WHEN geom IS NOT NULL THEN 0 ELSE 1 END,
+        ${ORDER_PRIORITY_SQL},
+        updated_at DESC NULLS LAST,
+        created_at DESC NULLS LAST,
+        id
       LIMIT CASE
         WHEN $5::numeric < 8 THEN 300
         WHEN $5::numeric < 10 THEN 600
         ELSE 1200
       END
     `,
-    [minWest, minSouth, maxEast, maxNorth, parsedZoom]
+    [minWest, minSouth, maxEast, maxNorth, parsedZoom],
   );
 
   return q.rows;
@@ -174,7 +195,7 @@ const getWaterBodyById = async (waterBodyId) => {
       FROM water_bodies
       WHERE id = $1
     `,
-    [waterBodyId]
+    [waterBodyId],
   );
 
   return q.rows[0] || null;
@@ -195,7 +216,7 @@ const getWaterBodyCentroid = async (waterBodyId) => {
       FROM water_bodies
       WHERE id = $1
     `,
-    [waterBodyId]
+    [waterBodyId],
   );
 
   return q.rows[0] || null;
