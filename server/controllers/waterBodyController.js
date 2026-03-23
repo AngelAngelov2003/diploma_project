@@ -30,6 +30,11 @@ const getWaterBodiesInBounds = async (req, res) => {
       east,
       north,
       zoom,
+      q: req.query.q || "",
+      sortBy: req.query.sortBy || "default",
+      userLat: req.query.userLat,
+      userLng: req.query.userLng,
+      distanceKm: req.query.distanceKm,
     });
 
     res.json(rows);

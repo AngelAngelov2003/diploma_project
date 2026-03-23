@@ -1,4 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import L from "leaflet";
 import api from "../api/client";
@@ -12,12 +18,12 @@ import {
   DEFAULT_DISTANCE_KM,
   dedupeLakesByNearbyMarkerPosition,
   getDistanceKm,
-  getDisplayDescription,
   getGeoOptions,
   getLocationErrorMessage,
-  getSortableLakeName,
   hasRenderableGeometry,
 } from "./fishingMapUtils";
+
+const BOUNDS_FETCH_DEBOUNCE_MS = 250;
 
 function FishingMap() {
   const [openingLakeFromRoute, setOpeningLakeFromRoute] = useState(false);
@@ -40,8 +46,10 @@ function FishingMap() {
   const [sliderDistanceKm, setSliderDistanceKm] = useState(DEFAULT_DISTANCE_KM);
   const [sortBy, setSortBy] = useState("default");
   const [mapUserLocation, setMapUserLocation] = useState(null);
-  const [shouldActivateDistanceAfterLocation, setShouldActivateDistanceAfterLocation] =
-    useState(false);
+  const [
+    shouldActivateDistanceAfterLocation,
+    setShouldActivateDistanceAfterLocation,
+  ] = useState(false);
   const [isCompactSidebar, setIsCompactSidebar] = useState(() =>
     typeof window !== "undefined" ? window.innerWidth <= 640 : false,
   );
@@ -51,8 +59,8 @@ function FishingMap() {
 
   const canUseDistanceSorting = Boolean(
     userLocation &&
-      Number.isFinite(userLocation.latitude) &&
-      Number.isFinite(userLocation.longitude),
+    Number.isFinite(userLocation.latitude) &&
+    Number.isFinite(userLocation.longitude),
   );
 
   const location = useLocation();
@@ -69,10 +77,19 @@ function FishingMap() {
   const routeLakeHandledRef = useRef(false);
   const latestBoundsRequestIdRef = useRef(0);
   const latestSearchRequestIdRef = useRef(0);
+  const boundsFetchTimerRef = useRef(null);
 
   useEffect(() => {
     routeLakeHandledRef.current = false;
   }, [normalizedLakeIdFromRoute]);
+
+  useEffect(() => {
+    return () => {
+      if (boundsFetchTimerRef.current) {
+        clearTimeout(boundsFetchTimerRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     const handleResize = () => {
@@ -145,6 +162,11 @@ function FishingMap() {
             east: bounds.getEast(),
             north: bounds.getNorth(),
             zoom,
+            q: searchTerm.trim() || undefined,
+            sortBy,
+            userLat: userLocation?.latitude,
+            userLng: userLocation?.longitude,
+            distanceKm: distanceKm !== "ALL" ? distanceKm : undefined,
           },
         });
 
@@ -162,7 +184,32 @@ function FishingMap() {
         }
       }
     },
-    [mapInstance, openingLakeFromRoute],
+    [
+      mapInstance,
+      openingLakeFromRoute,
+      searchTerm,
+      sortBy,
+      userLocation,
+      distanceKm,
+    ],
+  );
+
+  const scheduleBoundsFetch = useCallback(
+    ({ silent = true, immediate = false } = {}) => {
+      if (boundsFetchTimerRef.current) {
+        clearTimeout(boundsFetchTimerRef.current);
+      }
+
+      if (immediate) {
+        fetchWaterBodiesInBounds({ silent });
+        return;
+      }
+
+      boundsFetchTimerRef.current = setTimeout(() => {
+        fetchWaterBodiesInBounds({ silent });
+      }, BOUNDS_FETCH_DEBOUNCE_MS);
+    },
+    [fetchWaterBodiesInBounds],
   );
 
   const searchWaterBodiesGlobally = useCallback(async (query) => {
@@ -198,32 +245,57 @@ function FishingMap() {
   useEffect(() => {
     if (!mapInstance || openingLakeFromRoute) return;
 
-    fetchWaterBodiesInBounds({ silent: true });
+    scheduleBoundsFetch({ silent: true, immediate: true });
 
-    const handleMoveEnd = () => {
+    const handleMoveLikeEvent = () => {
       if (!openingLakeFromRoute) {
-        fetchWaterBodiesInBounds({ silent: true });
+        scheduleBoundsFetch({ silent: true, immediate: false });
       }
     };
 
-    mapInstance.on("moveend", handleMoveEnd);
-    mapInstance.on("zoomend", handleMoveEnd);
+    mapInstance.on("moveend", handleMoveLikeEvent);
+    mapInstance.on("zoomend", handleMoveLikeEvent);
 
     return () => {
-      mapInstance.off("moveend", handleMoveEnd);
-      mapInstance.off("zoomend", handleMoveEnd);
+      mapInstance.off("moveend", handleMoveLikeEvent);
+      mapInstance.off("zoomend", handleMoveLikeEvent);
     };
-  }, [mapInstance, fetchWaterBodiesInBounds, openingLakeFromRoute]);
+  }, [mapInstance, openingLakeFromRoute, scheduleBoundsFetch]);
+
+  useEffect(() => {
+    if (!mapInstance || openingLakeFromRoute) return;
+    scheduleBoundsFetch({ silent: true, immediate: true });
+  }, [
+    mapInstance,
+    openingLakeFromRoute,
+    searchTerm,
+    sortBy,
+    userLocation,
+    distanceKm,
+    scheduleBoundsFetch,
+  ]);
 
   useEffect(() => {
     if (!mapInstance || openingLakeFromRoute) return;
 
+    const trimmed = searchTerm.trim();
+
+    if (trimmed.length < 3) {
+      setSearchMatches([]);
+      return;
+    }
+
     const timer = setTimeout(() => {
-      searchWaterBodiesGlobally(searchTerm);
-    }, 350);
+      searchWaterBodiesGlobally(trimmed);
+    }, 600);
 
     return () => clearTimeout(timer);
-  }, [searchTerm, mapInstance, searchWaterBodiesGlobally, openingLakeFromRoute]);
+  }, [
+    searchTerm,
+    mapInstance,
+    searchWaterBodiesGlobally,
+    openingLakeFromRoute,
+  ]);
 
   useEffect(() => {
     const handleRouteLakeOpen = async () => {
@@ -329,116 +401,26 @@ function FishingMap() {
     }
   }, [canUseDistanceSorting, sortBy]);
 
-  const combinedLakes = useMemo(() => {
-    return dedupeById([...searchMatches, ...waterBodies]);
-  }, [searchMatches, waterBodies, dedupeById]);
+  const visibleLakes = waterBodies;
 
-  const enrichedLakes = useMemo(() => {
-    return combinedLakes.map((lake) => {
-      const lat = Number(lake.latitude);
-      const lng = Number(lake.longitude);
+  const globalSearchLakes = useMemo(() => {
+    const visibleIds = new Set(visibleLakes.map((lake) => String(lake.id)));
+    return searchMatches.filter((lake) => !visibleIds.has(String(lake.id)));
+  }, [searchMatches, visibleLakes]);
 
-      let computedDistanceKm = null;
-
-      if (
-        userLocation &&
-        Number.isFinite(lat) &&
-        Number.isFinite(lng) &&
-        Number.isFinite(userLocation.latitude) &&
-        Number.isFinite(userLocation.longitude)
-      ) {
-        computedDistanceKm = getDistanceKm(
-          userLocation.latitude,
-          userLocation.longitude,
-          lat,
-          lng,
-        );
-      }
-
-      return {
-        ...lake,
-        distanceKm: computedDistanceKm,
-      };
-    });
-  }, [combinedLakes, userLocation]);
-
-  const filteredLakes = useMemo(() => {
-    const q = searchTerm.trim().toLowerCase();
-
-    let result = enrichedLakes.filter((lake) => {
-      const displayDescription = getDisplayDescription(lake.description);
-
-      const matchesSearch =
-        !q ||
-        lake.name?.toLowerCase().includes(q) ||
-        displayDescription?.toLowerCase().includes(q) ||
-        lake.type?.toLowerCase().includes(q);
-
-      if (!matchesSearch) return false;
-
-      if (distanceKm !== "ALL") {
-        if (!Number.isFinite(lake.distanceKm)) return false;
-        return lake.distanceKm <= Number(distanceKm);
-      }
-
-      return true;
-    });
-
-    if (q) {
-      result = [...result].sort((a, b) => {
-        const aName = String(a.name || "").trim().toLowerCase();
-        const bName = String(b.name || "").trim().toLowerCase();
-        const aExact = aName === q ? 1 : 0;
-        const bExact = bName === q ? 1 : 0;
-        const aStarts = aName.startsWith(q) ? 1 : 0;
-        const bStarts = bName.startsWith(q) ? 1 : 0;
-        const aInSearch = searchMatches.some((m) => String(m.id) === String(a.id)) ? 1 : 0;
-        const bInSearch = searchMatches.some((m) => String(m.id) === String(b.id)) ? 1 : 0;
-
-        if (bExact !== aExact) return bExact - aExact;
-        if (bStarts !== aStarts) return bStarts - aStarts;
-        if (bInSearch !== aInSearch) return bInSearch - aInSearch;
-
-        return getSortableLakeName(a.name).localeCompare(
-          getSortableLakeName(b.name),
-          "bg",
-          {
-            sensitivity: "base",
-            numeric: true,
-          },
-        );
-      });
-    } else if (sortBy === "nearest" && canUseDistanceSorting) {
-      result = [...result].sort((a, b) => {
-        const aDistance = Number.isFinite(a.distanceKm)
-          ? a.distanceKm
-          : Number.POSITIVE_INFINITY;
-        const bDistance = Number.isFinite(b.distanceKm)
-          ? b.distanceKm
-          : Number.POSITIVE_INFINITY;
-
-        return aDistance - bDistance;
-      });
-    } else if (sortBy === "name") {
-      result = [...result].sort((a, b) =>
-        getSortableLakeName(a.name).localeCompare(
-          getSortableLakeName(b.name),
-          "bg",
-          {
-            sensitivity: "base",
-            numeric: true,
-          },
-        ),
-      );
+  const displayedLakes = useMemo(() => {
+    if (!searchTerm.trim()) {
+      return visibleLakes;
     }
 
-    return result;
-  }, [enrichedLakes, searchTerm, distanceKm, sortBy, canUseDistanceSorting, searchMatches]);
+    return dedupeById([...globalSearchLakes, ...visibleLakes]);
+  }, [searchTerm, globalSearchLakes, visibleLakes, dedupeById]);
 
   const geometryCount = useMemo(
     () =>
-      combinedLakes.filter((lake) => hasRenderableGeometry(lake.boundary)).length,
-    [combinedLakes],
+      visibleLakes.filter((lake) => hasRenderableGeometry(lake.boundary))
+        .length,
+    [visibleLakes],
   );
 
   const dedupeMarkersForCount = useCallback(
@@ -447,14 +429,11 @@ function FishingMap() {
   );
 
   const markerCount = useMemo(
-    () => dedupeMarkersForCount(combinedLakes).length,
-    [combinedLakes, dedupeMarkersForCount],
+    () => dedupeMarkersForCount(visibleLakes).length,
+    [visibleLakes, dedupeMarkersForCount],
   );
 
-  const visibleMarkerCount = useMemo(
-    () => dedupeMarkersForCount(filteredLakes).length,
-    [filteredLakes, dedupeMarkersForCount],
-  );
+  const visibleMarkerCount = markerCount;
 
   const handleLocateBulgaria = () => {
     if (!mapInstance) return;
@@ -606,7 +585,7 @@ function FishingMap() {
       <FishingMapSidebar
         isMobileSidebarOpen={isMobileSidebarOpen}
         setIsMobileSidebarOpen={setIsMobileSidebarOpen}
-        waterBodies={combinedLakes}
+        waterBodies={displayedLakes}
         markerCount={markerCount}
         geometryCount={geometryCount}
         searchTerm={searchTerm}
@@ -629,19 +608,19 @@ function FishingMap() {
         sliderDistanceKm={sliderDistanceKm}
         handleDistanceSliderChange={handleDistanceSliderChange}
         handleEnableDistanceFilter={handleEnableDistanceFilter}
-        filteredLakes={filteredLakes}
+        filteredLakes={displayedLakes}
         visibleMarkerCount={visibleMarkerCount}
         serverError={serverError}
         activeLake={activeLake}
         focusLake={focusLake}
         setDistanceKm={setDistanceKm}
-        searchMatchesCount={searchMatches.length}
+        searchMatchesCount={globalSearchLakes.length}
       />
 
       <FishingMapCanvas
         activeLake={activeLake}
         focusLake={focusLake}
-        filteredLakes={filteredLakes}
+        filteredLakes={visibleLakes}
         mapUserLocation={mapUserLocation}
         selectedLakeDistance={selectedLakeDistance}
         handleZoomToMyLocation={handleZoomToMyLocation}
