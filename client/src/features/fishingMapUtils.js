@@ -142,7 +142,8 @@ export const getLakeDisplayScore = (lake) => {
     String(lake?.type || "").toLowerCase(),
   );
   const isGenericName =
-    GENERIC_NAME_PATTERNS.some((re) => re.test(name)) || normalizedName.length < 2;
+    GENERIC_NAME_PATTERNS.some((re) => re.test(name)) ||
+    normalizedName.length < 2;
 
   let score = 0;
 
@@ -168,6 +169,7 @@ export const dedupeLakesByNearbyMarkerPosition = (
     .sort((a, b) => getLakeDisplayScore(b) - getLakeDisplayScore(a));
 
   const chosen = [];
+  const bucketMap = new Map();
 
   const normalizeType = (value) =>
     String(value || "")
@@ -190,6 +192,28 @@ export const dedupeLakesByNearbyMarkerPosition = (
         "reservoir",
       ].includes(n)
     );
+  };
+
+  const getCellSizeDegrees = () => Math.max(thresholdMeters / 111320, 0.0006);
+
+  const getBucketKey = (lat, lng, cellSizeDeg) => {
+    const row = Math.floor(lat / cellSizeDeg);
+    const col = Math.floor(lng / cellSizeDeg);
+    return `${row}:${col}`;
+  };
+
+  const getNeighborKeys = (lat, lng, cellSizeDeg) => {
+    const row = Math.floor(lat / cellSizeDeg);
+    const col = Math.floor(lng / cellSizeDeg);
+    const keys = [];
+
+    for (let r = row - 1; r <= row + 1; r += 1) {
+      for (let c = col - 1; c <= col + 1; c += 1) {
+        keys.push(`${r}:${c}`);
+      }
+    }
+
+    return keys;
   };
 
   const isLikelySameLake = (a, b) => {
@@ -244,18 +268,43 @@ export const dedupeLakesByNearbyMarkerPosition = (
     return false;
   };
 
+  const cellSizeDeg = getCellSizeDegrees();
+
   for (const lake of sorted) {
-    const duplicate = chosen.some((picked) => isLikelySameLake(lake, picked));
+    const lat = Number(lake.latitude);
+    const lng = Number(lake.longitude);
+
+    const candidatePicks = getNeighborKeys(lat, lng, cellSizeDeg)
+      .flatMap((key) => bucketMap.get(key) || []);
+
+    const duplicate = candidatePicks.some((picked) =>
+      isLikelySameLake(lake, picked),
+    );
+
     if (!duplicate) {
       chosen.push(lake);
+
+      const ownKey = getBucketKey(lat, lng, cellSizeDeg);
+      if (!bucketMap.has(ownKey)) {
+        bucketMap.set(ownKey, []);
+      }
+      bucketMap.get(ownKey).push(lake);
     }
   }
 
   return chosen;
 };
 
-export const createLakeIcon = (selected, hovered = false) =>
-  L.divIcon({
+const lakeIconCache = new Map();
+
+export const createLakeIcon = (selected, hovered = false) => {
+  const cacheKey = `${selected ? "selected" : "default"}-${hovered ? "hovered" : "normal"}`;
+
+  if (lakeIconCache.has(cacheKey)) {
+    return lakeIconCache.get(cacheKey);
+  }
+
+  const icon = L.divIcon({
     className: "",
     html: `
       <div style="
@@ -298,8 +347,16 @@ export const createLakeIcon = (selected, hovered = false) =>
     popupAnchor: [0, -30],
   });
 
-export const createUserLocationIcon = () =>
-  L.divIcon({
+  lakeIconCache.set(cacheKey, icon);
+  return icon;
+};
+
+let cachedUserLocationIcon = null;
+
+export const createUserLocationIcon = () => {
+  if (cachedUserLocationIcon) return cachedUserLocationIcon;
+
+  cachedUserLocationIcon = L.divIcon({
     className: "user-location-icon",
     html: `
       <div class="user-location-marker">
@@ -313,8 +370,17 @@ export const createUserLocationIcon = () =>
     iconAnchor: [22, 22],
   });
 
+  return cachedUserLocationIcon;
+};
+
+const clusterIconCache = new Map();
+
 export const createClusterCustomIcon = (cluster) => {
   const count = cluster.getChildCount();
+
+  if (clusterIconCache.has(count)) {
+    return clusterIconCache.get(count);
+  }
 
   let size = 42;
   let fontSize = 13;
@@ -334,7 +400,7 @@ export const createClusterCustomIcon = (cluster) => {
     fontSize = 16;
   }
 
-  return L.divIcon({
+  const icon = L.divIcon({
     html: `
       <div style="
         width:${size}px;
@@ -356,6 +422,9 @@ export const createClusterCustomIcon = (cluster) => {
     className: "custom-marker-cluster",
     iconSize: L.point(size, size, true),
   });
+
+  clusterIconCache.set(count, icon);
+  return icon;
 };
 
 export const getLocationErrorMessage = (error) => {

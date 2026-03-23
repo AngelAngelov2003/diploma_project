@@ -16,7 +16,6 @@ import {
   BULGARIA_CENTER,
   BULGARIA_ZOOM,
   DEFAULT_DISTANCE_KM,
-  dedupeLakesByNearbyMarkerPosition,
   getDistanceKm,
   getGeoOptions,
   getLocationErrorMessage,
@@ -24,6 +23,8 @@ import {
 } from "./fishingMapUtils";
 
 const BOUNDS_FETCH_DEBOUNCE_MS = 250;
+const SEARCH_FETCH_DEBOUNCE_MS = 600;
+const ROUTE_OPEN_RELEASE_DELAY_MS = 1200;
 
 function FishingMap() {
   const [openingLakeFromRoute, setOpeningLakeFromRoute] = useState(false);
@@ -59,8 +60,8 @@ function FishingMap() {
 
   const canUseDistanceSorting = Boolean(
     userLocation &&
-    Number.isFinite(userLocation.latitude) &&
-    Number.isFinite(userLocation.longitude),
+      Number.isFinite(userLocation.latitude) &&
+      Number.isFinite(userLocation.longitude),
   );
 
   const location = useLocation();
@@ -78,6 +79,10 @@ function FishingMap() {
   const latestBoundsRequestIdRef = useRef(0);
   const latestSearchRequestIdRef = useRef(0);
   const boundsFetchTimerRef = useRef(null);
+  const searchFetchTimerRef = useRef(null);
+  const routeReleaseTimerRef = useRef(null);
+  const boundsAbortControllerRef = useRef(null);
+  const searchAbortControllerRef = useRef(null);
 
   useEffect(() => {
     routeLakeHandledRef.current = false;
@@ -87,6 +92,18 @@ function FishingMap() {
     return () => {
       if (boundsFetchTimerRef.current) {
         clearTimeout(boundsFetchTimerRef.current);
+      }
+      if (searchFetchTimerRef.current) {
+        clearTimeout(searchFetchTimerRef.current);
+      }
+      if (routeReleaseTimerRef.current) {
+        clearTimeout(routeReleaseTimerRef.current);
+      }
+      if (boundsAbortControllerRef.current) {
+        boundsAbortControllerRef.current.abort();
+      }
+      if (searchAbortControllerRef.current) {
+        searchAbortControllerRef.current.abort();
       }
     };
   }, []);
@@ -105,6 +122,16 @@ function FishingMap() {
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
+  const releaseRouteOpeningState = useCallback(() => {
+    if (routeReleaseTimerRef.current) {
+      clearTimeout(routeReleaseTimerRef.current);
+    }
+
+    routeReleaseTimerRef.current = setTimeout(() => {
+      setOpeningLakeFromRoute(false);
+    }, ROUTE_OPEN_RELEASE_DELAY_MS);
+  }, []);
+
   const focusLake = useCallback(
     (lake) => {
       if (!lake) return;
@@ -112,13 +139,16 @@ function FishingMap() {
       setActiveLake(lake);
       setIsMobileSidebarOpen(false);
 
+      const latitude = Number(lake.latitude);
+      const longitude = Number(lake.longitude);
+
       if (
         mapInstance &&
-        Number.isFinite(Number(lake.latitude)) &&
-        Number.isFinite(Number(lake.longitude))
+        Number.isFinite(latitude) &&
+        Number.isFinite(longitude)
       ) {
         mapInstance.flyTo(
-          [Number(lake.latitude), Number(lake.longitude)],
+          [latitude, longitude],
           Math.max(mapInstance.getZoom(), 11),
           { duration: 1.2 },
         );
@@ -151,6 +181,13 @@ function FishingMap() {
       const bounds = mapInstance.getBounds();
       const zoom = mapInstance.getZoom();
 
+      if (boundsAbortControllerRef.current) {
+        boundsAbortControllerRef.current.abort();
+      }
+
+      const abortController = new AbortController();
+      boundsAbortControllerRef.current = abortController;
+
       setLoadingWaterBodies(true);
       setServerError(null);
 
@@ -168,18 +205,24 @@ function FishingMap() {
             userLng: userLocation?.longitude,
             distanceKm: distanceKm !== "ALL" ? distanceKm : undefined,
           },
+          signal: abortController.signal,
         });
 
         if (requestId !== latestBoundsRequestIdRef.current) return;
         setWaterBodies(res.data || []);
       } catch (err) {
+        if (abortController.signal.aborted) return;
         if (requestId !== latestBoundsRequestIdRef.current) return;
+
         setServerError("Failed to load water bodies in bounds");
         if (!silent) {
           notifyError(err, "Failed to load water bodies in bounds");
         }
       } finally {
-        if (requestId === latestBoundsRequestIdRef.current) {
+        if (
+          requestId === latestBoundsRequestIdRef.current &&
+          !abortController.signal.aborted
+        ) {
           setLoadingWaterBodies(false);
         }
       }
@@ -221,25 +264,59 @@ function FishingMap() {
     }
 
     const requestId = ++latestSearchRequestIdRef.current;
+
+    if (searchAbortControllerRef.current) {
+      searchAbortControllerRef.current.abort();
+    }
+
+    const abortController = new AbortController();
+    searchAbortControllerRef.current = abortController;
+
     setLoadingSearchMatches(true);
     setServerError(null);
 
     try {
       const res = await api.get("/water-bodies/search", {
         params: { q: trimmed },
+        signal: abortController.signal,
       });
 
       if (requestId !== latestSearchRequestIdRef.current) return;
       setSearchMatches(res.data || []);
     } catch (err) {
+      if (abortController.signal.aborted) return;
       if (requestId !== latestSearchRequestIdRef.current) return;
+
       setServerError("Search failed");
       notifyError(err, "Search failed");
     } finally {
-      if (requestId === latestSearchRequestIdRef.current) {
+      if (
+        requestId === latestSearchRequestIdRef.current &&
+        !abortController.signal.aborted
+      ) {
         setLoadingSearchMatches(false);
       }
     }
+  }, []);
+
+  const getCurrentUserLocation = useCallback(() => {
+    return new Promise((resolve, reject) => {
+      if (!navigator.geolocation) {
+        reject(new Error("Geolocation is not supported in this browser"));
+        return;
+      }
+
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          resolve({
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+          });
+        },
+        (error) => reject(error),
+        getGeoOptions(),
+      );
+    });
   }, []);
 
   useEffect(() => {
@@ -280,16 +357,28 @@ function FishingMap() {
 
     const trimmed = searchTerm.trim();
 
+    if (searchFetchTimerRef.current) {
+      clearTimeout(searchFetchTimerRef.current);
+    }
+
     if (trimmed.length < 3) {
+      if (searchAbortControllerRef.current) {
+        searchAbortControllerRef.current.abort();
+      }
       setSearchMatches([]);
+      setLoadingSearchMatches(false);
       return;
     }
 
-    const timer = setTimeout(() => {
+    searchFetchTimerRef.current = setTimeout(() => {
       searchWaterBodiesGlobally(trimmed);
-    }, 600);
+    }, SEARCH_FETCH_DEBOUNCE_MS);
 
-    return () => clearTimeout(timer);
+    return () => {
+      if (searchFetchTimerRef.current) {
+        clearTimeout(searchFetchTimerRef.current);
+      }
+    };
   }, [
     searchTerm,
     mapInstance,
@@ -312,11 +401,7 @@ function FishingMap() {
         setSearchTerm("");
         focusLake(existing);
         navigate(location.pathname, { replace: true, state: {} });
-
-        setTimeout(() => {
-          setOpeningLakeFromRoute(false);
-        }, 1200);
-
+        releaseRouteOpeningState();
         return;
       }
 
@@ -340,10 +425,7 @@ function FishingMap() {
 
         focusLake(exactLake);
         navigate(location.pathname, { replace: true, state: {} });
-
-        setTimeout(() => {
-          setOpeningLakeFromRoute(false);
-        }, 1200);
+        releaseRouteOpeningState();
       } catch (err) {
         notifyError(err, "Failed to open the selected lake");
         setOpeningLakeFromRoute(false);
@@ -361,6 +443,7 @@ function FishingMap() {
     focusLake,
     navigate,
     location.pathname,
+    releaseRouteOpeningState,
   ]);
 
   useEffect(() => {
@@ -423,124 +506,115 @@ function FishingMap() {
     [visibleLakes],
   );
 
-  const dedupeMarkersForCount = useCallback(
-    (lakes) => dedupeLakesByNearbyMarkerPosition(lakes, 250),
-    [],
-  );
-
   const markerCount = useMemo(
-    () => dedupeMarkersForCount(visibleLakes).length,
-    [visibleLakes, dedupeMarkersForCount],
+    () =>
+      visibleLakes.filter(
+        (lake) =>
+          Number.isFinite(Number(lake?.latitude)) &&
+          Number.isFinite(Number(lake?.longitude)),
+      ).length,
+    [visibleLakes],
   );
 
   const visibleMarkerCount = markerCount;
 
-  const handleLocateBulgaria = () => {
+  const handleLocateBulgaria = useCallback(() => {
     if (!mapInstance) return;
+
     setSearchTerm("");
     setSearchMatches([]);
     setActiveLake(null);
     mapInstance.flyTo(BULGARIA_CENTER, BULGARIA_ZOOM, { duration: 1.2 });
-  };
+  }, [mapInstance]);
 
-  const handleUseMyLocation = () => {
-    if (!navigator.geolocation) {
-      const message = "Geolocation is not supported in this browser";
-      setLocationError(message);
-      notifyError(null, message);
-      return;
-    }
+  const handleUseMyLocation = useCallback(async () => {
+    try {
+      setLocationLoading(true);
+      setLocationError("");
 
-    setLocationLoading(true);
-    setLocationError("");
+      const nextLocation = await getCurrentUserLocation();
 
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const nextLocation = {
-          latitude: position.coords.latitude,
-          longitude: position.coords.longitude,
-        };
+      setUserLocation(nextLocation);
+      setMapUserLocation(nextLocation);
 
-        setUserLocation(nextLocation);
-        setMapUserLocation(nextLocation);
-        setLocationLoading(false);
-
-        if (shouldActivateDistanceAfterLocation) {
-          setDistanceKm(String(sliderDistanceKm || DEFAULT_DISTANCE_KM));
-          setShouldActivateDistanceAfterLocation(false);
-          notifySuccess("Location detected and distance filter activated");
-        } else {
-          notifySuccess("Location detected. Nearest sorting is now available.");
-        }
-      },
-      (error) => {
-        const message = getLocationErrorMessage(error);
-        setLocationError(message);
-        setLocationLoading(false);
+      if (shouldActivateDistanceAfterLocation) {
+        setDistanceKm(String(sliderDistanceKm || DEFAULT_DISTANCE_KM));
         setShouldActivateDistanceAfterLocation(false);
-        notifyError(null, message);
-      },
-      getGeoOptions(),
-    );
-  };
+        notifySuccess("Location detected and distance filter activated");
+      } else {
+        notifySuccess("Location detected. Nearest sorting is now available.");
+      }
+    } catch (error) {
+      const message =
+        error?.message === "Geolocation is not supported in this browser"
+          ? error.message
+          : getLocationErrorMessage(error);
 
-  const handleZoomToMyLocation = () => {
-    if (!navigator.geolocation) {
-      notifyError(null, "Geolocation is not supported in this browser");
-      return;
+      setLocationError(message);
+      setShouldActivateDistanceAfterLocation(false);
+      notifyError(null, message);
+    } finally {
+      setLocationLoading(false);
     }
+  }, [
+    getCurrentUserLocation,
+    shouldActivateDistanceAfterLocation,
+    sliderDistanceKm,
+  ]);
 
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const nextLocation = {
-          latitude: position.coords.latitude,
-          longitude: position.coords.longitude,
-        };
+  const handleZoomToMyLocation = useCallback(async () => {
+    try {
+      const nextLocation = await getCurrentUserLocation();
 
-        setMapUserLocation(nextLocation);
-        setUserLocation(nextLocation);
-        setSearchTerm("");
-        setSearchMatches([]);
-        setActiveLake(null);
+      setMapUserLocation(nextLocation);
+      setUserLocation(nextLocation);
+      setSearchTerm("");
+      setSearchMatches([]);
+      setActiveLake(null);
 
-        if (mapInstance) {
-          const userLatLng = L.latLng(
-            nextLocation.latitude,
-            nextLocation.longitude,
-          );
+      if (mapInstance) {
+        const userLatLng = L.latLng(
+          nextLocation.latitude,
+          nextLocation.longitude,
+        );
 
-          const focusBounds = L.latLngBounds(
-            [userLatLng.lat - 0.035, userLatLng.lng - 0.035],
-            [userLatLng.lat + 0.035, userLatLng.lng + 0.035],
-          );
+        const focusBounds = L.latLngBounds(
+          [userLatLng.lat - 0.035, userLatLng.lng - 0.035],
+          [userLatLng.lat + 0.035, userLatLng.lng + 0.035],
+        );
 
-          mapInstance.flyTo(userLatLng, 13, { duration: 1.2 });
+        mapInstance.flyTo(userLatLng, 13, { duration: 1.2 });
 
-          setTimeout(() => {
-            mapInstance.fitBounds(focusBounds, {
-              padding: [60, 60],
-              maxZoom: 13,
-            });
-          }, 250);
-        }
-      },
-      (error) => {
-        notifyError(null, getLocationErrorMessage(error));
-      },
-      getGeoOptions(),
-    );
-  };
+        setTimeout(() => {
+          mapInstance.fitBounds(focusBounds, {
+            padding: [60, 60],
+            maxZoom: 13,
+          });
+        }, 250);
+      }
+    } catch (error) {
+      const message =
+        error?.message === "Geolocation is not supported in this browser"
+          ? error.message
+          : getLocationErrorMessage(error);
 
-  const handleDistanceSliderChange = (e) => {
-    const nextValue = Number(e.target.value);
-    setSliderDistanceKm(nextValue);
-
-    if (distanceKm !== "ALL" && userLocation) {
-      setDistanceKm(String(nextValue));
+      notifyError(null, message);
     }
-  };
+  }, [getCurrentUserLocation, mapInstance]);
 
-  const handleEnableDistanceFilter = () => {
+  const handleDistanceSliderChange = useCallback(
+    (e) => {
+      const nextValue = Number(e.target.value);
+      setSliderDistanceKm(nextValue);
+
+      if (distanceKm !== "ALL" && userLocation) {
+        setDistanceKm(String(nextValue));
+      }
+    },
+    [distanceKm, userLocation],
+  );
+
+  const handleEnableDistanceFilter = useCallback(() => {
     if (!userLocation) {
       setShouldActivateDistanceAfterLocation(true);
       handleUseMyLocation();
@@ -548,9 +622,9 @@ function FishingMap() {
     }
 
     setDistanceKm(String(sliderDistanceKm));
-  };
+  }, [userLocation, handleUseMyLocation, sliderDistanceKm]);
 
-  const clearDistanceFilter = () => {
+  const clearDistanceFilter = useCallback(() => {
     setUserLocation(null);
     setMapUserLocation(null);
     setLocationError("");
@@ -560,7 +634,7 @@ function FishingMap() {
     if (sortBy === "nearest") {
       setSortBy("default");
     }
-  };
+  }, [sortBy]);
 
   const selectedLakeDistance = useMemo(() => {
     if (!activeLake || !userLocation) return null;

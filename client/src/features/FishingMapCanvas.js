@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { lazy, memo, Suspense, useMemo, useState } from "react";
 import {
   Circle,
   GeoJSON,
@@ -13,7 +13,6 @@ import "react-leaflet-markercluster/styles";
 import { FaLocationArrow, FaTimes } from "react-icons/fa";
 import L from "leaflet";
 import MapRecenter from "../components/MapRecenter";
-import LakePopup from "./LakePopUp";
 import {
   BULGARIA_CENTER,
   BULGARIA_ZOOM,
@@ -24,10 +23,10 @@ import {
   formatDistance,
   getDisplayDescription,
   hasRenderableGeometry,
-  shouldRenderGeometryByZoom,
-  simplifyGeometry,
   truncate,
 } from "./fishingMapUtils";
+
+const LakePopup = lazy(() => import("./LakePopUp"));
 
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
@@ -45,6 +44,8 @@ function ZoomTracker({ onZoomChange }) {
 
   return null;
 }
+
+const MemoZoomTracker = memo(ZoomTracker);
 
 function FishingMapCanvas({
   activeLake,
@@ -64,49 +65,107 @@ function FishingMapCanvas({
   const [zoom, setZoom] = useState(BULGARIA_ZOOM);
   const overlayOpen = Boolean(activeLake);
 
-  const geometryLakes = useMemo(() => {
-    if (!shouldRenderGeometryByZoom(zoom)) return [];
+  const activeLakeId =
+    activeLake?.id === undefined || activeLake?.id === null
+      ? null
+      : String(activeLake.id);
 
-    return filteredLakes
-      .filter((lake) => hasRenderableGeometry(lake.boundary))
-      .map((lake) => ({
-        ...lake,
-        simplifiedBoundary: simplifyGeometry(lake.boundary, zoom),
-      }));
-  }, [filteredLakes, zoom]);
+  const activeLakeDedupeKey =
+    activeLake?.dedupe_key === undefined || activeLake?.dedupe_key === null
+      ? null
+      : String(activeLake.dedupe_key);
+
+  const defaultLakeIcon = useMemo(() => createLakeIcon(false), []);
+  const selectedLakeIcon = useMemo(() => createLakeIcon(true), []);
+  const userLocationIcon = useMemo(() => createUserLocationIcon(), []);
+
+  const geometryLakes = useMemo(() => {
+    const lakesWithGeometry = filteredLakes.filter((lake) =>
+      hasRenderableGeometry(lake.boundary),
+    );
+
+    if (zoom < 11) return [];
+
+    if (zoom < 13) {
+      if (!activeLakeId && !activeLakeDedupeKey) return [];
+
+      return lakesWithGeometry.filter((lake) => {
+        const sameId = activeLakeId && String(lake.id) === activeLakeId;
+        const sameDedupeKey =
+          activeLakeDedupeKey &&
+          lake.dedupe_key !== undefined &&
+          lake.dedupe_key !== null &&
+          String(lake.dedupe_key) === activeLakeDedupeKey;
+
+        return sameId || sameDedupeKey;
+      });
+    }
+
+    return lakesWithGeometry;
+  }, [filteredLakes, zoom, activeLakeId, activeLakeDedupeKey]);
 
   const markerLakes = useMemo(() => {
-    const lakesWithCoordinates = filteredLakes.filter(
-      (lake) =>
-        Number.isFinite(Number(lake.latitude)) &&
-        Number.isFinite(Number(lake.longitude)),
-    );
+    const lakesWithCoordinates = filteredLakes
+      .map((lake) => {
+        const latitude = Number(lake.latitude);
+        const longitude = Number(lake.longitude);
+
+        if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+          return null;
+        }
+
+        return {
+          ...lake,
+          latitude,
+          longitude,
+        };
+      })
+      .filter(Boolean);
 
     return dedupeLakesByNearbyMarkerPosition(lakesWithCoordinates, 90);
   }, [filteredLakes]);
 
-  const selectedLakeIds = useMemo(() => {
-    const ids = new Set();
-    if (activeLake?.id !== undefined && activeLake?.id !== null) {
-      ids.add(String(activeLake.id));
-    }
-    return ids;
-  }, [activeLake]);
-
   const clusterMarkerLakes = useMemo(() => {
-    return markerLakes.filter((lake) => !selectedLakeIds.has(String(lake.id)));
-  }, [markerLakes, selectedLakeIds]);
+    if (!activeLakeId && !activeLakeDedupeKey) return markerLakes;
+
+    return markerLakes.filter((lake) => {
+      const sameId = activeLakeId && String(lake.id) === activeLakeId;
+      const sameDedupeKey =
+        activeLakeDedupeKey &&
+        lake.dedupe_key !== undefined &&
+        lake.dedupe_key !== null &&
+        String(lake.dedupe_key) === activeLakeDedupeKey;
+
+      return !sameId && !sameDedupeKey;
+    });
+  }, [markerLakes, activeLakeId, activeLakeDedupeKey]);
 
   const topLevelMarkerLakes = useMemo(() => {
-    return markerLakes.filter((lake) => selectedLakeIds.has(String(lake.id)));
-  }, [markerLakes, selectedLakeIds]);
+    if (!activeLakeId && !activeLakeDedupeKey) return [];
+
+    return markerLakes.filter((lake) => {
+      const sameId = activeLakeId && String(lake.id) === activeLakeId;
+      const sameDedupeKey =
+        activeLakeDedupeKey &&
+        lake.dedupe_key !== undefined &&
+        lake.dedupe_key !== null &&
+        String(lake.dedupe_key) === activeLakeDedupeKey;
+
+      return sameId || sameDedupeKey;
+    });
+  }, [markerLakes, activeLakeId, activeLakeDedupeKey]);
 
   const markerClusterKey = useMemo(() => {
     return clusterMarkerLakes
-      .map((lake) => lake.id)
+      .map((lake) => `${lake.id}:${lake.latitude}:${lake.longitude}`)
       .sort()
       .join("|");
   }, [clusterMarkerLakes]);
+
+  const selectedPreviewDescription = useMemo(() => {
+    if (!activeLake) return "";
+    return truncate(getDisplayDescription(activeLake.description), 110);
+  }, [activeLake]);
 
   return (
     <section className="map-main-panel">
@@ -120,7 +179,7 @@ function FishingMapCanvas({
           setMapReady(true);
         }}
       >
-        <ZoomTracker onZoomChange={setZoom} />
+        <MemoZoomTracker onZoomChange={setZoom} />
         <MapRecenter activeLake={activeLake} />
 
         <TileLayer
@@ -134,12 +193,17 @@ function FishingMapCanvas({
         />
 
         {geometryLakes.map((lake) => {
-          const isSelected = activeLake?.id === lake.id;
+          const isSelected =
+            (activeLakeId && String(lake.id) === activeLakeId) ||
+            (activeLakeDedupeKey &&
+              lake.dedupe_key !== undefined &&
+              lake.dedupe_key !== null &&
+              String(lake.dedupe_key) === activeLakeDedupeKey);
 
           return (
             <GeoJSON
               key={`geometry-${lake.id}`}
-              data={lake.simplifiedBoundary}
+              data={lake.boundary}
               style={() => ({
                 color: isSelected ? "#0f172a" : "#2563eb",
                 fillColor: isSelected ? "#38bdf8" : "#60a5fa",
@@ -168,8 +232,8 @@ function FishingMapCanvas({
           {clusterMarkerLakes.map((lake) => (
             <Marker
               key={`cluster-marker-${lake.id}`}
-              position={[Number(lake.latitude), Number(lake.longitude)]}
-              icon={createLakeIcon(false)}
+              position={[lake.latitude, lake.longitude]}
+              icon={defaultLakeIcon}
               eventHandlers={{
                 click: () => focusLake(lake),
               }}
@@ -177,21 +241,17 @@ function FishingMapCanvas({
           ))}
         </MarkerClusterGroup>
 
-        {topLevelMarkerLakes.map((lake) => {
-          const isSelected = activeLake?.id === lake.id;
-
-          return (
-            <Marker
-              key={`top-marker-${lake.id}`}
-              position={[Number(lake.latitude), Number(lake.longitude)]}
-              icon={createLakeIcon(isSelected)}
-              zIndexOffset={isSelected ? 2000 : 1500}
-              eventHandlers={{
-                click: () => focusLake(lake),
-              }}
-            />
-          );
-        })}
+        {topLevelMarkerLakes.map((lake) => (
+          <Marker
+            key={`top-marker-${lake.id}`}
+            position={[lake.latitude, lake.longitude]}
+            icon={selectedLakeIcon}
+            zIndexOffset={2000}
+            eventHandlers={{
+              click: () => focusLake(lake),
+            }}
+          />
+        ))}
 
         {mapUserLocation && (
           <>
@@ -217,7 +277,7 @@ function FishingMapCanvas({
             />
             <Marker
               position={[mapUserLocation.latitude, mapUserLocation.longitude]}
-              icon={createUserLocationIcon()}
+              icon={userLocationIcon}
               zIndexOffset={2000}
             />
           </>
@@ -240,9 +300,7 @@ function FishingMapCanvas({
 
         {activeLake && (
           <button
-            onClick={() => {
-              setActiveLake(null);
-            }}
+            onClick={() => setActiveLake(null)}
             className="map-floating-button secondary"
           >
             <FaTimes />
@@ -256,7 +314,7 @@ function FishingMapCanvas({
           <div className="map-selected-preview-label">Selected location</div>
           <div className="map-selected-preview-title">{activeLake.name}</div>
           <div className="map-selected-preview-text">
-            {truncate(getDisplayDescription(activeLake.description), 110)}
+            {selectedPreviewDescription}
           </div>
           {selectedLakeDistance !== null && (
             <div className="map-selected-preview-distance">
@@ -282,7 +340,16 @@ function FishingMapCanvas({
             >
               ×
             </button>
-            <LakePopup lake={activeLake} map={mapInstance} />
+
+            <Suspense
+              fallback={
+                <div style={{ padding: 24, textAlign: "center" }}>
+                  Loading lake details...
+                </div>
+              }
+            >
+              <LakePopup lake={activeLake} map={mapInstance} />
+            </Suspense>
           </div>
         </div>
       )}
@@ -290,4 +357,4 @@ function FishingMapCanvas({
   );
 }
 
-export default FishingMapCanvas;
+export default memo(FishingMapCanvas);

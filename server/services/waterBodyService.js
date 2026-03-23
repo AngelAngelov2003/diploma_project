@@ -1,7 +1,5 @@
 const pool = require("../db");
 
-const DEDUPE_KEY_SQL = `dedupe_key`;
-
 const BASE_FIELDS_SQL = `
   id,
   name,
@@ -11,7 +9,8 @@ const BASE_FIELDS_SQL = `
   price_per_day,
   capacity,
   is_reservable,
-  availability_notes
+  availability_notes,
+  dedupe_key
 `;
 
 const ORDER_PRIORITY_SQL = `
@@ -21,26 +20,33 @@ const ORDER_PRIORITY_SQL = `
   END
 `;
 
-const DISPLAY_LAT_SQL = `display_lat`;
-const DISPLAY_LNG_SQL = `display_lng`;
+const GEOMETRY_SIMPLIFICATION_SQL = `
+  CASE
+    WHEN $5::numeric >= 15 THEN 0.00003
+    WHEN $5::numeric >= 14 THEN 0.00008
+    WHEN $5::numeric >= 13 THEN 0.00018
+    WHEN $5::numeric >= 12 THEN 0.00045
+    ELSE 0.00100
+  END
+`;
+
+const LOW_ZOOM_MARKER_CUTOFF = 11;
 
 const getAllWaterBodies = async () => {
   const q = await pool.query(`
-    SELECT DISTINCT ON (${DEDUPE_KEY_SQL})
+    SELECT
       ${BASE_FIELDS_SQL},
       description,
       CASE
         WHEN geom IS NOT NULL THEN ST_AsGeoJSON(geom)::json
         ELSE NULL
       END AS boundary,
-      ${DISPLAY_LAT_SQL} AS latitude,
-      ${DISPLAY_LNG_SQL} AS longitude
-    FROM water_bodies
-    WHERE ${DEDUPE_KEY_SQL} IS NOT NULL
+      latitude,
+      longitude
+    FROM water_bodies_map_mv
     ORDER BY
-      ${DEDUPE_KEY_SQL},
-      CASE WHEN geom IS NOT NULL THEN 0 ELSE 1 END,
       ${ORDER_PRIORITY_SQL},
+      CASE WHEN geom IS NOT NULL THEN 0 ELSE 1 END,
       updated_at DESC NULLS LAST,
       created_at DESC NULLS LAST,
       id
@@ -54,22 +60,18 @@ const searchWaterBodies = async (query) => {
 
   const q = await pool.query(
     `
-      SELECT DISTINCT ON (${DEDUPE_KEY_SQL})
+      SELECT
         ${BASE_FIELDS_SQL},
         description,
         NULL AS boundary,
-        ${DISPLAY_LAT_SQL} AS latitude,
-        ${DISPLAY_LNG_SQL} AS longitude
-      FROM water_bodies
+        latitude,
+        longitude
+      FROM water_bodies_map_mv
       WHERE
-        ${DEDUPE_KEY_SQL} IS NOT NULL
-        AND (
-          name ILIKE $1
-          OR description ILIKE $1
-          OR type ILIKE $1
-        )
+        name ILIKE $1
+        OR description ILIKE $1
+        OR type ILIKE $1
       ORDER BY
-        ${DEDUPE_KEY_SQL},
         CASE
           WHEN LOWER(TRIM(name)) = LOWER(TRIM($2)) THEN 0
           WHEN LOWER(name) LIKE LOWER($3) THEN 1
@@ -139,6 +141,7 @@ const getWaterBodiesInBounds = async ({
 
   const trimmedQuery = String(q || "").trim();
   const normalizedSortBy = String(sortBy || "default").trim().toLowerCase();
+  const useMarkerView = parsedZoom < LOW_ZOOM_MARKER_CUTOFF;
 
   const params = [
     minWest,
@@ -152,67 +155,118 @@ const getWaterBodiesInBounds = async ({
     parsedDistanceKm,
   ];
 
+  const sourceView = useMarkerView
+    ? "water_bodies_marker_mv"
+    : "water_bodies_map_mv";
+
+  const sourceHasGeom = !useMarkerView;
+
+  const sourceBoundingCondition = sourceHasGeom
+    ? `
+        (
+          (
+            wb.geom IS NOT NULL
+            AND wb.geom && e.geom
+            AND ST_Intersects(wb.geom, e.geom)
+          )
+          OR (
+            wb.geom IS NULL
+            AND wb.longitude IS NOT NULL
+            AND wb.latitude IS NOT NULL
+            AND wb.longitude BETWEEN $1 AND $3
+            AND wb.latitude BETWEEN $2 AND $4
+          )
+        )
+      `
+    : `
+        wb.longitude IS NOT NULL
+        AND wb.latitude IS NOT NULL
+        AND wb.longitude BETWEEN $1 AND $3
+        AND wb.latitude BETWEEN $2 AND $4
+      `;
+
+  const boundarySelectSql = sourceHasGeom
+    ? `
+        CASE
+          WHEN $5::numeric >= 11 AND geom IS NOT NULL
+            THEN ST_AsGeoJSON(
+              ST_SimplifyPreserveTopology(geom, ${GEOMETRY_SIMPLIFICATION_SQL})
+            )::json
+          ELSE NULL
+        END AS boundary,
+      `
+    : `
+        NULL AS boundary,
+      `;
+
+  const descriptionSelectSql = useMarkerView
+    ? `
+        CASE
+          WHEN $5::numeric >= 9 THEN description
+          ELSE NULL
+        END AS description,
+      `
+    : `
+        CASE
+          WHEN $5::numeric >= 9 THEN description
+          ELSE NULL
+        END AS description,
+      `;
+
+  const geomOrderSql = sourceHasGeom
+    ? `CASE WHEN geom IS NOT NULL THEN 0 ELSE 1 END,`
+    : "";
+
+  const limitSql = useMarkerView
+    ? `
+        CASE
+          WHEN $5::numeric < 8 THEN 100
+          WHEN $5::numeric < 10 THEN 160
+          ELSE 220
+        END
+      `
+    : `
+        CASE
+          WHEN $5::numeric < 12 THEN 220
+          WHEN $5::numeric < 14 THEN 320
+          ELSE 420
+        END
+      `;
+
   const qResult = await pool.query(
     `
       WITH envelope AS (
         SELECT ST_MakeEnvelope($1, $2, $3, $4, 4326) AS geom
       ),
-      candidate_rows AS (
-        SELECT
-          wb.*,
-          ${DISPLAY_LAT_SQL} AS latitude,
-          ${DISPLAY_LNG_SQL} AS longitude
-        FROM water_bodies wb, envelope e
-        WHERE
-          wb.${DEDUPE_KEY_SQL} IS NOT NULL
-          AND (
-            (
-              wb.geom IS NOT NULL
-              AND ST_Intersects(wb.geom, e.geom)
-            )
-            OR (
-              wb.geom IS NULL
-              AND wb.${DISPLAY_LNG_SQL} IS NOT NULL
-              AND wb.${DISPLAY_LAT_SQL} IS NOT NULL
-              AND wb.${DISPLAY_LNG_SQL} BETWEEN $1 AND $3
-              AND wb.${DISPLAY_LAT_SQL} BETWEEN $2 AND $4
-            )
-          )
-      ),
       filtered_rows AS (
         SELECT
-          *,
+          wb.*,
           CASE
             WHEN $7::numeric IS NOT NULL
               AND $8::numeric IS NOT NULL
-              AND latitude IS NOT NULL
-              AND longitude IS NOT NULL
+              AND wb.latitude IS NOT NULL
+              AND wb.longitude IS NOT NULL
             THEN ST_DistanceSphere(
-              ST_MakePoint(longitude, latitude),
+              ST_MakePoint(wb.longitude, wb.latitude),
               ST_MakePoint($8, $7)
             ) / 1000.0
             ELSE NULL
           END AS distance_km
-        FROM candidate_rows
+        FROM ${sourceView} wb
+        CROSS JOIN envelope e
         WHERE
-          (
+          ${sourceBoundingCondition}
+          AND (
             $6::text IS NULL
-            OR name ILIKE '%' || $6 || '%'
-            OR description ILIKE '%' || $6 || '%'
-            OR type ILIKE '%' || $6 || '%'
+            OR wb.name ILIKE '%' || $6 || '%'
+            OR wb.description ILIKE '%' || $6 || '%'
+            OR wb.type ILIKE '%' || $6 || '%'
           )
       )
-      SELECT DISTINCT ON (${DEDUPE_KEY_SQL})
+      SELECT
         ${BASE_FIELDS_SQL},
-        CASE
-          WHEN $5::numeric >= 9 THEN description
-          ELSE NULL
-        END AS description,
-        CASE
-          WHEN $5::numeric >= 11 AND geom IS NOT NULL
-            THEN ST_AsGeoJSON(ST_SimplifyPreserveTopology(geom, 0.0001))::json
-          ELSE NULL
-        END AS boundary,
+        ${descriptionSelectSql}
+        ${boundarySelectSql}
         latitude,
         longitude,
         distance_km
@@ -223,7 +277,6 @@ const getWaterBodiesInBounds = async ({
           OR (distance_km IS NOT NULL AND distance_km <= $9::numeric)
         )
       ORDER BY
-        ${DEDUPE_KEY_SQL},
         CASE
           WHEN $6::text IS NOT NULL AND LOWER(TRIM(name)) = LOWER(TRIM($6)) THEN 0
           WHEN $6::text IS NOT NULL AND LOWER(name) LIKE LOWER($6 || '%') THEN 1
@@ -238,16 +291,11 @@ const getWaterBodiesInBounds = async ({
           ELSE NULL
         END ASC NULLS LAST,
         ${ORDER_PRIORITY_SQL},
-        CASE WHEN geom IS NOT NULL THEN 0 ELSE 1 END,
+        ${geomOrderSql}
         updated_at DESC NULLS LAST,
         created_at DESC NULLS LAST,
         id
-      LIMIT CASE
-        WHEN $5::numeric < 8 THEN 140
-        WHEN $5::numeric < 10 THEN 240
-        WHEN $5::numeric < 12 THEN 360
-        ELSE 550
-      END
+      LIMIT ${limitSql}
     `,
     params,
   );
@@ -265,6 +313,7 @@ const getWaterBodyById = async (waterBodyId) => {
         type,
         is_private,
         owner_id,
+        dedupe_key,
         price_per_day,
         capacity,
         is_reservable,
@@ -275,8 +324,8 @@ const getWaterBodyById = async (waterBodyId) => {
           WHEN geom IS NOT NULL THEN ST_AsGeoJSON(geom)::json
           ELSE NULL
         END AS boundary,
-        ${DISPLAY_LAT_SQL} AS latitude,
-        ${DISPLAY_LNG_SQL} AS longitude
+        display_lat AS latitude,
+        display_lng AS longitude
       FROM water_bodies
       WHERE id = $1
     `,
@@ -290,8 +339,8 @@ const getWaterBodyCentroid = async (waterBodyId) => {
   const q = await pool.query(
     `
       SELECT
-        ${DISPLAY_LAT_SQL} AS latitude,
-        ${DISPLAY_LNG_SQL} AS longitude
+        display_lat AS latitude,
+        display_lng AS longitude
       FROM water_bodies
       WHERE id = $1
     `,

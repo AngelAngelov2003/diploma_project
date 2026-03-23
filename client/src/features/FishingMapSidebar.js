@@ -5,7 +5,6 @@ import {
   FaTimes,
   FaExclamationTriangle,
   FaMapMarkerAlt,
-  FaLayerGroup,
   FaSlidersH,
   FaLocationArrow,
 } from "react-icons/fa";
@@ -80,7 +79,7 @@ function FishingMapSidebar({
       )}
 
       <aside className={`map-sidebar ${isMobileSidebarOpen ? "open" : ""}`}>
-        <div className="map-sidebar-header">
+        <div className="map-sidebar-header compact">
           <div className="map-sidebar-brand">
             <div className="map-sidebar-brand-icon">
               <FaFish />
@@ -134,7 +133,6 @@ function FishingMapSidebar({
 
           {searchIsActive && (
             <div className="map-search-mode-note">
-              Showing results for the current map view.
               {searchMatchesCount > 0
                 ? ` ${searchMatchesCount} more result${
                     searchMatchesCount === 1 ? "" : "s"
@@ -273,21 +271,6 @@ function FishingMapSidebar({
               )}
             </div>
           )}
-
-          <div className="map-filter-row">
-            <div className="map-pill">
-              {filteredLakes.length} result
-              {filteredLakes.length === 1 ? "" : "s"}
-            </div>
-            <div className="map-pill map-pill-icon">
-              <FaMapMarkerAlt />
-              {visibleMarkerCount} visible markers
-            </div>
-            <div className="map-pill map-pill-icon">
-              <FaLayerGroup />
-              {geometryCount} geometries
-            </div>
-          </div>
         </div>
 
         {serverError && (
