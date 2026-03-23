@@ -123,7 +123,10 @@ function FishingMapSidebar({
               <span className="map-search-loading">Loading...</span>
             )}
             {searchTerm && !loadingWaterBodies && (
-              <button onClick={() => setSearchTerm("")} className="map-search-clear">
+              <button
+                onClick={() => setSearchTerm("")}
+                className="map-search-clear"
+              >
                 <FaTimes />
               </button>
             )}
@@ -131,11 +134,11 @@ function FishingMapSidebar({
 
           {searchIsActive && (
             <div className="map-search-mode-note">
-              Showing best matches first, while keeping other available lakes visible.
+              Showing results for the current map view.
               {searchMatchesCount > 0
-                ? ` ${searchMatchesCount} direct match${
-                    searchMatchesCount === 1 ? "" : "es"
-                  } found.`
+                ? ` ${searchMatchesCount} more result${
+                    searchMatchesCount === 1 ? "" : "s"
+                  } found outside this area.`
                 : ""}
             </div>
           )}
@@ -236,7 +239,9 @@ function FishingMapSidebar({
                   onClick={handleEnableDistanceFilter}
                   disabled={locationLoading}
                 >
-                  {userLocation ? "Apply slider distance" : "Use location + apply"}
+                  {userLocation
+                    ? "Apply slider distance"
+                    : "Use location + apply"}
                 </button>
 
                 <button
@@ -271,7 +276,8 @@ function FishingMapSidebar({
 
           <div className="map-filter-row">
             <div className="map-pill">
-              {filteredLakes.length} result{filteredLakes.length === 1 ? "" : "s"}
+              {filteredLakes.length} result
+              {filteredLakes.length === 1 ? "" : "s"}
             </div>
             <div className="map-pill map-pill-icon">
               <FaMapMarkerAlt />
@@ -301,7 +307,9 @@ function FishingMapSidebar({
                 : "No water bodies visible in this area."}
             </div>
           ) : filteredLakes.length === 0 ? (
-            <div className="map-empty-state">No locations match your filters.</div>
+            <div className="map-empty-state">
+              No locations match your filters.
+            </div>
           ) : (
             filteredLakes.map((lake) => {
               const selected = activeLake?.id === lake.id;
@@ -327,7 +335,9 @@ function FishingMapSidebar({
                       </div>
                     </div>
 
-                    {selected && <div className="lake-list-card-badge">Selected</div>}
+                    {selected && (
+                      <div className="lake-list-card-badge">Selected</div>
+                    )}
                   </div>
 
                   <div className="lake-list-card-meta">
@@ -351,7 +361,9 @@ function FishingMapSidebar({
                     )}
 
                     {distanceLabel && (
-                      <span className="lake-meta-chip distance">{distanceLabel}</span>
+                      <span className="lake-meta-chip distance">
+                        {distanceLabel}
+                      </span>
                     )}
                   </div>
                 </button>

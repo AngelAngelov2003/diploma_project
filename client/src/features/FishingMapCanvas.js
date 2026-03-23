@@ -24,6 +24,7 @@ import {
   formatDistance,
   getDisplayDescription,
   hasRenderableGeometry,
+  shouldRenderGeometryByZoom,
   simplifyGeometry,
   truncate,
 } from "./fishingMapUtils";
@@ -64,6 +65,8 @@ function FishingMapCanvas({
   const overlayOpen = Boolean(activeLake);
 
   const geometryLakes = useMemo(() => {
+    if (!shouldRenderGeometryByZoom(zoom)) return [];
+
     return filteredLakes
       .filter((lake) => hasRenderableGeometry(lake.boundary))
       .map((lake) => ({
@@ -82,16 +85,28 @@ function FishingMapCanvas({
     return dedupeLakesByNearbyMarkerPosition(lakesWithCoordinates, 90);
   }, [filteredLakes]);
 
-  const visibleMarkerLakes = useMemo(() => {
-    return markerLakes.filter((lake) => !activeLake || lake.id === activeLake.id);
-  }, [markerLakes, activeLake]);
+  const selectedLakeIds = useMemo(() => {
+    const ids = new Set();
+    if (activeLake?.id !== undefined && activeLake?.id !== null) {
+      ids.add(String(activeLake.id));
+    }
+    return ids;
+  }, [activeLake]);
+
+  const clusterMarkerLakes = useMemo(() => {
+    return markerLakes.filter((lake) => !selectedLakeIds.has(String(lake.id)));
+  }, [markerLakes, selectedLakeIds]);
+
+  const topLevelMarkerLakes = useMemo(() => {
+    return markerLakes.filter((lake) => selectedLakeIds.has(String(lake.id)));
+  }, [markerLakes, selectedLakeIds]);
 
   const markerClusterKey = useMemo(() => {
-    return visibleMarkerLakes
+    return clusterMarkerLakes
       .map((lake) => lake.id)
       .sort()
       .join("|");
-  }, [visibleMarkerLakes]);
+  }, [clusterMarkerLakes]);
 
   return (
     <section className="map-main-panel">
@@ -118,43 +133,65 @@ function FishingMapCanvas({
           }}
         />
 
-        {geometryLakes.map((lake) => (
-          <GeoJSON
-            key={`geometry-${lake.id}`}
-            data={lake.simplifiedBoundary}
-            style={() => ({
-              color: activeLake?.id === lake.id ? "#0f172a" : "#2563eb",
-              fillColor: activeLake?.id === lake.id ? "#38bdf8" : "#60a5fa",
-              fillOpacity: activeLake?.id === lake.id ? 0.42 : 0.2,
-              weight: activeLake?.id === lake.id ? 4 : 2,
-            })}
-            eventHandlers={{
-              click: () => focusLake(lake),
-            }}
-          />
-        ))}
+        {geometryLakes.map((lake) => {
+          const isSelected = activeLake?.id === lake.id;
+
+          return (
+            <GeoJSON
+              key={`geometry-${lake.id}`}
+              data={lake.simplifiedBoundary}
+              style={() => ({
+                color: isSelected ? "#0f172a" : "#2563eb",
+                fillColor: isSelected ? "#38bdf8" : "#60a5fa",
+                fillOpacity: isSelected ? 0.42 : 0.18,
+                weight: isSelected ? 4 : 2,
+              })}
+              eventHandlers={{
+                click: () => focusLake(lake),
+              }}
+            />
+          );
+        })}
 
         <MarkerClusterGroup
           key={markerClusterKey}
           chunkedLoading
           showCoverageOnHover={false}
-          spiderfyOnMaxZoom={true}
+          spiderfyOnMaxZoom
+          removeOutsideVisibleBounds
+          animate
+          animateAddingMarkers={false}
           disableClusteringAtZoom={16}
           maxClusterRadius={40}
           iconCreateFunction={createClusterCustomIcon}
         >
-          {visibleMarkerLakes.map((lake) => (
+          {clusterMarkerLakes.map((lake) => (
             <Marker
-              key={`marker-${lake.id}`}
+              key={`cluster-marker-${lake.id}`}
               position={[Number(lake.latitude), Number(lake.longitude)]}
-              icon={createLakeIcon(activeLake?.id === lake.id)}
-              zIndexOffset={activeLake?.id === lake.id ? 1000 : 0}
+              icon={createLakeIcon(false)}
               eventHandlers={{
                 click: () => focusLake(lake),
               }}
             />
           ))}
         </MarkerClusterGroup>
+
+        {topLevelMarkerLakes.map((lake) => {
+          const isSelected = activeLake?.id === lake.id;
+
+          return (
+            <Marker
+              key={`top-marker-${lake.id}`}
+              position={[Number(lake.latitude), Number(lake.longitude)]}
+              icon={createLakeIcon(isSelected)}
+              zIndexOffset={isSelected ? 2000 : 1500}
+              eventHandlers={{
+                click: () => focusLake(lake),
+              }}
+            />
+          );
+        })}
 
         {mapUserLocation && (
           <>
@@ -203,7 +240,9 @@ function FishingMapCanvas({
 
         {activeLake && (
           <button
-            onClick={() => setActiveLake(null)}
+            onClick={() => {
+              setActiveLake(null);
+            }}
             className="map-floating-button secondary"
           >
             <FaTimes />

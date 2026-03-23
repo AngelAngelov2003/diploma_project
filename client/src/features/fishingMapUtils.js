@@ -222,10 +222,8 @@ export const dedupeLakesByNearbyMarkerPosition = (
     const aGeneric = isGenericLakeName(a.name);
     const bGeneric = isGenericLakeName(b.name);
 
-    // Strict match for exact same nearby names
     if (sameName && distance <= 180) return true;
 
-    // Slightly looser for longer, descriptive names
     if (
       containsName &&
       aName.length >= 6 &&
@@ -235,12 +233,10 @@ export const dedupeLakesByNearbyMarkerPosition = (
       return true;
     }
 
-    // Very strict for generic names like "Рибарник", "езеро", etc.
     if (aGeneric && bGeneric && sameType && distance <= 70) {
       return true;
     }
 
-    // Fallback: same exact normalized name + same type + very near
     if (sameName && sameType && distance <= thresholdMeters) {
       return true;
     }
@@ -258,22 +254,31 @@ export const dedupeLakesByNearbyMarkerPosition = (
   return chosen;
 };
 
-export const createLakeIcon = (selected) =>
+export const createLakeIcon = (selected, hovered = false) =>
   L.divIcon({
     className: "",
     html: `
       <div style="
-        width: ${selected ? 24 : 20}px;
-        height: ${selected ? 24 : 20}px;
+        width: ${selected ? 26 : hovered ? 23 : 20}px;
+        height: ${selected ? 26 : hovered ? 23 : 20}px;
         border-radius: 999px;
         background: ${
           selected
             ? "linear-gradient(135deg,#0f172a,#2563eb)"
-            : "linear-gradient(135deg,#0d6efd,#38bdf8)"
+            : hovered
+              ? "linear-gradient(135deg,#1d4ed8,#60a5fa)"
+              : "linear-gradient(135deg,#0d6efd,#38bdf8)"
         };
         border: 3px solid white;
-        box-shadow: 0 10px 24px rgba(15,23,42,0.28);
+        box-shadow: ${
+          selected
+            ? "0 14px 30px rgba(15,23,42,0.36)"
+            : hovered
+              ? "0 12px 26px rgba(37,99,235,0.28)"
+              : "0 10px 24px rgba(15,23,42,0.28)"
+        };
         position: relative;
+        transition: transform 0.15s ease;
       ">
         <div style="
           position:absolute;
@@ -284,12 +289,12 @@ export const createLakeIcon = (selected) =>
           height: 0;
           border-left: 7px solid transparent;
           border-right: 7px solid transparent;
-          border-top: 10px solid ${selected ? "#1d4ed8" : "#38bdf8"};
+          border-top: 10px solid ${selected ? "#1d4ed8" : hovered ? "#60a5fa" : "#38bdf8"};
         "></div>
       </div>
     `,
-    iconSize: [28, 34],
-    iconAnchor: [14, 30],
+    iconSize: [30, 36],
+    iconAnchor: [15, 32],
     popupAnchor: [0, -30],
   });
 
