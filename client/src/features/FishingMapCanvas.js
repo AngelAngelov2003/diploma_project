@@ -1,4 +1,4 @@
-import React, { lazy, memo, Suspense, useMemo, useState } from "react";
+import React, { lazy, memo, Suspense, useMemo, useRef, useState } from "react";
 import {
   Circle,
   GeoJSON,
@@ -13,6 +13,7 @@ import "react-leaflet-markercluster/styles";
 import { FaLocationArrow, FaTimes } from "react-icons/fa";
 import L from "leaflet";
 import MapRecenter from "../components/MapRecenter";
+import bulgariaRegions from "../data/geoBoundaries-BGR-ADM1.json";
 import {
   BULGARIA_CENTER,
   BULGARIA_ZOOM,
@@ -61,9 +62,14 @@ function FishingMapCanvas({
   setTilesLoading,
   showMapLoadingOverlay,
   mapInstance,
+  selectedRegion,
+  setSelectedRegion,
+  showRegionOverview,
+  setShowRegionOverview,
 }) {
   const [zoom, setZoom] = useState(BULGARIA_ZOOM);
   const overlayOpen = Boolean(activeLake);
+  const regionsLayerRef = useRef(null);
 
   const activeLakeId =
     activeLake?.id === undefined || activeLake?.id === null
@@ -80,6 +86,8 @@ function FishingMapCanvas({
   const userLocationIcon = useMemo(() => createUserLocationIcon(), []);
 
   const geometryLakes = useMemo(() => {
+    if (showRegionOverview) return [];
+
     const lakesWithGeometry = filteredLakes.filter((lake) =>
       hasRenderableGeometry(lake.boundary),
     );
@@ -102,9 +110,17 @@ function FishingMapCanvas({
     }
 
     return lakesWithGeometry;
-  }, [filteredLakes, zoom, activeLakeId, activeLakeDedupeKey]);
+  }, [
+    filteredLakes,
+    zoom,
+    activeLakeId,
+    activeLakeDedupeKey,
+    showRegionOverview,
+  ]);
 
   const markerLakes = useMemo(() => {
+    if (showRegionOverview) return [];
+
     const lakesWithCoordinates = filteredLakes
       .map((lake) => {
         const latitude = Number(lake.latitude);
@@ -123,7 +139,7 @@ function FishingMapCanvas({
       .filter(Boolean);
 
     return dedupeLakesByNearbyMarkerPosition(lakesWithCoordinates, 90);
-  }, [filteredLakes]);
+  }, [filteredLakes, showRegionOverview]);
 
   const clusterMarkerLakes = useMemo(() => {
     if (!activeLakeId && !activeLakeDedupeKey) return markerLakes;
@@ -141,6 +157,7 @@ function FishingMapCanvas({
   }, [markerLakes, activeLakeId, activeLakeDedupeKey]);
 
   const topLevelMarkerLakes = useMemo(() => {
+    if (showRegionOverview) return [];
     if (!activeLakeId && !activeLakeDedupeKey) return [];
 
     return markerLakes.filter((lake) => {
@@ -153,7 +170,7 @@ function FishingMapCanvas({
 
       return sameId || sameDedupeKey;
     });
-  }, [markerLakes, activeLakeId, activeLakeDedupeKey]);
+  }, [markerLakes, activeLakeId, activeLakeDedupeKey, showRegionOverview]);
 
   const markerClusterKey = useMemo(() => {
     return clusterMarkerLakes
@@ -166,6 +183,92 @@ function FishingMapCanvas({
     if (!activeLake) return "";
     return truncate(getDisplayDescription(activeLake.description), 110);
   }, [activeLake]);
+
+  const getRegionName = (feature) => {
+    return (
+      feature?.properties?.shapeName ||
+      feature?.properties?.name ||
+      feature?.properties?.NAME_1 ||
+      feature?.properties?.adm1_en ||
+      feature?.properties?.ADM1_EN ||
+      "Region"
+    );
+  };
+
+  const getRegionStyle = (feature) => {
+    const regionName = getRegionName(feature);
+    const isSelected = selectedRegion === regionName;
+
+    return {
+      color: isSelected ? "#0f172a" : "#64748b",
+      weight: isSelected ? 3 : 1.2,
+      fillColor: isSelected ? "#60a5fa" : "#93c5fd",
+      fillOpacity: isSelected ? 0.2 : 0.08,
+      opacity: isSelected ? 1 : 0.72,
+    };
+  };
+
+  const handleEachRegion = (feature, layer) => {
+    const regionName = getRegionName(feature);
+
+    layer.bindTooltip(regionName, {
+      permanent: true,
+      direction: "center",
+      className: "region-label",
+    });
+
+    layer.on({
+      mouseover: (e) => {
+        e.target.setStyle({
+          weight: 3,
+          fillOpacity: 0.24,
+          opacity: 1,
+          color: "#0f172a",
+        });
+
+        layer.unbindTooltip();
+        layer.bindTooltip(regionName, {
+          sticky: true,
+          direction: "center",
+          className: "region-tooltip",
+        });
+        layer.openTooltip();
+
+        if (!L.Browser.ie && !L.Browser.opera && !L.Browser.edge) {
+          e.target.bringToFront();
+        }
+      },
+      mouseout: (e) => {
+        if (regionsLayerRef.current) {
+          regionsLayerRef.current.resetStyle(e.target);
+        }
+
+        layer.unbindTooltip();
+        layer.bindTooltip(regionName, {
+          permanent: true,
+          direction: "center",
+          className: "region-label",
+        });
+      },
+      click: (e) => {
+        const bounds = e.target.getBounds();
+
+        setSelectedRegion(regionName);
+        setActiveLake(null);
+
+        if (mapInstance) {
+          mapInstance.fitBounds(bounds, {
+            padding: [30, 30],
+            maxZoom: 9,
+          });
+        }
+
+        setTimeout(() => {
+          setShowRegionOverview(false);
+        }, 180);
+      },
+    });
+  };
 
   return (
     <section className="map-main-panel">
@@ -183,14 +286,23 @@ function FishingMapCanvas({
         <MapRecenter activeLake={activeLake} />
 
         <TileLayer
-          url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-          attribution="Tiles © Esri"
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          attribution="&copy; OpenStreetMap contributors"
           maxZoom={19}
           eventHandlers={{
             loading: () => setTilesLoading(true),
             load: () => setTilesLoading(false),
           }}
         />
+
+        {showRegionOverview && (
+          <GeoJSON
+            ref={regionsLayerRef}
+            data={bulgariaRegions}
+            style={getRegionStyle}
+            onEachFeature={handleEachRegion}
+          />
+        )}
 
         {geometryLakes.map((lake) => {
           const isSelected =
@@ -217,41 +329,44 @@ function FishingMapCanvas({
           );
         })}
 
-        <MarkerClusterGroup
-          key={markerClusterKey}
-          chunkedLoading
-          showCoverageOnHover={false}
-          spiderfyOnMaxZoom
-          removeOutsideVisibleBounds
-          animate
-          animateAddingMarkers={false}
-          disableClusteringAtZoom={16}
-          maxClusterRadius={40}
-          iconCreateFunction={createClusterCustomIcon}
-        >
-          {clusterMarkerLakes.map((lake) => (
+        {!showRegionOverview && clusterMarkerLakes.length > 0 && (
+          <MarkerClusterGroup
+            key={markerClusterKey}
+            chunkedLoading
+            showCoverageOnHover={false}
+            spiderfyOnMaxZoom
+            removeOutsideVisibleBounds
+            animate
+            animateAddingMarkers={false}
+            disableClusteringAtZoom={16}
+            maxClusterRadius={40}
+            iconCreateFunction={createClusterCustomIcon}
+          >
+            {clusterMarkerLakes.map((lake) => (
+              <Marker
+                key={`cluster-marker-${lake.id}`}
+                position={[lake.latitude, lake.longitude]}
+                icon={defaultLakeIcon}
+                eventHandlers={{
+                  click: () => focusLake(lake),
+                }}
+              />
+            ))}
+          </MarkerClusterGroup>
+        )}
+
+        {!showRegionOverview &&
+          topLevelMarkerLakes.map((lake) => (
             <Marker
-              key={`cluster-marker-${lake.id}`}
+              key={`top-marker-${lake.id}`}
               position={[lake.latitude, lake.longitude]}
-              icon={defaultLakeIcon}
+              icon={selectedLakeIcon}
+              zIndexOffset={2000}
               eventHandlers={{
                 click: () => focusLake(lake),
               }}
             />
           ))}
-        </MarkerClusterGroup>
-
-        {topLevelMarkerLakes.map((lake) => (
-          <Marker
-            key={`top-marker-${lake.id}`}
-            position={[lake.latitude, lake.longitude]}
-            icon={selectedLakeIcon}
-            zIndexOffset={2000}
-            eventHandlers={{
-              click: () => focusLake(lake),
-            }}
-          />
-        ))}
 
         {mapUserLocation && (
           <>
@@ -308,6 +423,29 @@ function FishingMapCanvas({
           </button>
         )}
       </div>
+
+      {showRegionOverview && (
+        <div className="map-overview-card">
+          <div className="map-overview-card-label">Overview</div>
+          <div className="map-overview-card-title">
+            Explore Bulgaria by region
+          </div>
+          <div className="map-overview-card-text">
+            Hover a region to preview it, then click to zoom in and view lakes
+            in that area.
+          </div>
+        </div>
+      )}
+
+      {selectedRegion && !activeLake && !showRegionOverview && (
+        <div className="map-selected-preview">
+          <div className="map-selected-preview-label">Region</div>
+          <div className="map-selected-preview-title">{selectedRegion}</div>
+          <div className="map-selected-preview-text">
+            Explore lakes inside this region.
+          </div>
+        </div>
+      )}
 
       {activeLake && (
         <div className="map-selected-preview">

@@ -304,6 +304,80 @@
   box-shadow: 0 8px 18px rgba(15, 23, 42, 0.05);
 }
 
+.region-tooltip {
+  background: rgba(15, 23, 42, 0.94) !important;
+  color: #ffffff !important;
+  border: none !important;
+  border-radius: 12px !important;
+  box-shadow: 0 14px 30px rgba(15, 23, 42, 0.2) !important;
+  padding: 6px 10px !important;
+  font-size: 12px !important;
+  font-weight: 800 !important;
+  letter-spacing: -0.01em;
+}
+
+.region-tooltip::before {
+  display: none !important;
+}
+
+.region-label {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  color: rgba(255, 255, 255, 0.96) !important;
+  font-size: 12px !important;
+  font-weight: 800 !important;
+  letter-spacing: -0.01em;
+  text-shadow:
+    0 1px 2px rgba(15, 23, 42, 0.95),
+    0 0 8px rgba(15, 23, 42, 0.45);
+  padding: 0 !important;
+}
+
+.region-label::before {
+  display: none !important;
+}
+
+.map-overview-card {
+  position: absolute;
+  top: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1100;
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  border-radius: 22px;
+  padding: 16px 18px;
+  box-shadow: 0 18px 36px rgba(15, 23, 42, 0.14);
+  backdrop-filter: blur(12px);
+  max-width: min(520px, calc(100vw - 180px));
+  width: max-content;
+  pointer-events: none;
+}
+
+.map-overview-card-label {
+  font-size: 11px;
+  font-weight: 800;
+  color: #2563eb;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 6px;
+}
+
+.map-overview-card-title {
+  font-size: 18px;
+  font-weight: 800;
+  color: #0f172a;
+  margin-bottom: 8px;
+  letter-spacing: -0.02em;
+}
+
+.map-overview-card-text {
+  font-size: 13px;
+  line-height: 1.55;
+  color: #475569;
+}
+
 .map-distance-slider-card {
   margin-top: 12px;
   border: 1px solid #dbe5f0;
@@ -452,12 +526,12 @@
 
 .lake-list-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 16px 28px rgba(15, 23, 42, 0.1);
-  border-color: #bfdbfe;
+  box-shadow: 0 18px 32px rgba(37, 99, 235, 0.15);
+  border-color: #93c5fd;
 }
 
 .lake-list-card.selected {
-  border: 1px solid #93c5fd;
+  border: 2px solid #3b82f6;
   background: linear-gradient(180deg, #eff6ff 0%, #f8fbff 100%);
   box-shadow: 0 16px 30px rgba(59, 130, 246, 0.14);
 }
@@ -560,13 +634,13 @@
 }
 
 .map-floating-button {
-  border: 1px solid rgba(226, 232, 240, 0.95);
-  border-radius: 18px;
+  border: 1px solid rgba(226, 232, 240, 0.98);
+  border-radius: 16px;
   background: rgba(255, 255, 255, 0.94);
   color: #0f172a;
   padding: 11px 14px;
   font-weight: 800;
-  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.12);
+  box-shadow: 0 14px 28px rgba(15, 23, 42, 0.14);
   cursor: pointer;
   display: inline-flex;
   align-items: center;
@@ -574,6 +648,15 @@
   justify-content: center;
   white-space: nowrap;
   backdrop-filter: blur(10px);
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease,
+    background 0.18s ease;
+}
+
+.map-floating-button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 18px 34px rgba(15, 23, 42, 0.18);
 }
 
 .map-floating-button.secondary {
@@ -589,9 +672,9 @@
   z-index: 1100;
   background: rgba(255, 255, 255, 0.95);
   border: 1px solid #e2e8f0;
-  border-radius: 20px;
-  padding: 14px 16px;
-  box-shadow: 0 16px 34px rgba(15, 23, 42, 0.14);
+  border-radius: 22px;
+  padding: 15px 16px;
+  box-shadow: 0 18px 36px rgba(15, 23, 42, 0.14);
   max-width: 340px;
   backdrop-filter: blur(12px);
 }
@@ -803,6 +886,15 @@
 }
 
 @media (max-width: 900px) {
+  .map-overview-card {
+    top: 14px;
+    left: 50%;
+    transform: translateX(-50%);
+    max-width: min(420px, calc(100vw - 120px));
+    padding: 14px 15px;
+    border-radius: 18px;
+  }
+
   .map-sidebar-handle {
     display: inline-flex;
     align-items: center;
@@ -895,8 +987,24 @@
     padding: 18px 18px 14px;
   }
 
+  .map-overview-card {
+    top: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    max-width: min(320px, calc(100vw - 90px));
+    padding: 12px 13px;
+  }
+
+  .map-overview-card-title {
+    font-size: 16px;
+  }
+
+  .map-overview-card-text {
+    font-size: 12px;
+  }
+
   .map-sidebar-header.compact {
-    padding: 14px 16px 12px;
+    padding: 12px 14px 10px;
   }
 
   .map-sidebar-brand {
@@ -945,6 +1053,26 @@
   .map-sidebar-search-section {
     padding: 12px;
     position: static;
+  }
+
+  .map-sidebar-section {
+    padding: 14px 16px;
+    border-bottom: 1px solid #eef2f7;
+    background: rgba(255, 255, 255, 0.94);
+  }
+
+  .map-search-results-info {
+    margin-top: 6px;
+    font-size: 12px;
+    font-weight: 700;
+    color: #64748b;
+  }
+
+  .map-search-mode-note {
+    margin-top: 6px;
+    font-size: 12px;
+    font-weight: 700;
+    color: #64748b;
   }
 
   .map-search-box {
@@ -1025,7 +1153,10 @@
   }
 
   .map-sidebar-list {
-    padding: 12px;
+    flex: 1;
+    padding: 16px;
+    background: linear-gradient(180deg, #f8fbff 0%, #f3f7fb 100%);
+    scroll-behavior: smooth;
   }
 
   .lake-list-card {

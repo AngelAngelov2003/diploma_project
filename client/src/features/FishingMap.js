@@ -27,6 +27,8 @@ const SEARCH_FETCH_DEBOUNCE_MS = 600;
 const ROUTE_OPEN_RELEASE_DELAY_MS = 1200;
 
 function FishingMap() {
+  const [selectedRegion, setSelectedRegion] = useState(null);
+  const [showRegionOverview, setShowRegionOverview] = useState(true);
   const [openingLakeFromRoute, setOpeningLakeFromRoute] = useState(false);
   const [waterBodies, setWaterBodies] = useState([]);
   const [searchMatches, setSearchMatches] = useState([]);
@@ -60,8 +62,8 @@ function FishingMap() {
 
   const canUseDistanceSorting = Boolean(
     userLocation &&
-      Number.isFinite(userLocation.latitude) &&
-      Number.isFinite(userLocation.longitude),
+    Number.isFinite(userLocation.latitude) &&
+    Number.isFinite(userLocation.longitude),
   );
 
   const location = useLocation();
@@ -107,6 +109,26 @@ function FishingMap() {
       }
     };
   }, []);
+
+  useEffect(() => {
+    if (!mapInstance) return;
+
+    const handleZoomState = () => {
+      const currentZoom = mapInstance.getZoom();
+
+      if (currentZoom <= 8) {
+        setShowRegionOverview(true);
+        setSelectedRegion(null);
+        setActiveLake(null);
+      }
+    };
+
+    mapInstance.on("zoomend", handleZoomState);
+
+    return () => {
+      mapInstance.off("zoomend", handleZoomState);
+    };
+  }, [mapInstance]);
 
   useEffect(() => {
     const handleResize = () => {
@@ -524,6 +546,8 @@ function FishingMap() {
     setSearchTerm("");
     setSearchMatches([]);
     setActiveLake(null);
+    setSelectedRegion(null);
+    setShowRegionOverview(true);
     mapInstance.flyTo(BULGARIA_CENTER, BULGARIA_ZOOM, { duration: 1.2 });
   }, [mapInstance]);
 
@@ -705,6 +729,10 @@ function FishingMap() {
         setTilesLoading={setTilesLoading}
         showMapLoadingOverlay={showMapLoadingOverlay}
         mapInstance={mapInstance}
+        selectedRegion={selectedRegion}
+        setSelectedRegion={setSelectedRegion}
+        showRegionOverview={showRegionOverview}
+        setShowRegionOverview={setShowRegionOverview}
       />
     </div>
   );

@@ -86,30 +86,27 @@ function FishingMapSidebar({
             </div>
             <div>
               <h2>Fishing Atlas</h2>
-              <p>
-                Explore water bodies, inspect boundaries, and open each
-                location&apos;s fishing details.
-              </p>
+              <p>Find lakes and fishing spots</p>
             </div>
           </div>
 
           <div className="map-sidebar-hero-stats">
             <div className="map-hero-stat">
               <span>{filteredLakes.length}</span>
-              <small>{searchIsActive ? "Shown" : "Visible"}</small>
+              <small>Lakes</small>
             </div>
             <div className="map-hero-stat">
-              <span>{markerCount}</span>
-              <small>Markers</small>
+              <span>{visibleMarkerCount}</span>
+              <small>On map</small>
             </div>
             <div className="map-hero-stat">
-              <span>{geometryCount}</span>
-              <small>Areas</small>
+              <span>{searchIsActive ? "Filtered" : "All"}</span>
+              <small>Status</small>
             </div>
           </div>
         </div>
 
-        <div className="map-sidebar-search-section">
+        <div className="map-sidebar-section">
           <div className="map-search-box">
             <FaSearch className="map-search-icon" />
             <input
@@ -131,16 +128,25 @@ function FishingMapSidebar({
             )}
           </div>
 
+          {searchTerm && (
+            <div className="map-search-results-info">
+              Showing {filteredLakes.length} result
+              {filteredLakes.length === 1 ? "" : "s"}
+            </div>
+          )}
+
           {searchIsActive && (
             <div className="map-search-mode-note">
               {searchMatchesCount > 0
-                ? ` ${searchMatchesCount} more result${
+                ? `${searchMatchesCount} more result${
                     searchMatchesCount === 1 ? "" : "s"
                   } found outside this area.`
                 : ""}
             </div>
           )}
+        </div>
 
+        <div className="map-sidebar-section">
           <div className="map-controls-grid">
             <button
               onClick={handleUseMyLocation}
@@ -148,7 +154,9 @@ function FishingMapSidebar({
               className="map-control-button primary"
             >
               <FaLocationArrow />
-              <span>{locationLoading ? "Locating..." : "Use my location"}</span>
+              <span>
+                {locationLoading ? "Getting location..." : "Enable location"}
+              </span>
             </button>
 
             <select
@@ -181,8 +189,7 @@ function FishingMapSidebar({
 
           {!canUseDistanceSorting && (
             <div className="map-sort-helper">
-              Distance-based sorting becomes available after enabling your
-              location.
+              Enable your location to sort by distance.
             </div>
           )}
 
