@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { FaDownload, FaFish, FaList, FaRedoAlt, FaSortAmountDown, FaSortAmountUp, FaTable, FaChevronLeft, FaChevronRight } from "react-icons/fa";
+import { FaDownload, FaFish, FaList, FaRedoAlt, FaSortAmountDown, FaTable, FaChevronLeft, FaChevronRight } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
 import useMyCatches from "../hooks/useMyCatches";
 import DashboardFilters from "../components/dashboard/DashboardFilters";

@@ -6,7 +6,6 @@ import {
   FaMapMarkedAlt,
   FaWeightHanging,
   FaTrophy,
-  FaCalendarAlt,
   FaStream,
 } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";

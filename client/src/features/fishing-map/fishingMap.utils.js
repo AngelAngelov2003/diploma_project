@@ -1,0 +1,241 @@
+import L from "leaflet";
+
+export const BULGARIA_CENTER = [42.7339, 25.4858];
+export const BULGARIA_ZOOM = 7;
+export const DEFAULT_DISTANCE_KM = 100;
+export const MIN_DISTANCE_KM = 5;
+export const MAX_DISTANCE_KM = 200;
+
+export const getSortableLakeName = (name) => {
+  if (!name || typeof name !== "string") {
+    return "zzzz";
+  }
+
+  return name
+    .trim()
+    .toLocaleLowerCase("bg")
+    .replace(/^язовир\s+/i, "")
+    .replace(/^езеро\s+/i, "")
+    .replace(/^lake\s+/i, "");
+};
+
+export const getDistanceKm = (a, b) => {
+  if (
+    !a ||
+    !b ||
+    typeof a.lat !== "number" ||
+    typeof a.lng !== "number" ||
+    typeof b.lat !== "number" ||
+    typeof b.lng !== "number"
+  ) {
+    return null;
+  }
+
+  const toRad = (value) => (value * Math.PI) / 180;
+  const earthRadiusKm = 6371;
+
+  const dLat = toRad(b.lat - a.lat);
+  const dLng = toRad(b.lng - a.lng);
+
+  const lat1 = toRad(a.lat);
+  const lat2 = toRad(b.lat);
+
+  const sinLat = Math.sin(dLat / 2);
+  const sinLng = Math.sin(dLng / 2);
+
+  const haversine =
+    sinLat * sinLat +
+    Math.cos(lat1) * Math.cos(lat2) * sinLng * sinLng;
+
+  const c = 2 * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine));
+
+  return earthRadiusKm * c;
+};
+
+export const hasRenderableGeometry = (lake) => {
+  const boundary = lake?.boundary || lake;
+
+  return Boolean(
+    boundary &&
+      boundary.type &&
+      Array.isArray(boundary.coordinates) &&
+      boundary.coordinates.length > 0,
+  );
+};
+
+export const getDisplayDescription = (value) => {
+  if (!value || typeof value !== "string") {
+    return "No description available.";
+  }
+
+  const cleaned = value
+    .replace(/^imported from openstreetmap[\s.:;-]*/i, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  return cleaned || "No description available.";
+};
+
+export const getGeoOptions = () => ({
+  enableHighAccuracy: true,
+  timeout: 10000,
+  maximumAge: 60000,
+});
+
+export const getLocationErrorMessage = (error) => {
+  switch (error?.code) {
+    case 1:
+      return "Location access was denied.";
+    case 2:
+      return "Your location could not be determined.";
+    case 3:
+      return "Location request timed out.";
+    default:
+      return "Unable to get your location.";
+  }
+};
+
+export const shouldShowMarker = (lake, mapZoom = 0) => {
+  if (!lake) {
+    return false;
+  }
+
+  if (hasRenderableGeometry(lake)) {
+    return mapZoom >= 9;
+  }
+
+  const latitude = Number(lake.latitude ?? lake.lat);
+  const longitude = Number(lake.longitude ?? lake.lng);
+
+  return Number.isFinite(latitude) && Number.isFinite(longitude);
+};
+
+export const truncate = (value, maxLength = 140) => {
+  if (!value || typeof value !== "string") {
+    return "";
+  }
+
+  if (value.length <= maxLength) {
+    return value;
+  }
+
+  return `${value.slice(0, maxLength).trim()}…`;
+};
+
+export const formatDistance = (distanceKm) => {
+  if (typeof distanceKm !== "number" || Number.isNaN(distanceKm)) {
+    return null;
+  }
+
+  if (distanceKm < 1) {
+    return `${Math.round(distanceKm * 1000)} m`;
+  }
+
+  return `${distanceKm.toFixed(distanceKm < 10 ? 1 : 0)} km`;
+};
+
+export const formatWaterBodyType = (type) => {
+  if (!type || typeof type !== "string") {
+    return "Unknown";
+  }
+
+  return type
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+};
+
+export const highlightText = (text, query) => {
+  const safeText = text || "";
+  const safeQuery = query?.trim();
+
+  if (!safeQuery) {
+    return safeText;
+  }
+
+  const escaped = safeQuery.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const parts = safeText.split(new RegExp(`(${escaped})`, "gi"));
+
+  return parts.map((part, index) =>
+    part.toLowerCase() === safeQuery.toLowerCase() ? (
+      <mark key={`${part}-${index}`}>{part}</mark>
+    ) : (
+      part
+    ),
+  );
+};
+
+export const createLakeIcon = (isSelected = false) =>
+  L.divIcon({
+    className: "custom-lake-marker-wrapper",
+    html: `
+      <div class="custom-lake-marker ${isSelected ? "selected" : ""}">
+        <div class="custom-lake-marker-dot"></div>
+      </div>
+    `,
+    iconSize: [22, 22],
+    iconAnchor: [11, 11],
+  });
+
+export const createUserLocationIcon = () =>
+  L.divIcon({
+    className: "user-location-marker-wrapper",
+    html: `
+      <div class="user-location-marker">
+        <div class="user-location-pulse"></div>
+        <div class="user-location-core"></div>
+      </div>
+    `,
+    iconSize: [22, 22],
+    iconAnchor: [11, 11],
+  });
+
+export const createClusterCustomIcon = (cluster) => {
+  const count = cluster.getChildCount();
+
+  return L.divIcon({
+    html: `<div class="custom-cluster-marker"><span>${count}</span></div>`,
+    className: "custom-cluster-marker-wrapper",
+    iconSize: [42, 42],
+  });
+};
+
+export const dedupeLakesByNearbyMarkerPosition = (
+  lakes,
+  thresholdMeters = 90,
+) => {
+  if (!Array.isArray(lakes) || lakes.length === 0) {
+    return [];
+  }
+
+  const kept = [];
+
+  for (const lake of lakes) {
+    const latitude = Number(lake.latitude);
+    const longitude = Number(lake.longitude);
+
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+      continue;
+    }
+
+    const isDuplicate = kept.some((existing) => {
+      const distance = getDistanceKm(
+        { lat: existing.latitude, lng: existing.longitude },
+        { lat: latitude, lng: longitude },
+      );
+
+      return distance !== null && distance * 1000 <= thresholdMeters;
+    });
+
+    if (!isDuplicate) {
+      kept.push({
+        ...lake,
+        latitude,
+        longitude,
+      });
+    }
+  }
+
+  return kept;
+};

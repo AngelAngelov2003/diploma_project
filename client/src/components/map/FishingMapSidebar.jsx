@@ -13,12 +13,11 @@ import {
   formatWaterBodyType,
   getDisplayDescription,
   hasRenderableGeometry,
-  highlightText,
   MAX_DISTANCE_KM,
   MIN_DISTANCE_KM,
   shouldShowMarker,
   truncate,
-} from "./fishingMapUtils";
+} from "../../features/fishing-map/fishingMap.utils";
 
 function FishingMapSidebar({
   isMobileSidebarOpen,
@@ -55,6 +54,26 @@ function FishingMapSidebar({
   searchMatchesCount = 0,
 }) {
   const searchIsActive = Boolean(searchTerm.trim());
+
+  const highlightText = (text, query) => {
+    const safeText = text || "";
+    const safeQuery = query?.trim();
+
+    if (!safeQuery) {
+      return safeText;
+    }
+
+    const escaped = safeQuery.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const parts = safeText.split(new RegExp(`(${escaped})`, "gi"));
+
+    return parts.map((part, index) =>
+      part.toLowerCase() === safeQuery.toLowerCase() ? (
+        <mark key={`${part}-${index}`}>{part}</mark>
+      ) : (
+        part
+      ),
+    );
+  };
 
   return (
     <>
@@ -135,13 +154,10 @@ function FishingMapSidebar({
             </div>
           )}
 
-          {searchIsActive && (
+          {searchIsActive && searchMatchesCount > 0 && (
             <div className="map-search-mode-note">
-              {searchMatchesCount > 0
-                ? `${searchMatchesCount} more result${
-                    searchMatchesCount === 1 ? "" : "s"
-                  } found outside this area.`
-                : ""}
+              {searchMatchesCount} more result
+              {searchMatchesCount === 1 ? "" : "s"} found outside this area.
             </div>
           )}
         </div>
@@ -240,7 +256,9 @@ function FishingMapSidebar({
               <div className="map-distance-slider-actions">
                 <button
                   type="button"
-                  className={`map-chip-button ${distanceFilterActive ? "active" : ""}`}
+                  className={`map-chip-button ${
+                    distanceFilterActive ? "active" : ""
+                  }`}
                   onClick={handleEnableDistanceFilter}
                   disabled={locationLoading}
                 >
@@ -264,7 +282,9 @@ function FishingMapSidebar({
 
           {(userLocation || locationError) && (
             <div
-              className={`map-location-status ${locationError ? "error" : "success"}`}
+              className={`map-location-status ${
+                locationError ? "error" : "success"
+              }`}
             >
               {locationError ? (
                 <span>{locationError}</span>
@@ -346,7 +366,7 @@ function FishingMapSidebar({
                       <span className="lake-meta-chip">Coordinates ready</span>
                     )}
 
-                    {hasRenderableGeometry(lake.boundary) && (
+                    {hasRenderableGeometry(lake) && (
                       <span className="lake-meta-chip">Geometry available</span>
                     )}
 

@@ -7,11 +7,10 @@ import React, {
 } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import L from "leaflet";
-import api from "../api/client";
-import { notifyError, notifySuccess } from "../ui/toast";
-import FishingMapSidebar from "./FishingMapSidebar";
-import FishingMapCanvas from "./FishingMapCanvas";
-import "./FishingMap.css";
+import { notifyError, notifySuccess } from "../../ui/toast";
+import FishingMapSidebar from "../../components/map/FishingMapSidebar";
+import FishingMapCanvas from "../../components/map/FishingMapCanvas";
+import "../FishingMap.css";
 import {
   BULGARIA_CENTER,
   BULGARIA_ZOOM,
@@ -20,11 +19,17 @@ import {
   getGeoOptions,
   getLocationErrorMessage,
   hasRenderableGeometry,
-} from "./fishingMapUtils";
-
-const BOUNDS_FETCH_DEBOUNCE_MS = 250;
-const SEARCH_FETCH_DEBOUNCE_MS = 600;
-const ROUTE_OPEN_RELEASE_DELAY_MS = 1200;
+} from "./fishingMap.utils";
+import {
+  BOUNDS_FETCH_DEBOUNCE_MS,
+  SEARCH_FETCH_DEBOUNCE_MS,
+  ROUTE_OPEN_RELEASE_DELAY_MS,
+} from "./fishingMap.constants";
+import {
+  fetchWaterBodiesInBounds,
+  fetchSearchResults,
+  fetchWaterBodyById,
+} from "./fishingMap.service";
 
 function FishingMap() {
   const [selectedRegion, setSelectedRegion] = useState(null);
@@ -62,8 +67,8 @@ function FishingMap() {
 
   const canUseDistanceSorting = Boolean(
     userLocation &&
-    Number.isFinite(userLocation.latitude) &&
-    Number.isFinite(userLocation.longitude),
+      Number.isFinite(userLocation.latitude) &&
+      Number.isFinite(userLocation.longitude),
   );
 
   const location = useLocation();
@@ -83,8 +88,6 @@ function FishingMap() {
   const boundsFetchTimerRef = useRef(null);
   const searchFetchTimerRef = useRef(null);
   const routeReleaseTimerRef = useRef(null);
-  const boundsAbortControllerRef = useRef(null);
-  const searchAbortControllerRef = useRef(null);
 
   useEffect(() => {
     routeLakeHandledRef.current = false;
@@ -100,12 +103,6 @@ function FishingMap() {
       }
       if (routeReleaseTimerRef.current) {
         clearTimeout(routeReleaseTimerRef.current);
-      }
-      if (boundsAbortControllerRef.current) {
-        boundsAbortControllerRef.current.abort();
-      }
-      if (searchAbortControllerRef.current) {
-        searchAbortControllerRef.current.abort();
       }
     };
   }, []);
@@ -179,11 +176,6 @@ function FishingMap() {
     [mapInstance],
   );
 
-  const fetchWaterBodyById = useCallback(async (waterBodyId) => {
-    const res = await api.get(`/water-bodies/${waterBodyId}`);
-    return res.data || null;
-  }, []);
-
   const dedupeById = useCallback((items) => {
     const seen = new Set();
 
@@ -195,86 +187,67 @@ function FishingMap() {
     });
   }, []);
 
-  const fetchWaterBodiesInBounds = useCallback(
-    async ({ silent = false } = {}) => {
-      if (!mapInstance || openingLakeFromRoute) return;
+  const loadWaterBodiesInBounds = useCallback(async () => {
+    if (!mapInstance || openingLakeFromRoute) return;
 
-      const requestId = ++latestBoundsRequestIdRef.current;
-      const bounds = mapInstance.getBounds();
-      const zoom = mapInstance.getZoom();
+    const requestId = ++latestBoundsRequestIdRef.current;
+    const bounds = mapInstance.getBounds();
+    const zoom = mapInstance.getZoom();
 
-      if (boundsAbortControllerRef.current) {
-        boundsAbortControllerRef.current.abort();
+    setLoadingWaterBodies(true);
+    setServerError(null);
+
+    try {
+      const data = await fetchWaterBodiesInBounds({
+        west: bounds.getWest(),
+        south: bounds.getSouth(),
+        east: bounds.getEast(),
+        north: bounds.getNorth(),
+        zoom,
+        q: searchTerm.trim() || undefined,
+        sortBy,
+        userLat: userLocation?.latitude,
+        userLng: userLocation?.longitude,
+        distanceKm: distanceKm !== "ALL" ? distanceKm : undefined,
+      });
+
+      if (requestId !== latestBoundsRequestIdRef.current) return;
+      setWaterBodies(data || []);
+    } catch (err) {
+      if (requestId !== latestBoundsRequestIdRef.current) return;
+
+      setServerError("Failed to load water bodies in bounds");
+      notifyError(err, "Failed to load water bodies in bounds");
+    } finally {
+      if (requestId === latestBoundsRequestIdRef.current) {
+        setLoadingWaterBodies(false);
       }
-
-      const abortController = new AbortController();
-      boundsAbortControllerRef.current = abortController;
-
-      setLoadingWaterBodies(true);
-      setServerError(null);
-
-      try {
-        const res = await api.get("/water-bodies/in-bounds", {
-          params: {
-            west: bounds.getWest(),
-            south: bounds.getSouth(),
-            east: bounds.getEast(),
-            north: bounds.getNorth(),
-            zoom,
-            q: searchTerm.trim() || undefined,
-            sortBy,
-            userLat: userLocation?.latitude,
-            userLng: userLocation?.longitude,
-            distanceKm: distanceKm !== "ALL" ? distanceKm : undefined,
-          },
-          signal: abortController.signal,
-        });
-
-        if (requestId !== latestBoundsRequestIdRef.current) return;
-        setWaterBodies(res.data || []);
-      } catch (err) {
-        if (abortController.signal.aborted) return;
-        if (requestId !== latestBoundsRequestIdRef.current) return;
-
-        setServerError("Failed to load water bodies in bounds");
-        if (!silent) {
-          notifyError(err, "Failed to load water bodies in bounds");
-        }
-      } finally {
-        if (
-          requestId === latestBoundsRequestIdRef.current &&
-          !abortController.signal.aborted
-        ) {
-          setLoadingWaterBodies(false);
-        }
-      }
-    },
-    [
-      mapInstance,
-      openingLakeFromRoute,
-      searchTerm,
-      sortBy,
-      userLocation,
-      distanceKm,
-    ],
-  );
+    }
+  }, [
+    mapInstance,
+    openingLakeFromRoute,
+    searchTerm,
+    sortBy,
+    userLocation,
+    distanceKm,
+  ]);
 
   const scheduleBoundsFetch = useCallback(
-    ({ silent = true, immediate = false } = {}) => {
+    ({ immediate = false } = {}) => {
       if (boundsFetchTimerRef.current) {
         clearTimeout(boundsFetchTimerRef.current);
       }
 
       if (immediate) {
-        fetchWaterBodiesInBounds({ silent });
+        loadWaterBodiesInBounds();
         return;
       }
 
       boundsFetchTimerRef.current = setTimeout(() => {
-        fetchWaterBodiesInBounds({ silent });
+        loadWaterBodiesInBounds();
       }, BOUNDS_FETCH_DEBOUNCE_MS);
     },
-    [fetchWaterBodiesInBounds],
+    [loadWaterBodiesInBounds],
   );
 
   const searchWaterBodiesGlobally = useCallback(async (query) => {
@@ -287,35 +260,21 @@ function FishingMap() {
 
     const requestId = ++latestSearchRequestIdRef.current;
 
-    if (searchAbortControllerRef.current) {
-      searchAbortControllerRef.current.abort();
-    }
-
-    const abortController = new AbortController();
-    searchAbortControllerRef.current = abortController;
-
     setLoadingSearchMatches(true);
     setServerError(null);
 
     try {
-      const res = await api.get("/water-bodies/search", {
-        params: { q: trimmed },
-        signal: abortController.signal,
-      });
+      const data = await fetchSearchResults(trimmed);
 
       if (requestId !== latestSearchRequestIdRef.current) return;
-      setSearchMatches(res.data || []);
+      setSearchMatches(data || []);
     } catch (err) {
-      if (abortController.signal.aborted) return;
       if (requestId !== latestSearchRequestIdRef.current) return;
 
       setServerError("Search failed");
       notifyError(err, "Search failed");
     } finally {
-      if (
-        requestId === latestSearchRequestIdRef.current &&
-        !abortController.signal.aborted
-      ) {
+      if (requestId === latestSearchRequestIdRef.current) {
         setLoadingSearchMatches(false);
       }
     }
@@ -344,11 +303,11 @@ function FishingMap() {
   useEffect(() => {
     if (!mapInstance || openingLakeFromRoute) return;
 
-    scheduleBoundsFetch({ silent: true, immediate: true });
+    scheduleBoundsFetch({ immediate: true });
 
     const handleMoveLikeEvent = () => {
       if (!openingLakeFromRoute) {
-        scheduleBoundsFetch({ silent: true, immediate: false });
+        scheduleBoundsFetch();
       }
     };
 
@@ -363,7 +322,7 @@ function FishingMap() {
 
   useEffect(() => {
     if (!mapInstance || openingLakeFromRoute) return;
-    scheduleBoundsFetch({ silent: true, immediate: true });
+    scheduleBoundsFetch({ immediate: true });
   }, [
     mapInstance,
     openingLakeFromRoute,
@@ -384,9 +343,6 @@ function FishingMap() {
     }
 
     if (trimmed.length < 3) {
-      if (searchAbortControllerRef.current) {
-        searchAbortControllerRef.current.abort();
-      }
       setSearchMatches([]);
       setLoadingSearchMatches(false);
       return;
@@ -461,7 +417,6 @@ function FishingMap() {
     normalizedLakeIdFromRoute,
     waterBodies,
     searchMatches,
-    fetchWaterBodyById,
     focusLake,
     navigate,
     location.pathname,
@@ -522,9 +477,7 @@ function FishingMap() {
   }, [searchTerm, globalSearchLakes, visibleLakes, dedupeById]);
 
   const geometryCount = useMemo(
-    () =>
-      visibleLakes.filter((lake) => hasRenderableGeometry(lake.boundary))
-        .length,
+    () => visibleLakes.filter((lake) => hasRenderableGeometry(lake)).length,
     [visibleLakes],
   );
 
@@ -668,12 +621,7 @@ function FishingMap() {
 
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
 
-    return getDistanceKm(
-      userLocation.latitude,
-      userLocation.longitude,
-      lat,
-      lng,
-    );
+    return getDistanceKm(userLocation, { lat, lng });
   }, [activeLake, userLocation]);
 
   const distanceFilterActive = distanceKm !== "ALL";

@@ -5,8 +5,8 @@ import {
   Route,
   Navigate,
 } from "react-router-dom";
-import Navigation from "./components/Navigation";
-import FishingMap from "./features/FishingMap";
+import Navigation from "./components/common/Navigation";
+import FishingMap from "./features/fishing-map/FishingMap";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Dashboard from "./pages/Dashboard";
@@ -17,7 +17,7 @@ import ReservationsPage from "./pages/ReservationsPage";
 import OwnerPanel from "./pages/OwnerPanel";
 import AdminDashboard from "./pages/AdminDashboard";
 import Profile from "./pages/Profile";
-import api from "./api/client";
+import { getCurrentUser } from "./api/authApi";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
@@ -38,9 +38,9 @@ function App() {
       }
 
       try {
-        const res = await api.get("/auth/me");
+        const user = await getCurrentUser();
         setIsAuthenticated(true);
-        setCurrentUser(res.data || null);
+        setCurrentUser(user || null);
       } catch (err) {
         localStorage.removeItem("token");
         setIsAuthenticated(false);
@@ -60,8 +60,8 @@ function App() {
       if (!token || !isAuthenticated || currentUser) return;
 
       try {
-        const res = await api.get("/auth/me");
-        setCurrentUser(res.data || null);
+        const user = await getCurrentUser();
+        setCurrentUser(user || null);
       } catch (err) {
         localStorage.removeItem("token");
         setIsAuthenticated(false);

@@ -12,8 +12,8 @@ import {
   FaRegClock,
 } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
-import api from "../api/client";
-import { notifyError, notifySuccess } from "../ui/toast";
+import api from "../../api/client";
+import { notifyError, notifySuccess } from "../../ui/toast";
 
 const MAX_NOTES_LENGTH = 500;
 const MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024;

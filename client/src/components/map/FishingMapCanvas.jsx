@@ -9,11 +9,12 @@ import {
 } from "react-leaflet";
 import MarkerClusterGroup from "react-leaflet-markercluster";
 import "leaflet/dist/leaflet.css";
-import "react-leaflet-markercluster/styles";
+import "leaflet.markercluster/dist/MarkerCluster.css";
+import "leaflet.markercluster/dist/MarkerCluster.Default.css";
 import { FaLocationArrow, FaTimes } from "react-icons/fa";
 import L from "leaflet";
-import MapRecenter from "../components/MapRecenter";
-import bulgariaRegions from "../data/geoBoundaries-BGR-ADM1.json";
+import MapRecenter from "./MapRecenter";
+import bulgariaRegions from "../../data/geoBoundaries-BGR-ADM1.json";
 import {
   BULGARIA_CENTER,
   BULGARIA_ZOOM,
@@ -25,7 +26,7 @@ import {
   getDisplayDescription,
   hasRenderableGeometry,
   truncate,
-} from "./fishingMapUtils";
+} from "../../features/fishing-map/fishingMap.utils";
 
 const LakePopup = lazy(() => import("./LakePopUp"));
 
@@ -89,7 +90,7 @@ function FishingMapCanvas({
     if (showRegionOverview) return [];
 
     const lakesWithGeometry = filteredLakes.filter((lake) =>
-      hasRenderableGeometry(lake.boundary),
+      hasRenderableGeometry(lake),
     );
 
     if (zoom < 11) return [];
