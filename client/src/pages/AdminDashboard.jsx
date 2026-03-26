@@ -1,5 +1,4 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import api from "../api/client";
 import { notifyError, notifySuccess } from "../ui/toast";
 import {
   FaChartBar,
@@ -13,6 +12,20 @@ import {
   FaChevronLeft,
   FaChevronRight,
 } from "react-icons/fa";
+import {
+  deleteAdminOwnerClaimRequest,
+  deleteAdminReview,
+  deleteAdminUser,
+  deleteAdminWaterBody,
+  getAdminAnalytics,
+  getAdminOwnerClaimRequests,
+  getAdminReviews,
+  getAdminUsers,
+  getAdminWaterBodies,
+  updateAdminOwnerClaimRequest,
+  updateAdminUser,
+  updateAdminWaterBody,
+} from "../api/adminApi";
 
 const pageStyle = {
   padding: 24,
@@ -145,9 +158,9 @@ const mutedStyle = {
 
 const formatDateTime = (value) => {
   if (!value) return "Unknown";
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return value;
-  return d.toLocaleString();
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString();
 };
 
 const statusBadgeStyle = (status) => ({
@@ -216,6 +229,19 @@ const paginateItems = (items, currentPage, pageSize = PAGE_SIZE) => {
   };
 };
 
+const getUploadUrl = (proofDocumentUrl) => {
+  if (!proofDocumentUrl) {
+    return "";
+  }
+
+  const baseUrl =
+    process.env.REACT_APP_API_URL ||
+    process.env.REACT_APP_API_BASE_URL ||
+    "http://localhost:5000";
+
+  return `${baseUrl.replace(/\/$/, "")}/uploads/${proofDocumentUrl}`;
+};
+
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState("overview");
 
@@ -271,11 +297,11 @@ export default function AdminDashboard() {
     try {
       setLoadingOverview(true);
       setOverviewError("");
-      const res = await api.get("/admin/analytics");
-      setAnalytics(res.data || null);
-    } catch (err) {
-      setOverviewError(err.response?.data?.error || "Failed to load analytics");
-      notifyError(err, "Failed to load analytics");
+      const data = await getAdminAnalytics();
+      setAnalytics(data || null);
+    } catch (error) {
+      setOverviewError(error?.response?.data?.error || "Failed to load analytics");
+      notifyError(error, "Failed to load analytics");
       setAnalytics(null);
     } finally {
       setLoadingOverview(false);
@@ -286,11 +312,13 @@ export default function AdminDashboard() {
     try {
       setLoadingWaterBodies(true);
       setWaterBodiesError("");
-      const res = await api.get("/admin/water-bodies");
-      setWaterBodies(res.data || []);
-    } catch (err) {
-      setWaterBodiesError(err.response?.data?.error || "Failed to load water bodies");
-      notifyError(err, "Failed to load water bodies");
+      const data = await getAdminWaterBodies();
+      setWaterBodies(data || []);
+    } catch (error) {
+      setWaterBodiesError(
+        error?.response?.data?.error || "Failed to load water bodies",
+      );
+      notifyError(error, "Failed to load water bodies");
       setWaterBodies([]);
     } finally {
       setLoadingWaterBodies(false);
@@ -301,11 +329,11 @@ export default function AdminDashboard() {
     try {
       setLoadingUsers(true);
       setUsersError("");
-      const res = await api.get("/admin/users");
-      setUsers(res.data || []);
-    } catch (err) {
-      setUsersError(err.response?.data?.error || "Failed to load users");
-      notifyError(err, "Failed to load users");
+      const data = await getAdminUsers();
+      setUsers(data || []);
+    } catch (error) {
+      setUsersError(error?.response?.data?.error || "Failed to load users");
+      notifyError(error, "Failed to load users");
       setUsers([]);
     } finally {
       setLoadingUsers(false);
@@ -316,11 +344,11 @@ export default function AdminDashboard() {
     try {
       setLoadingReviews(true);
       setReviewsError("");
-      const res = await api.get("/admin/reviews");
-      setReviews(res.data || []);
-    } catch (err) {
-      setReviewsError(err.response?.data?.error || "Failed to load reviews");
-      notifyError(err, "Failed to load reviews");
+      const data = await getAdminReviews();
+      setReviews(data || []);
+    } catch (error) {
+      setReviewsError(error?.response?.data?.error || "Failed to load reviews");
+      notifyError(error, "Failed to load reviews");
       setReviews([]);
     } finally {
       setLoadingReviews(false);
@@ -331,13 +359,13 @@ export default function AdminDashboard() {
     try {
       setLoadingOwnerClaims(true);
       setOwnerClaimsError("");
-      const res = await api.get("/admin/owner-claim-requests");
-      setOwnerClaimRequests(res.data || []);
-    } catch (err) {
+      const data = await getAdminOwnerClaimRequests();
+      setOwnerClaimRequests(data || []);
+    } catch (error) {
       setOwnerClaimsError(
-        err.response?.data?.error || "Failed to load owner claim requests",
+        error?.response?.data?.error || "Failed to load owner claim requests",
       );
-      notifyError(err, "Failed to load owner claim requests");
+      notifyError(error, "Failed to load owner claim requests");
       setOwnerClaimRequests([]);
     } finally {
       setLoadingOwnerClaims(false);
@@ -353,8 +381,12 @@ export default function AdminDashboard() {
   }, []);
 
   const filteredWaterBodies = useMemo(() => {
-    const q = lakeSearch.trim().toLowerCase();
-    if (!q) return waterBodies;
+    const query = lakeSearch.trim().toLowerCase();
+
+    if (!query) {
+      return waterBodies;
+    }
+
     return waterBodies.filter((lake) =>
       [
         lake.name,
@@ -364,36 +396,45 @@ export default function AdminDashboard() {
         lake.owner_email,
         lake.owner_id,
       ]
-        .map((x) => String(x || "").toLowerCase())
+        .map((value) => String(value || "").toLowerCase())
         .join(" ")
-        .includes(q),
+        .includes(query),
     );
   }, [waterBodies, lakeSearch]);
 
   const filteredUsers = useMemo(() => {
-    const q = userSearch.trim().toLowerCase();
-    if (!q) return users;
+    const query = userSearch.trim().toLowerCase();
+
+    if (!query) {
+      return users;
+    }
+
     return users.filter((user) =>
       [user.full_name, user.email, user.role]
-        .map((x) => String(x || "").toLowerCase())
+        .map((value) => String(value || "").toLowerCase())
         .join(" ")
-        .includes(q),
+        .includes(query),
     );
   }, [users, userSearch]);
 
   const filteredReviews = useMemo(() => {
-    const q = reviewSearch.trim().toLowerCase();
-    if (!q) return reviews;
+    const query = reviewSearch.trim().toLowerCase();
+
+    if (!query) {
+      return reviews;
+    }
+
     return reviews.filter((review) =>
       [review.comment, review.full_name, review.email, review.lake_name, review.rating]
-        .map((x) => String(x || "").toLowerCase())
+        .map((value) => String(value || "").toLowerCase())
         .join(" ")
-        .includes(q),
+        .includes(query),
     );
   }, [reviews, reviewSearch]);
 
   const filteredOwnerClaims = useMemo(() => {
-    const q = ownerClaimSearch.trim().toLowerCase();
+    const query = ownerClaimSearch.trim().toLowerCase();
+
     return ownerClaimRequests.filter((item) => {
       const matchesSearch = [
         item.lake_name,
@@ -405,9 +446,9 @@ export default function AdminDashboard() {
         item.status,
         item.admin_note,
       ]
-        .map((x) => String(x || "").toLowerCase())
+        .map((value) => String(value || "").toLowerCase())
         .join(" ")
-        .includes(q);
+        .includes(query);
 
       const matchesStatus =
         ownerClaimStatusFilter === "all"
@@ -488,12 +529,12 @@ export default function AdminDashboard() {
         availability_notes: String(lake.availability_notes || "").trim(),
       };
 
-      await api.patch(`/admin/water-bodies/${lake.id}`, payload);
+      await updateAdminWaterBody(lake.id, payload);
       notifySuccess("Water body updated");
       await loadWaterBodies();
       await loadOverview();
-    } catch (err) {
-      notifyError(err, "Failed to update water body");
+    } catch (error) {
+      notifyError(error, "Failed to update water body");
     } finally {
       setSavingWaterBodyId("");
     }
@@ -502,12 +543,12 @@ export default function AdminDashboard() {
   const deleteLake = async (lakeId) => {
     try {
       setDeletingId(lakeId);
-      await api.delete(`/admin/water-bodies/${lakeId}`);
+      await deleteAdminWaterBody(lakeId);
       notifySuccess("Water body deleted");
       await loadWaterBodies();
       await loadOverview();
-    } catch (err) {
-      notifyError(err, "Failed to delete water body");
+    } catch (error) {
+      notifyError(error, "Failed to delete water body");
     } finally {
       setDeletingId("");
     }
@@ -524,13 +565,13 @@ export default function AdminDashboard() {
         is_active: Boolean(user.is_active),
       };
 
-      await api.patch(`/admin/users/${user.id}`, payload);
+      await updateAdminUser(user.id, payload);
       notifySuccess("User updated");
       await loadUsers();
       await loadWaterBodies();
       await loadOverview();
-    } catch (err) {
-      notifyError(err, "Failed to update user");
+    } catch (error) {
+      notifyError(error, "Failed to update user");
     } finally {
       setSavingUserId("");
     }
@@ -539,14 +580,14 @@ export default function AdminDashboard() {
   const deleteUser = async (userId) => {
     try {
       setDeletingId(userId);
-      await api.delete(`/admin/users/${userId}`);
+      await deleteAdminUser(userId);
       notifySuccess("User deleted");
       await loadUsers();
       await loadWaterBodies();
       await loadReviews();
       await loadOverview();
-    } catch (err) {
-      notifyError(err, "Failed to delete user");
+    } catch (error) {
+      notifyError(error, "Failed to delete user");
     } finally {
       setDeletingId("");
     }
@@ -555,12 +596,12 @@ export default function AdminDashboard() {
   const deleteReview = async (reviewId) => {
     try {
       setDeletingId(reviewId);
-      await api.delete(`/admin/reviews/${reviewId}`);
+      await deleteAdminReview(reviewId);
       notifySuccess("Review deleted");
       await loadReviews();
       await loadOverview();
-    } catch (err) {
-      notifyError(err, "Failed to delete review");
+    } catch (error) {
+      notifyError(error, "Failed to delete review");
     } finally {
       setDeletingId("");
     }
@@ -570,8 +611,9 @@ export default function AdminDashboard() {
     try {
       setSavingOwnerClaimId(requestId);
 
-      const current = ownerClaimRequests.find((x) => x.id === requestId);
-      await api.patch(`/admin/owner-claim-requests/${requestId}`, {
+      const current = ownerClaimRequests.find((item) => item.id === requestId);
+
+      await updateAdminOwnerClaimRequest(requestId, {
         status,
         admin_note: String(current?.admin_note || "").trim(),
       });
@@ -581,8 +623,8 @@ export default function AdminDashboard() {
       await loadWaterBodies();
       await loadUsers();
       await loadOverview();
-    } catch (err) {
-      notifyError(err, `Failed to set request to ${status}`);
+    } catch (error) {
+      notifyError(error, `Failed to set request to ${status}`);
     } finally {
       setSavingOwnerClaimId("");
     }
@@ -591,12 +633,12 @@ export default function AdminDashboard() {
   const deleteOwnerClaim = async (requestId) => {
     try {
       setDeletingId(requestId);
-      await api.delete(`/admin/owner-claim-requests/${requestId}`);
+      await deleteAdminOwnerClaimRequest(requestId);
       notifySuccess("Ownership request removed");
       await loadOwnerClaims();
       await loadOverview();
-    } catch (err) {
-      notifyError(err, "Failed to remove ownership request");
+    } catch (error) {
+      notifyError(error, "Failed to remove ownership request");
     } finally {
       setDeletingId("");
     }
@@ -632,14 +674,16 @@ export default function AdminDashboard() {
     endIndex,
     onPageChange,
   }) => {
-    if (totalItems === 0) return null;
+    if (totalItems === 0) {
+      return null;
+    }
 
     const pageNumbers = [];
     const startPage = Math.max(1, currentPage - 2);
     const endPage = Math.min(totalPages, currentPage + 2);
 
-    for (let p = startPage; p <= endPage; p += 1) {
-      pageNumbers.push(p);
+    for (let page = startPage; page <= endPage; page += 1) {
+      pageNumbers.push(page);
     }
 
     return (
@@ -660,7 +704,14 @@ export default function AdminDashboard() {
           <strong>{endIndex}</strong> of <strong>{totalItems}</strong>
         </div>
 
-        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+        <div
+          style={{
+            display: "flex",
+            gap: 8,
+            alignItems: "center",
+            flexWrap: "wrap",
+          }}
+        >
           <button
             type="button"
             onClick={() => onPageChange(currentPage - 1)}
@@ -679,7 +730,9 @@ export default function AdminDashboard() {
               >
                 1
               </button>
-              {startPage > 2 ? <span style={{ color: "#64748b" }}>...</span> : null}
+              {startPage > 2 ? (
+                <span style={{ color: "#64748b" }}>...</span>
+              ) : null}
             </>
           )}
 
@@ -728,13 +781,22 @@ export default function AdminDashboard() {
     <div style={pageStyle}>
       <div style={shellStyle}>
         <div style={heroStyle}>
-          <div style={{ fontSize: 13, opacity: 0.92, marginBottom: 8 }}>Administration</div>
+          <div style={{ fontSize: 13, opacity: 0.92, marginBottom: 8 }}>
+            Administration
+          </div>
           <h1 style={{ margin: "0 0 8px 0", fontSize: 30, fontWeight: 900 }}>
             Admin Dashboard
           </h1>
-          <div style={{ maxWidth: 900, lineHeight: 1.6, fontSize: 14, opacity: 0.98 }}>
-            Manage platform statistics, water bodies, users, reviews, and ownership
-            verification requests from one place.
+          <div
+            style={{
+              maxWidth: 900,
+              lineHeight: 1.6,
+              fontSize: 14,
+              opacity: 0.98,
+            }}
+          >
+            Manage platform statistics, water bodies, users, reviews, and
+            ownership verification requests from one place.
           </div>
         </div>
 
@@ -823,28 +885,56 @@ export default function AdminDashboard() {
                 >
                   <div style={statCardStyle}>
                     <div style={mutedStyle}>Total Users</div>
-                    <div style={{ fontSize: 30, fontWeight: 900, color: "#0f172a", marginTop: 8 }}>
+                    <div
+                      style={{
+                        fontSize: 30,
+                        fontWeight: 900,
+                        color: "#0f172a",
+                        marginTop: 8,
+                      }}
+                    >
                       {analytics.totals?.users ?? 0}
                     </div>
                   </div>
 
                   <div style={statCardStyle}>
                     <div style={mutedStyle}>Total Water Bodies</div>
-                    <div style={{ fontSize: 30, fontWeight: 900, color: "#0f172a", marginTop: 8 }}>
+                    <div
+                      style={{
+                        fontSize: 30,
+                        fontWeight: 900,
+                        color: "#0f172a",
+                        marginTop: 8,
+                      }}
+                    >
                       {analytics.totals?.water_bodies ?? 0}
                     </div>
                   </div>
 
                   <div style={statCardStyle}>
                     <div style={mutedStyle}>Total Reviews</div>
-                    <div style={{ fontSize: 30, fontWeight: 900, color: "#0f172a", marginTop: 8 }}>
+                    <div
+                      style={{
+                        fontSize: 30,
+                        fontWeight: 900,
+                        color: "#0f172a",
+                        marginTop: 8,
+                      }}
+                    >
                       {analytics.totals?.reviews ?? 0}
                     </div>
                   </div>
 
                   <div style={statCardStyle}>
                     <div style={mutedStyle}>Total Catches</div>
-                    <div style={{ fontSize: 30, fontWeight: 900, color: "#0f172a", marginTop: 8 }}>
+                    <div
+                      style={{
+                        fontSize: 30,
+                        fontWeight: 900,
+                        color: "#0f172a",
+                        marginTop: 8,
+                      }}
+                    >
                       {analytics.totals?.catches ?? 0}
                     </div>
                   </div>
@@ -858,23 +948,41 @@ export default function AdminDashboard() {
                   }}
                 >
                   <div style={cardStyle}>
-                    <h3 style={{ marginTop: 0, marginBottom: 14 }}>Platform Totals</h3>
-                    <div style={{ display: "grid", gap: 8, color: "#334155", fontSize: 14 }}>
+                    <h3 style={{ marginTop: 0, marginBottom: 14 }}>
+                      Platform Totals
+                    </h3>
+                    <div
+                      style={{
+                        display: "grid",
+                        gap: 8,
+                        color: "#334155",
+                        fontSize: 14,
+                      }}
+                    >
                       <div>Active users: {analytics.totals?.active_users ?? 0}</div>
                       <div>Private lakes: {analytics.totals?.private_lakes ?? 0}</div>
                       <div>Public lakes: {analytics.totals?.public_lakes ?? 0}</div>
                       <div>Reservations: {analytics.totals?.reservations ?? 0}</div>
-                      <div>Pending reservations: {analytics.totals?.pending_reservations ?? 0}</div>
-                      <div>Approved reservations: {analytics.totals?.approved_reservations ?? 0}</div>
+                      <div>
+                        Pending reservations:{" "}
+                        {analytics.totals?.pending_reservations ?? 0}
+                      </div>
+                      <div>
+                        Approved reservations:{" "}
+                        {analytics.totals?.approved_reservations ?? 0}
+                      </div>
                       <div>Subscriptions: {analytics.totals?.subscriptions ?? 0}</div>
                       <div>
-                        Pending ownership requests: {analytics.totals?.pending_owner_claims ?? 0}
+                        Pending ownership requests:{" "}
+                        {analytics.totals?.pending_owner_claims ?? 0}
                       </div>
                     </div>
                   </div>
 
                   <div style={cardStyle}>
-                    <h3 style={{ marginTop: 0, marginBottom: 14 }}>Top Lakes By Catches</h3>
+                    <h3 style={{ marginTop: 0, marginBottom: 14 }}>
+                      Top Lakes By Catches
+                    </h3>
                     {!analytics.topLakes?.length ? (
                       <div style={mutedStyle}>No lake statistics yet.</div>
                     ) : (
@@ -889,8 +997,16 @@ export default function AdminDashboard() {
                               background: "#f8fafc",
                             }}
                           >
-                            <div style={{ fontWeight: 800, color: "#0f172a" }}>{item.lake_name}</div>
-                            <div style={{ fontSize: 13, color: "#475569", marginTop: 4 }}>
+                            <div style={{ fontWeight: 800, color: "#0f172a" }}>
+                              {item.lake_name}
+                            </div>
+                            <div
+                              style={{
+                                fontSize: 13,
+                                color: "#475569",
+                                marginTop: 4,
+                              }}
+                            >
                               {item.catches_count} catches
                             </div>
                           </div>
@@ -900,7 +1016,9 @@ export default function AdminDashboard() {
                   </div>
 
                   <div style={cardStyle}>
-                    <h3 style={{ marginTop: 0, marginBottom: 14 }}>Top Species</h3>
+                    <h3 style={{ marginTop: 0, marginBottom: 14 }}>
+                      Top Species
+                    </h3>
                     {!analytics.topSpecies?.length ? (
                       <div style={mutedStyle}>No species statistics yet.</div>
                     ) : (
@@ -915,8 +1033,16 @@ export default function AdminDashboard() {
                               background: "#f8fafc",
                             }}
                           >
-                            <div style={{ fontWeight: 800, color: "#0f172a" }}>{item.species}</div>
-                            <div style={{ fontSize: 13, color: "#475569", marginTop: 4 }}>
+                            <div style={{ fontWeight: 800, color: "#0f172a" }}>
+                              {item.species}
+                            </div>
+                            <div
+                              style={{
+                                fontSize: 13,
+                                color: "#475569",
+                                marginTop: 4,
+                              }}
+                            >
                               {item.catches_count} catches
                             </div>
                           </div>
@@ -961,7 +1087,12 @@ export default function AdminDashboard() {
                   value={lakeSearch}
                   onChange={(e) => setLakeSearch(e.target.value)}
                   placeholder="Search water bodies..."
-                  style={{ border: "none", outline: "none", width: "100%", fontSize: 14 }}
+                  style={{
+                    border: "none",
+                    outline: "none",
+                    width: "100%",
+                    fontSize: 14,
+                  }}
                 />
               </div>
             </div>
@@ -993,7 +1124,9 @@ export default function AdminDashboard() {
                         }}
                       >
                         <div>
-                          <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>Name</div>
+                          <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>
+                            Name
+                          </div>
                           <input
                             type="text"
                             value={lake.name || ""}
@@ -1003,7 +1136,9 @@ export default function AdminDashboard() {
                         </div>
 
                         <div>
-                          <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>Type</div>
+                          <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>
+                            Type
+                          </div>
                           <input
                             type="text"
                             value={lake.type || ""}
@@ -1029,7 +1164,9 @@ export default function AdminDashboard() {
                         </div>
 
                         <div>
-                          <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>Capacity</div>
+                          <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>
+                            Capacity
+                          </div>
                           <input
                             type="number"
                             min="1"
@@ -1040,7 +1177,9 @@ export default function AdminDashboard() {
                         </div>
 
                         <div>
-                          <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>Private</div>
+                          <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>
+                            Private
+                          </div>
                           <select
                             value={lake.is_private ? "true" : "false"}
                             onChange={(e) =>
@@ -1074,7 +1213,9 @@ export default function AdminDashboard() {
                         </div>
 
                         <div>
-                          <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>Owner</div>
+                          <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>
+                            Owner
+                          </div>
                           <select
                             value={lake.owner_id || ""}
                             onChange={(e) =>
@@ -1093,13 +1234,13 @@ export default function AdminDashboard() {
                       </div>
 
                       <div style={{ marginTop: 12 }}>
-                        <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>Description</div>
+                        <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>
+                          Description
+                        </div>
                         <textarea
                           rows={3}
                           value={lake.description || ""}
-                          onChange={(e) =>
-                            updateLakeLocal(lake.id, "description", e.target.value)
-                          }
+                          onChange={(e) => updateLakeLocal(lake.id, "description", e.target.value)}
                           style={textareaStyle}
                         />
                       </div>
@@ -1208,7 +1349,12 @@ export default function AdminDashboard() {
                   value={userSearch}
                   onChange={(e) => setUserSearch(e.target.value)}
                   placeholder="Search users..."
-                  style={{ border: "none", outline: "none", width: "100%", fontSize: 14 }}
+                  style={{
+                    border: "none",
+                    outline: "none",
+                    width: "100%",
+                    fontSize: 14,
+                  }}
                 />
               </div>
             </div>
@@ -1254,7 +1400,9 @@ export default function AdminDashboard() {
                         </div>
 
                         <div>
-                          <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>Email</div>
+                          <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>
+                            Email
+                          </div>
                           <input
                             type="email"
                             value={user.email || ""}
@@ -1264,7 +1412,9 @@ export default function AdminDashboard() {
                         </div>
 
                         <div>
-                          <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>Role</div>
+                          <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>
+                            Role
+                          </div>
                           <select
                             value={user.role || "user"}
                             onChange={(e) => updateUserLocal(user.id, "role", e.target.value)}
@@ -1277,7 +1427,9 @@ export default function AdminDashboard() {
                         </div>
 
                         <div>
-                          <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>Active</div>
+                          <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>
+                            Active
+                          </div>
                           <select
                             value={user.is_active ? "true" : "false"}
                             onChange={(e) =>
@@ -1379,7 +1531,12 @@ export default function AdminDashboard() {
                   value={reviewSearch}
                   onChange={(e) => setReviewSearch(e.target.value)}
                   placeholder="Search reviews..."
-                  style={{ border: "none", outline: "none", width: "100%", fontSize: 14 }}
+                  style={{
+                    border: "none",
+                    outline: "none",
+                    width: "100%",
+                    fontSize: 14,
+                  }}
                 />
               </div>
             </div>
@@ -1413,16 +1570,40 @@ export default function AdminDashboard() {
                         }}
                       >
                         <div>
-                          <div style={{ fontSize: 16, fontWeight: 800, color: "#0f172a" }}>
+                          <div
+                            style={{
+                              fontSize: 16,
+                              fontWeight: 800,
+                              color: "#0f172a",
+                            }}
+                          >
                             {review.full_name || "Unknown user"}
                           </div>
-                          <div style={{ fontSize: 13, color: "#64748b", marginTop: 4 }}>
+                          <div
+                            style={{
+                              fontSize: 13,
+                              color: "#64748b",
+                              marginTop: 4,
+                            }}
+                          >
                             {review.email || "No email"}
                           </div>
-                          <div style={{ fontSize: 13, color: "#64748b", marginTop: 4 }}>
+                          <div
+                            style={{
+                              fontSize: 13,
+                              color: "#64748b",
+                              marginTop: 4,
+                            }}
+                          >
                             Lake: {review.lake_name || "Unknown lake"}
                           </div>
-                          <div style={{ fontSize: 13, color: "#64748b", marginTop: 4 }}>
+                          <div
+                            style={{
+                              fontSize: 13,
+                              color: "#64748b",
+                              marginTop: 4,
+                            }}
+                          >
                             {formatDateTime(review.created_at)}
                           </div>
                         </div>
@@ -1528,19 +1709,17 @@ export default function AdminDashboard() {
                   value={ownerClaimSearch}
                   onChange={(e) => setOwnerClaimSearch(e.target.value)}
                   placeholder="Search ownership requests..."
-                  style={{ border: "none", outline: "none", width: "100%", fontSize: 14 }}
+                  style={{
+                    border: "none",
+                    outline: "none",
+                    width: "100%",
+                    fontSize: 14,
+                  }}
                 />
               </div>
             </div>
 
-            <div
-              style={{
-                display: "flex",
-                gap: 10,
-                flexWrap: "wrap",
-                marginBottom: 16,
-              }}
-            >
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 16 }}>
               <button
                 type="button"
                 onClick={() => setOwnerClaimStatusFilter("all")}
@@ -1603,7 +1782,13 @@ export default function AdminDashboard() {
                         }}
                       >
                         <div style={{ display: "grid", gap: 6 }}>
-                          <div style={{ fontSize: 17, fontWeight: 800, color: "#0f172a" }}>
+                          <div
+                            style={{
+                              fontSize: 17,
+                              fontWeight: 800,
+                              color: "#0f172a",
+                            }}
+                          >
                             {item.lake_name || "Unknown lake"}
                           </div>
                           <div style={{ fontSize: 14, color: "#334155" }}>
@@ -1655,7 +1840,7 @@ export default function AdminDashboard() {
                           </div>
                           {item.proof_document_url ? (
                             <a
-                              href={`${api.defaults.baseURL || ""}/uploads/${item.proof_document_url}`}
+                              href={getUploadUrl(item.proof_document_url)}
                               target="_blank"
                               rel="noreferrer"
                               style={{

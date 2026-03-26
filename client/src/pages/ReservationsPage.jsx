@@ -1,6 +1,11 @@
 import React, { useEffect, useState } from "react";
-import api from "../api/client";
 import { notifyError, notifySuccess } from "../ui/toast";
+import {
+  cancelReservation,
+  getIncomingReservations,
+  getMyReservations,
+  updateReservationStatus,
+} from "../api/reservationsApi";
 
 const pageStyle = {
   padding: 20,
@@ -36,16 +41,16 @@ const badgeStyle = (status) => {
 
 const formatDate = (value) => {
   if (!value) return "Unknown date";
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return value;
-  return d.toLocaleDateString();
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString();
 };
 
 const formatDateTime = (value) => {
   if (!value) return "Unknown time";
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return value;
-  return d.toLocaleString();
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString();
 };
 
 export default function ReservationsPage() {
@@ -54,17 +59,19 @@ export default function ReservationsPage() {
   const [loading, setLoading] = useState(true);
   const [savingId, setSavingId] = useState("");
 
-  const load = async () => {
+  const loadReservations = async () => {
     try {
       setLoading(true);
-      const [myRes, incomingRes] = await Promise.all([
-        api.get("/reservations/my"),
-        api.get("/reservations/incoming"),
+
+      const [myReservationsData, incomingReservationsData] = await Promise.all([
+        getMyReservations(),
+        getIncomingReservations(),
       ]);
-      setMyReservations(myRes.data || []);
-      setIncomingReservations(incomingRes.data || []);
-    } catch (err) {
-      notifyError(err, "Failed to load reservations");
+
+      setMyReservations(myReservationsData || []);
+      setIncomingReservations(incomingReservationsData || []);
+    } catch (error) {
+      notifyError(error, "Failed to load reservations");
       setMyReservations([]);
       setIncomingReservations([]);
     } finally {
@@ -73,30 +80,30 @@ export default function ReservationsPage() {
   };
 
   useEffect(() => {
-    load();
+    loadReservations();
   }, []);
 
-  const cancelReservation = async (reservationId) => {
+  const handleCancelReservation = async (reservationId) => {
     try {
       setSavingId(reservationId);
-      await api.patch(`/reservations/${reservationId}/cancel`);
+      await cancelReservation(reservationId);
       notifySuccess("Reservation cancelled");
-      await load();
-    } catch (err) {
-      notifyError(err, "Failed to cancel reservation");
+      await loadReservations();
+    } catch (error) {
+      notifyError(error, "Failed to cancel reservation");
     } finally {
       setSavingId("");
     }
   };
 
-  const updateIncomingStatus = async (reservationId, status) => {
+  const handleUpdateIncomingStatus = async (reservationId, status) => {
     try {
       setSavingId(reservationId);
-      await api.patch(`/reservations/${reservationId}/status`, { status });
+      await updateReservationStatus(reservationId, status);
       notifySuccess("Reservation updated");
-      await load();
-    } catch (err) {
-      notifyError(err, "Failed to update reservation");
+      await loadReservations();
+    } catch (error) {
+      notifyError(error, "Failed to update reservation");
     } finally {
       setSavingId("");
     }
@@ -120,7 +127,8 @@ export default function ReservationsPage() {
         >
           <h2 style={{ marginTop: 0, marginBottom: 8 }}>Reservations</h2>
           <div style={{ opacity: 0.95, lineHeight: 1.6, fontSize: 14 }}>
-            Manage your reservation requests and review incoming requests for lakes you own.
+            Manage your reservation requests and review incoming requests for
+            lakes you own.
           </div>
         </div>
 
@@ -129,7 +137,9 @@ export default function ReservationsPage() {
             <h3 style={{ marginTop: 0, marginBottom: 14 }}>My reservations</h3>
 
             {myReservations.length === 0 ? (
-              <div style={{ color: "#64748b" }}>You do not have any reservations yet.</div>
+              <div style={{ color: "#64748b" }}>
+                You do not have any reservations yet.
+              </div>
             ) : (
               <div style={{ display: "grid", gap: 12 }}>
                 {myReservations.map((item) => (
@@ -152,33 +162,69 @@ export default function ReservationsPage() {
                       }}
                     >
                       <div>
-                        <div style={{ fontSize: 17, fontWeight: 800, color: "#0f172a" }}>{item.lake_name}</div>
-                        <div style={{ fontSize: 13, color: "#64748b", marginTop: 6 }}>
+                        <div
+                          style={{
+                            fontSize: 17,
+                            fontWeight: 800,
+                            color: "#0f172a",
+                          }}
+                        >
+                          {item.lake_name}
+                        </div>
+                        <div
+                          style={{
+                            fontSize: 13,
+                            color: "#64748b",
+                            marginTop: 6,
+                          }}
+                        >
                           Date: {formatDate(item.reservation_date)}
                         </div>
-                        <div style={{ fontSize: 13, color: "#64748b", marginTop: 4 }}>
+                        <div
+                          style={{
+                            fontSize: 13,
+                            color: "#64748b",
+                            marginTop: 4,
+                          }}
+                        >
                           Created: {formatDateTime(item.created_at)}
                         </div>
-                        <div style={{ fontSize: 13, color: "#475569", marginTop: 8 }}>
+                        <div
+                          style={{
+                            fontSize: 13,
+                            color: "#475569",
+                            marginTop: 8,
+                          }}
+                        >
                           Notes: {item.notes || "No notes"}
                         </div>
                       </div>
 
-                      <div style={{ display: "flex", flexDirection: "column", gap: 10, alignItems: "flex-end" }}>
+                      <div
+                        style={{
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: 10,
+                          alignItems: "flex-end",
+                        }}
+                      >
                         <span style={badgeStyle(item.status)}>{item.status}</span>
 
                         {item.status !== "cancelled" && (
                           <button
                             type="button"
                             disabled={savingId === item.id}
-                            onClick={() => cancelReservation(item.id)}
+                            onClick={() => handleCancelReservation(item.id)}
                             style={{
                               background: "#dc2626",
                               color: "white",
                               border: "none",
                               padding: "8px 12px",
                               borderRadius: 10,
-                              cursor: savingId === item.id ? "not-allowed" : "pointer",
+                              cursor:
+                                savingId === item.id
+                                  ? "not-allowed"
+                                  : "pointer",
                               fontWeight: 700,
                             }}
                           >
@@ -194,10 +240,14 @@ export default function ReservationsPage() {
           </div>
 
           <div style={cardStyle}>
-            <h3 style={{ marginTop: 0, marginBottom: 14 }}>Incoming reservations</h3>
+            <h3 style={{ marginTop: 0, marginBottom: 14 }}>
+              Incoming reservations
+            </h3>
 
             {incomingReservations.length === 0 ? (
-              <div style={{ color: "#64748b" }}>No incoming reservations for your private lakes.</div>
+              <div style={{ color: "#64748b" }}>
+                No incoming reservations for your private lakes.
+              </div>
             ) : (
               <div style={{ display: "grid", gap: 12 }}>
                 {incomingReservations.map((item) => (
@@ -220,36 +270,88 @@ export default function ReservationsPage() {
                       }}
                     >
                       <div>
-                        <div style={{ fontSize: 17, fontWeight: 800, color: "#0f172a" }}>{item.lake_name}</div>
-                        <div style={{ fontSize: 13, color: "#64748b", marginTop: 6 }}>
-                          User: {item.full_name || "Unknown"} {item.email ? `(${item.email})` : ""}
+                        <div
+                          style={{
+                            fontSize: 17,
+                            fontWeight: 800,
+                            color: "#0f172a",
+                          }}
+                        >
+                          {item.lake_name}
                         </div>
-                        <div style={{ fontSize: 13, color: "#64748b", marginTop: 4 }}>
+                        <div
+                          style={{
+                            fontSize: 13,
+                            color: "#64748b",
+                            marginTop: 6,
+                          }}
+                        >
+                          User: {item.full_name || "Unknown"}{" "}
+                          {item.email ? `(${item.email})` : ""}
+                        </div>
+                        <div
+                          style={{
+                            fontSize: 13,
+                            color: "#64748b",
+                            marginTop: 4,
+                          }}
+                        >
                           Date: {formatDate(item.reservation_date)}
                         </div>
-                        <div style={{ fontSize: 13, color: "#64748b", marginTop: 4 }}>
+                        <div
+                          style={{
+                            fontSize: 13,
+                            color: "#64748b",
+                            marginTop: 4,
+                          }}
+                        >
                           Created: {formatDateTime(item.created_at)}
                         </div>
-                        <div style={{ fontSize: 13, color: "#475569", marginTop: 8 }}>
+                        <div
+                          style={{
+                            fontSize: 13,
+                            color: "#475569",
+                            marginTop: 8,
+                          }}
+                        >
                           Notes: {item.notes || "No notes"}
                         </div>
                       </div>
 
-                      <div style={{ display: "flex", flexDirection: "column", gap: 10, alignItems: "flex-end" }}>
+                      <div
+                        style={{
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: 10,
+                          alignItems: "flex-end",
+                        }}
+                      >
                         <span style={badgeStyle(item.status)}>{item.status}</span>
 
-                        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                        <div
+                          style={{
+                            display: "flex",
+                            gap: 8,
+                            flexWrap: "wrap",
+                            justifyContent: "flex-end",
+                          }}
+                        >
                           <button
                             type="button"
                             disabled={savingId === item.id}
-                            onClick={() => updateIncomingStatus(item.id, "approved")}
+                            onClick={() =>
+                              handleUpdateIncomingStatus(item.id, "approved")
+                            }
                             style={{
                               background: "#16a34a",
                               color: "white",
                               border: "none",
                               padding: "8px 12px",
                               borderRadius: 10,
-                              cursor: savingId === item.id ? "not-allowed" : "pointer",
+                              cursor:
+                                savingId === item.id
+                                  ? "not-allowed"
+                                  : "pointer",
                               fontWeight: 700,
                             }}
                           >
@@ -259,14 +361,19 @@ export default function ReservationsPage() {
                           <button
                             type="button"
                             disabled={savingId === item.id}
-                            onClick={() => updateIncomingStatus(item.id, "rejected")}
+                            onClick={() =>
+                              handleUpdateIncomingStatus(item.id, "rejected")
+                            }
                             style={{
                               background: "#dc2626",
                               color: "white",
                               border: "none",
                               padding: "8px 12px",
                               borderRadius: 10,
-                              cursor: savingId === item.id ? "not-allowed" : "pointer",
+                              cursor:
+                                savingId === item.id
+                                  ? "not-allowed"
+                                  : "pointer",
                               fontWeight: 700,
                             }}
                           >
@@ -276,14 +383,19 @@ export default function ReservationsPage() {
                           <button
                             type="button"
                             disabled={savingId === item.id}
-                            onClick={() => updateIncomingStatus(item.id, "pending")}
+                            onClick={() =>
+                              handleUpdateIncomingStatus(item.id, "pending")
+                            }
                             style={{
                               background: "#334155",
                               color: "white",
                               border: "none",
                               padding: "8px 12px",
                               borderRadius: 10,
-                              cursor: savingId === item.id ? "not-allowed" : "pointer",
+                              cursor:
+                                savingId === item.id
+                                  ? "not-allowed"
+                                  : "pointer",
                               fontWeight: 700,
                             }}
                           >

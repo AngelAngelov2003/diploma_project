@@ -15,12 +15,12 @@ export const createAlert = async (payload) => {
   return data;
 };
 
-export const updateAlert = async (id, payload) => {
-  const { data } = await api.put(`/alerts/${id}`, payload);
+export const updateAlert = async (waterBodyId, payload) => {
+  const { data } = await api.patch(`/alerts/${waterBodyId}`, payload);
   return data;
 };
 
-export const deleteAlert = async (id) => {
-  const { data } = await api.delete(`/alerts/${id}`);
+export const deleteAlert = async (waterBodyId) => {
+  const { data } = await api.delete(`/alerts/${waterBodyId}`);
   return data;
 };

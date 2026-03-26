@@ -19,8 +19,29 @@ import {
 } from "react-icons/fa";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import api from "../api/client";
 import { notifyError, notifySuccess } from "../ui/toast";
+import {
+  createAlert,
+  getAlertStatus,
+  updateAlert,
+} from "../api/alertsApi";
+import {
+  createReservation,
+  cancelReservation as cancelReservationRequest,
+  getReservationStatusForLake,
+} from "../api/reservationsApi";
+import {
+  createWaterBodyReview,
+  deleteMyWaterBodyReview,
+  getWaterBodyBlockedDates,
+  getWaterBodyById,
+  getWaterBodyCatches,
+  getWaterBodyForecast,
+  getWaterBodyPhotos,
+  getWaterBodyReviews,
+  getWaterBodyReviewsSummary,
+  getWaterBodySpeciesSummary,
+} from "../api/lakeDetailsApi";
 
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
@@ -28,6 +49,23 @@ L.Icon.Default.mergeOptions({
   iconUrl: require("leaflet/dist/images/marker-icon.png"),
   shadowUrl: require("leaflet/dist/images/marker-shadow.png"),
 });
+
+const DEFAULT_ALERT_STATE = {
+  enabled: false,
+  favorite: false,
+  notification_frequency: "daily",
+  min_score: 0,
+};
+
+const DEFAULT_RESERVATION_STATUS = {
+  is_private: false,
+  reservation: null,
+};
+
+const DEFAULT_REVIEWS_SUMMARY = {
+  reviews_count: 0,
+  average_rating: null,
+};
 
 const cardStyle = {
   background: "white",
@@ -49,16 +87,16 @@ const sectionTitleStyle = {
 
 const formatDateTime = (value) => {
   if (!value) return "Unknown time";
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return "Unknown time";
-  return d.toLocaleString();
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Unknown time";
+  return date.toLocaleString();
 };
 
 const formatDate = (value) => {
   if (!value) return "Unknown date";
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return value;
-  return d.toLocaleDateString();
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString();
 };
 
 function LakeDetails() {
@@ -71,163 +109,178 @@ function LakeDetails() {
   const [speciesSummary, setSpeciesSummary] = useState([]);
   const [photos, setPhotos] = useState([]);
   const [reviews, setReviews] = useState([]);
-  const [reviewsSummary, setReviewsSummary] = useState({ reviews_count: 0, average_rating: null });
+  const [reviewsSummary, setReviewsSummary] = useState(DEFAULT_REVIEWS_SUMMARY);
   const [reviewRating, setReviewRating] = useState(5);
   const [reviewComment, setReviewComment] = useState("");
   const [savingReview, setSavingReview] = useState(false);
-  const [alertState, setAlertState] = useState({
-    enabled: false,
-    favorite: false,
-    notification_frequency: "daily",
-    min_score: 0,
-  });
+
+  const [alertState, setAlertState] = useState(DEFAULT_ALERT_STATE);
   const [savingAlertState, setSavingAlertState] = useState(false);
-  const [reservationStatus, setReservationStatus] = useState({ is_private: false, reservation: null });
+
+  const [reservationStatus, setReservationStatus] = useState(
+    DEFAULT_RESERVATION_STATUS,
+  );
   const [blockedDates, setBlockedDates] = useState([]);
   const [reservationDate, setReservationDate] = useState("");
   const [reservationNotes, setReservationNotes] = useState("");
   const [savingReservation, setSavingReservation] = useState(false);
+
   const [loading, setLoading] = useState(true);
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 1000);
 
-  useEffect(() => {
-    const loadData = async () => {
-      setLoading(true);
-      try {
-        const [
-          lakeRes,
-          forecastRes,
-          catchesRes,
-          speciesRes,
-          photosRes,
-          reviewsRes,
-          reviewsSummaryRes,
-          alertStatusRes,
-          reservationStatusRes,
-          blockedDatesRes,
-        ] = await Promise.all([
-          api.get(`/water-bodies/${id}`),
-          api.get(`/water-bodies/${id}/forecast`),
-          api.get(`/water-bodies/${id}/catches`),
-          api.get(`/water-bodies/${id}/species-summary`),
-          api.get(`/water-bodies/${id}/photos`),
-          api.get(`/water-bodies/${id}/reviews`),
-          api.get(`/water-bodies/${id}/reviews-summary`),
-          api.get(`/alerts/status/${id}`),
-          api.get(`/reservations/${id}/my-status`),
-          api.get(`/water-bodies/${id}/blocked-dates`),
-        ]);
-
-        setLake(lakeRes.data || null);
-        setForecast(forecastRes.data || null);
-        setCatches(catchesRes.data || []);
-        setSpeciesSummary(speciesRes.data || []);
-        setPhotos(photosRes.data || []);
-        setReviews(reviewsRes.data || []);
-        setReviewsSummary(reviewsSummaryRes.data || { reviews_count: 0, average_rating: null });
-        setAlertState(
-          alertStatusRes.data || {
-            enabled: false,
-            favorite: false,
-            notification_frequency: "daily",
-            min_score: 0,
-          }
-        );
-        setReservationStatus(reservationStatusRes.data || { is_private: false, reservation: null });
-        setBlockedDates(blockedDatesRes.data || []);
-      } catch (err) {
-        notifyError(err, "Failed to load lake details");
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadData();
-  }, [id]);
-
-  useEffect(() => {
-    const onResize = () => setIsMobile(window.innerWidth <= 1000);
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
-  }, []);
-
-  const mapCenter = useMemo(() => {
-    if (lake && Number.isFinite(Number(lake.latitude)) && Number.isFinite(Number(lake.longitude))) {
-      return [Number(lake.latitude), Number(lake.longitude)];
-    }
-    return [42.7339, 25.4858];
-  }, [lake]);
-
-  const blockedDateStrings = useMemo(
-    () => new Set((blockedDates || []).map((x) => String(x.blocked_date).slice(0, 10))),
-    [blockedDates]
-  );
-
   const loadReviews = async () => {
     try {
-      const [reviewsRes, reviewsSummaryRes] = await Promise.all([
-        api.get(`/water-bodies/${id}/reviews`),
-        api.get(`/water-bodies/${id}/reviews-summary`),
+      const [reviewsData, reviewsSummaryData] = await Promise.all([
+        getWaterBodyReviews(id),
+        getWaterBodyReviewsSummary(id),
       ]);
 
-      setReviews(reviewsRes.data || []);
-      setReviewsSummary(reviewsSummaryRes.data || { reviews_count: 0, average_rating: null });
-    } catch (err) {
-      notifyError(err, "Failed to refresh reviews");
+      setReviews(reviewsData || []);
+      setReviewsSummary(reviewsSummaryData || DEFAULT_REVIEWS_SUMMARY);
+    } catch (error) {
+      notifyError(error, "Failed to refresh reviews");
     }
   };
 
   const loadReservationStatus = async () => {
     try {
-      const [statusRes, blockedDatesRes] = await Promise.all([
-        api.get(`/reservations/${id}/my-status`),
-        api.get(`/water-bodies/${id}/blocked-dates`),
+      const [statusData, blockedDatesData] = await Promise.all([
+        getReservationStatusForLake(id),
+        getWaterBodyBlockedDates(id),
       ]);
-      setReservationStatus(statusRes.data || { is_private: false, reservation: null });
-      setBlockedDates(blockedDatesRes.data || []);
-    } catch (err) {
-      notifyError(err, "Failed to refresh reservation status");
+
+      setReservationStatus(statusData || DEFAULT_RESERVATION_STATUS);
+      setBlockedDates(blockedDatesData || []);
+    } catch (error) {
+      notifyError(error, "Failed to refresh reservation status");
     }
   };
 
-  const submitReview = async (e) => {
-    e.preventDefault();
-    if (savingReview) return;
+  useEffect(() => {
+    const loadLakeDetails = async () => {
+      setLoading(true);
+
+      try {
+        const [
+          lakeData,
+          forecastData,
+          catchesData,
+          speciesSummaryData,
+          photosData,
+          reviewsData,
+          reviewsSummaryData,
+          alertStatusData,
+          reservationStatusData,
+          blockedDatesData,
+        ] = await Promise.all([
+          getWaterBodyById(id),
+          getWaterBodyForecast(id),
+          getWaterBodyCatches(id),
+          getWaterBodySpeciesSummary(id),
+          getWaterBodyPhotos(id),
+          getWaterBodyReviews(id),
+          getWaterBodyReviewsSummary(id),
+          getAlertStatus(id),
+          getReservationStatusForLake(id),
+          getWaterBodyBlockedDates(id),
+        ]);
+
+        setLake(lakeData || null);
+        setForecast(forecastData || null);
+        setCatches(catchesData || []);
+        setSpeciesSummary(speciesSummaryData || []);
+        setPhotos(photosData || []);
+        setReviews(reviewsData || []);
+        setReviewsSummary(reviewsSummaryData || DEFAULT_REVIEWS_SUMMARY);
+        setAlertState(alertStatusData || DEFAULT_ALERT_STATE);
+        setReservationStatus(
+          reservationStatusData || DEFAULT_RESERVATION_STATUS,
+        );
+        setBlockedDates(blockedDatesData || []);
+      } catch (error) {
+        notifyError(error, "Failed to load lake details");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadLakeDetails();
+  }, [id]);
+
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth <= 1000);
+    window.addEventListener("resize", onResize);
+
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+
+  const mapCenter = useMemo(() => {
+    if (
+      lake &&
+      Number.isFinite(Number(lake.latitude)) &&
+      Number.isFinite(Number(lake.longitude))
+    ) {
+      return [Number(lake.latitude), Number(lake.longitude)];
+    }
+
+    return [42.7339, 25.4858];
+  }, [lake]);
+
+  const blockedDateStrings = useMemo(
+    () => new Set((blockedDates || []).map((item) => String(item.blocked_date).slice(0, 10))),
+    [blockedDates],
+  );
+
+  const submitReview = async (event) => {
+    event.preventDefault();
+
+    if (savingReview) {
+      return;
+    }
 
     const trimmedComment = reviewComment.trim();
+    const normalizedRating = Number(reviewRating);
 
-    if (!Number.isInteger(Number(reviewRating)) || Number(reviewRating) < 1 || Number(reviewRating) > 5) {
+    if (
+      !Number.isInteger(normalizedRating) ||
+      normalizedRating < 1 ||
+      normalizedRating > 5
+    ) {
       notifyError(null, "Rating must be between 1 and 5");
       return;
     }
 
     try {
       setSavingReview(true);
-      await api.post(`/water-bodies/${id}/reviews`, {
-        rating: Number(reviewRating),
+
+      await createWaterBodyReview(id, {
+        rating: normalizedRating,
         comment: trimmedComment,
       });
+
       notifySuccess("Review saved");
       setReviewComment("");
       setReviewRating(5);
       await loadReviews();
-    } catch (err) {
-      notifyError(err, "Failed to save review");
+    } catch (error) {
+      notifyError(error, "Failed to save review");
     } finally {
       setSavingReview(false);
     }
   };
 
   const deleteMyReview = async () => {
-    if (savingReview) return;
+    if (savingReview) {
+      return;
+    }
 
     try {
       setSavingReview(true);
-      await api.delete(`/water-bodies/${id}/reviews/me`);
+      await deleteMyWaterBodyReview(id);
       notifySuccess("Review deleted");
       await loadReviews();
-    } catch (err) {
-      notifyError(err, "Failed to delete review");
+    } catch (error) {
+      notifyError(error, "Failed to delete review");
     } finally {
       setSavingReview(false);
     }
@@ -236,6 +289,7 @@ function LakeDetails() {
   const saveAlertSettings = async (nextState, successMessage) => {
     try {
       setSavingAlertState(true);
+
       const payload = {
         is_active: Boolean(nextState.enabled),
         is_favorite: Boolean(nextState.favorite),
@@ -244,14 +298,14 @@ function LakeDetails() {
       };
 
       if (payload.is_active) {
-        await api.post("/alerts", {
+        await createAlert({
           water_body_id: id,
           is_favorite: payload.is_favorite,
           notification_frequency: payload.notification_frequency,
           min_score: payload.min_score,
         });
       } else {
-        await api.patch(`/alerts/${id}`, {
+        await updateAlert(id, {
           is_active: false,
           is_favorite: payload.is_favorite,
           notification_frequency: payload.notification_frequency,
@@ -260,17 +314,23 @@ function LakeDetails() {
       }
 
       setAlertState(nextState);
-      if (successMessage) notifySuccess(successMessage);
-    } catch (err) {
-      notifyError(err, "Failed to update lake settings");
+
+      if (successMessage) {
+        notifySuccess(successMessage);
+      }
+    } catch (error) {
+      notifyError(error, "Failed to update lake settings");
     } finally {
       setSavingAlertState(false);
     }
   };
 
-  const submitReservation = async (e) => {
-    e.preventDefault();
-    if (savingReservation) return;
+  const submitReservation = async (event) => {
+    event.preventDefault();
+
+    if (savingReservation) {
+      return;
+    }
 
     if (!reservationDate) {
       notifyError(null, "Please choose a reservation date");
@@ -284,31 +344,35 @@ function LakeDetails() {
 
     try {
       setSavingReservation(true);
-      await api.post("/reservations", {
+
+      await createReservation({
         water_body_id: id,
         reservation_date: reservationDate,
         notes: reservationNotes.trim(),
       });
+
       notifySuccess("Reservation request sent");
       setReservationNotes("");
       await loadReservationStatus();
-    } catch (err) {
-      notifyError(err, "Failed to create reservation");
+    } catch (error) {
+      notifyError(error, "Failed to create reservation");
     } finally {
       setSavingReservation(false);
     }
   };
 
   const cancelReservation = async () => {
-    if (!reservationStatus?.reservation?.id || savingReservation) return;
+    if (!reservationStatus?.reservation?.id || savingReservation) {
+      return;
+    }
 
     try {
       setSavingReservation(true);
-      await api.patch(`/reservations/${reservationStatus.reservation.id}/cancel`);
+      await cancelReservationRequest(reservationStatus.reservation.id);
       notifySuccess("Reservation cancelled");
       await loadReservationStatus();
-    } catch (err) {
-      notifyError(err, "Failed to cancel reservation");
+    } catch (error) {
+      notifyError(error, "Failed to cancel reservation");
     } finally {
       setSavingReservation(false);
     }
@@ -316,8 +380,21 @@ function LakeDetails() {
 
   if (loading) {
     return (
-      <div style={{ padding: "24px", background: "#f8fafc", minHeight: "calc(100vh - 60px)" }}>
-        <div style={{ maxWidth: "1300px", margin: "0 auto", color: "#475569", fontWeight: 600 }}>
+      <div
+        style={{
+          padding: "24px",
+          background: "#f8fafc",
+          minHeight: "calc(100vh - 60px)",
+        }}
+      >
+        <div
+          style={{
+            maxWidth: "1300px",
+            margin: "0 auto",
+            color: "#475569",
+            fontWeight: 600,
+          }}
+        >
           Loading lake details...
         </div>
       </div>
@@ -326,7 +403,13 @@ function LakeDetails() {
 
   if (!lake) {
     return (
-      <div style={{ padding: "24px", background: "#f8fafc", minHeight: "calc(100vh - 60px)" }}>
+      <div
+        style={{
+          padding: "24px",
+          background: "#f8fafc",
+          minHeight: "calc(100vh - 60px)",
+        }}
+      >
         <div style={{ maxWidth: "1300px", margin: "0 auto" }}>
           <button
             onClick={() => navigate("/")}
@@ -349,7 +432,13 @@ function LakeDetails() {
   }
 
   return (
-    <div style={{ padding: "24px", background: "#f8fafc", minHeight: "calc(100vh - 60px)" }}>
+    <div
+      style={{
+        padding: "24px",
+        background: "#f8fafc",
+        minHeight: "calc(100vh - 60px)",
+      }}
+    >
       <div style={{ maxWidth: "1300px", margin: "0 auto" }}>
         <button
           onClick={() => navigate("/")}
@@ -380,9 +469,34 @@ function LakeDetails() {
             border: "none",
           }}
         >
-          <div style={{ fontSize: "13px", opacity: 0.92, marginBottom: "6px" }}>Water body details</div>
-          <h1 style={{ margin: "0 0 8px 0", fontSize: "30px", fontWeight: 900 }}>{lake.name}</h1>
-          <div style={{ maxWidth: "820px", lineHeight: 1.6, fontSize: "15px", opacity: 0.98 }}>
+          <div
+            style={{
+              fontSize: "13px",
+              opacity: 0.92,
+              marginBottom: "6px",
+            }}
+          >
+            Water body details
+          </div>
+
+          <h1
+            style={{
+              margin: "0 0 8px 0",
+              fontSize: "30px",
+              fontWeight: 900,
+            }}
+          >
+            {lake.name}
+          </h1>
+
+          <div
+            style={{
+              maxWidth: "820px",
+              lineHeight: 1.6,
+              fontSize: "15px",
+              opacity: 0.98,
+            }}
+          >
             {lake.description || "No description available."}
           </div>
 
@@ -521,8 +635,22 @@ function LakeDetails() {
                   padding: "14px",
                 }}
               >
-                <div style={{ fontSize: "12px", color: "#64748b", marginBottom: "6px" }}>Reservations</div>
-                <div style={{ fontSize: "18px", fontWeight: 800, color: "#0f172a" }}>
+                <div
+                  style={{
+                    fontSize: "12px",
+                    color: "#64748b",
+                    marginBottom: "6px",
+                  }}
+                >
+                  Reservations
+                </div>
+                <div
+                  style={{
+                    fontSize: "18px",
+                    fontWeight: 800,
+                    color: "#0f172a",
+                  }}
+                >
                   {lake.is_reservable ? "Open" : "Closed"}
                 </div>
               </div>
@@ -535,8 +663,22 @@ function LakeDetails() {
                   padding: "14px",
                 }}
               >
-                <div style={{ fontSize: "12px", color: "#64748b", marginBottom: "6px" }}>Availability notes</div>
-                <div style={{ fontSize: "14px", fontWeight: 700, color: "#0f172a" }}>
+                <div
+                  style={{
+                    fontSize: "12px",
+                    color: "#64748b",
+                    marginBottom: "6px",
+                  }}
+                >
+                  Availability notes
+                </div>
+                <div
+                  style={{
+                    fontSize: "14px",
+                    fontWeight: 700,
+                    color: "#0f172a",
+                  }}
+                >
                   {lake.availability_notes || "No notes from the owner"}
                 </div>
               </div>
@@ -552,11 +694,26 @@ function LakeDetails() {
                   marginBottom: "16px",
                 }}
               >
-                <div style={{ fontWeight: 800, color: "#9a3412", marginBottom: "8px" }}>Blocked dates</div>
+                <div
+                  style={{
+                    fontWeight: 800,
+                    color: "#9a3412",
+                    marginBottom: "8px",
+                  }}
+                >
+                  Blocked dates
+                </div>
                 <div style={{ display: "grid", gap: "8px" }}>
                   {blockedDates.map((item) => (
-                    <div key={item.id} style={{ fontSize: "14px", color: "#7c2d12" }}>
-                      {formatDate(item.blocked_date)} {item.reason ? `— ${item.reason}` : ""}
+                    <div
+                      key={item.id}
+                      style={{
+                        fontSize: "14px",
+                        color: "#7c2d12",
+                      }}
+                    >
+                      {formatDate(item.blocked_date)}
+                      {item.reason ? ` — ${item.reason}` : ""}
                     </div>
                   ))}
                 </div>
@@ -572,10 +729,24 @@ function LakeDetails() {
                   padding: "16px",
                 }}
               >
-                <div style={{ fontSize: "15px", fontWeight: 800, color: "#0f172a", marginBottom: "8px" }}>
+                <div
+                  style={{
+                    fontSize: "15px",
+                    fontWeight: 800,
+                    color: "#0f172a",
+                    marginBottom: "8px",
+                  }}
+                >
                   Your latest reservation
                 </div>
-                <div style={{ fontSize: "14px", color: "#475569", lineHeight: 1.8 }}>
+
+                <div
+                  style={{
+                    fontSize: "14px",
+                    color: "#475569",
+                    lineHeight: 1.8,
+                  }}
+                >
                   Date: {formatDate(reservationStatus.reservation.reservation_date)}
                   <br />
                   Status: {reservationStatus.reservation.status}
@@ -616,12 +787,20 @@ function LakeDetails() {
                   }}
                 >
                   <div>
-                    <div style={{ fontSize: "12px", color: "#555", marginBottom: "6px" }}>Reservation date</div>
+                    <div
+                      style={{
+                        fontSize: "12px",
+                        color: "#555",
+                        marginBottom: "6px",
+                      }}
+                    >
+                      Reservation date
+                    </div>
                     <input
                       type="date"
                       value={reservationDate}
                       min={new Date().toISOString().split("T")[0]}
-                      onChange={(e) => setReservationDate(e.target.value)}
+                      onChange={(event) => setReservationDate(event.target.value)}
                       disabled={savingReservation || !lake.is_reservable}
                       style={{
                         width: "100%",
@@ -632,19 +811,36 @@ function LakeDetails() {
                         background: "white",
                       }}
                     />
+
                     {reservationDate && blockedDateStrings.has(reservationDate) && (
-                      <div style={{ marginTop: 6, fontSize: 12, color: "#dc2626" }}>
+                      <div
+                        style={{
+                          marginTop: 6,
+                          fontSize: 12,
+                          color: "#dc2626",
+                        }}
+                      >
                         This selected date is blocked by the owner.
                       </div>
                     )}
                   </div>
 
                   <div>
-                    <div style={{ fontSize: "12px", color: "#555", marginBottom: "6px" }}>Notes</div>
+                    <div
+                      style={{
+                        fontSize: "12px",
+                        color: "#555",
+                        marginBottom: "6px",
+                      }}
+                    >
+                      Notes
+                    </div>
                     <textarea
                       rows={3}
                       value={reservationNotes}
-                      onChange={(e) => setReservationNotes(e.target.value.slice(0, 500))}
+                      onChange={(event) =>
+                        setReservationNotes(event.target.value.slice(0, 500))
+                      }
                       disabled={savingReservation || !lake.is_reservable}
                       placeholder="Optional notes for the owner..."
                       style={{
@@ -662,7 +858,11 @@ function LakeDetails() {
 
                 <button
                   type="submit"
-                  disabled={savingReservation || !lake.is_reservable || (reservationDate && blockedDateStrings.has(reservationDate))}
+                  disabled={
+                    savingReservation ||
+                    !lake.is_reservable ||
+                    (reservationDate && blockedDateStrings.has(reservationDate))
+                  }
                   style={{
                     marginTop: "14px",
                     border: "none",
@@ -670,7 +870,10 @@ function LakeDetails() {
                     color: "white",
                     borderRadius: "10px",
                     padding: "10px 14px",
-                    cursor: savingReservation || !lake.is_reservable ? "not-allowed" : "pointer",
+                    cursor:
+                      savingReservation || !lake.is_reservable
+                        ? "not-allowed"
+                        : "pointer",
                     fontWeight: 700,
                   }}
                 >
@@ -690,20 +893,32 @@ function LakeDetails() {
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: isMobile ? "1fr" : "repeat(4, minmax(0, 1fr))",
+              gridTemplateColumns: isMobile
+                ? "1fr"
+                : "repeat(4, minmax(0, 1fr))",
               gap: "12px",
               alignItems: "end",
             }}
           >
             <div>
-              <div style={{ fontSize: "12px", color: "#555", marginBottom: "6px" }}>Favorite</div>
+              <div
+                style={{
+                  fontSize: "12px",
+                  color: "#555",
+                  marginBottom: "6px",
+                }}
+              >
+                Favorite
+              </div>
               <button
                 type="button"
                 disabled={savingAlertState}
                 onClick={() =>
                   saveAlertSettings(
                     { ...alertState, favorite: !alertState.favorite },
-                    alertState.favorite ? "Removed from favorites" : "Added to favorites"
+                    alertState.favorite
+                      ? "Removed from favorites"
+                      : "Added to favorites",
                   )
                 }
                 style={{
@@ -722,14 +937,22 @@ function LakeDetails() {
             </div>
 
             <div>
-              <div style={{ fontSize: "12px", color: "#555", marginBottom: "6px" }}>Alert Status</div>
+              <div
+                style={{
+                  fontSize: "12px",
+                  color: "#555",
+                  marginBottom: "6px",
+                }}
+              >
+                Alert Status
+              </div>
               <button
                 type="button"
                 disabled={savingAlertState}
                 onClick={() =>
                   saveAlertSettings(
                     { ...alertState, enabled: !alertState.enabled },
-                    alertState.enabled ? "Alert disabled" : "Alert enabled"
+                    alertState.enabled ? "Alert disabled" : "Alert enabled",
                   )
                 }
                 style={{
@@ -748,12 +971,26 @@ function LakeDetails() {
             </div>
 
             <div>
-              <div style={{ fontSize: "12px", color: "#555", marginBottom: "6px" }}>Frequency</div>
+              <div
+                style={{
+                  fontSize: "12px",
+                  color: "#555",
+                  marginBottom: "6px",
+                }}
+              >
+                Frequency
+              </div>
               <select
                 value={alertState.notification_frequency || "daily"}
                 disabled={savingAlertState}
-                onChange={(e) =>
-                  saveAlertSettings({ ...alertState, notification_frequency: e.target.value }, "Frequency updated")
+                onChange={(event) =>
+                  saveAlertSettings(
+                    {
+                      ...alertState,
+                      notification_frequency: event.target.value,
+                    },
+                    "Frequency updated",
+                  )
                 }
                 style={{
                   width: "100%",
@@ -770,23 +1007,37 @@ function LakeDetails() {
             </div>
 
             <div>
-              <div style={{ fontSize: "12px", color: "#555", marginBottom: "6px" }}>Minimum Score</div>
+              <div
+                style={{
+                  fontSize: "12px",
+                  color: "#555",
+                  marginBottom: "6px",
+                }}
+              >
+                Minimum Score
+              </div>
               <input
                 type="number"
                 min="0"
                 max="100"
                 value={Number(alertState.min_score || 0)}
                 disabled={savingAlertState}
-                onChange={(e) =>
+                onChange={(event) =>
                   setAlertState((prev) => ({
                     ...prev,
-                    min_score: Math.max(0, Math.min(100, Number(e.target.value || 0))),
+                    min_score: Math.max(
+                      0,
+                      Math.min(100, Number(event.target.value || 0)),
+                    ),
                   }))
                 }
                 onBlur={() =>
                   saveAlertSettings(
-                    { ...alertState, min_score: Number(alertState.min_score || 0) },
-                    "Minimum score updated"
+                    {
+                      ...alertState,
+                      min_score: Number(alertState.min_score || 0),
+                    },
+                    "Minimum score updated",
                   )
                 }
                 style={{
@@ -816,21 +1067,37 @@ function LakeDetails() {
               Lake map
             </h2>
 
-            <div style={{ height: "420px", borderRadius: "14px", overflow: "hidden" }}>
-              <MapContainer center={mapCenter} zoom={13} style={{ height: "100%", width: "100%" }}>
+            <div
+              style={{
+                height: "420px",
+                borderRadius: "14px",
+                overflow: "hidden",
+              }}
+            >
+              <MapContainer
+                center={mapCenter}
+                zoom={13}
+                style={{ height: "100%", width: "100%" }}
+              >
                 <TileLayer
                   url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
                   attribution="Tiles © Esri"
                   maxZoom={19}
                 />
 
-                {Number.isFinite(Number(lake.latitude)) && Number.isFinite(Number(lake.longitude)) && (
-                  <Marker position={[Number(lake.latitude), Number(lake.longitude)]} />
-                )}
+                {Number.isFinite(Number(lake.latitude)) &&
+                  Number.isFinite(Number(lake.longitude)) && (
+                    <Marker
+                      position={[Number(lake.latitude), Number(lake.longitude)]}
+                    />
+                  )}
 
                 {lake.boundary?.coordinates?.[0] && (
                   <Polygon
-                    positions={lake.boundary.coordinates[0].map((coord) => [coord[1], coord[0]])}
+                    positions={lake.boundary.coordinates[0].map((coord) => [
+                      coord[1],
+                      coord[0],
+                    ])}
                     pathOptions={{
                       color: "#0d6efd",
                       fillColor: "#38bdf8",
@@ -867,10 +1134,22 @@ function LakeDetails() {
                       padding: "14px",
                     }}
                   >
-                    <div style={{ fontSize: "12px", color: "#64748b", marginBottom: "6px" }}>
+                    <div
+                      style={{
+                        fontSize: "12px",
+                        color: "#64748b",
+                        marginBottom: "6px",
+                      }}
+                    >
                       Conditions
                     </div>
-                    <div style={{ fontSize: "15px", fontWeight: 800, color: "#0f172a" }}>
+                    <div
+                      style={{
+                        fontSize: "15px",
+                        fontWeight: 800,
+                        color: "#0f172a",
+                      }}
+                    >
                       {forecast.desc || "N/A"}
                     </div>
                   </div>
@@ -883,10 +1162,22 @@ function LakeDetails() {
                       padding: "14px",
                     }}
                   >
-                    <div style={{ fontSize: "12px", color: "#0f766e", marginBottom: "6px" }}>
+                    <div
+                      style={{
+                        fontSize: "12px",
+                        color: "#0f766e",
+                        marginBottom: "6px",
+                      }}
+                    >
                       Fishing index
                     </div>
-                    <div style={{ fontSize: "24px", fontWeight: 900, color: "#0f766e" }}>
+                    <div
+                      style={{
+                        fontSize: "24px",
+                        fontWeight: 900,
+                        color: "#0f766e",
+                      }}
+                    >
                       {forecast.total_score ?? 0}%
                     </div>
                   </div>
@@ -908,10 +1199,22 @@ function LakeDetails() {
                       padding: "14px",
                     }}
                   >
-                    <div style={{ fontSize: "12px", color: "#64748b", marginBottom: "6px" }}>
+                    <div
+                      style={{
+                        fontSize: "12px",
+                        color: "#64748b",
+                        marginBottom: "6px",
+                      }}
+                    >
                       Temperature
                     </div>
-                    <div style={{ fontSize: "18px", fontWeight: 800, color: "#0f172a" }}>
+                    <div
+                      style={{
+                        fontSize: "18px",
+                        fontWeight: 800,
+                        color: "#0f172a",
+                      }}
+                    >
                       <FaTemperatureHigh style={{ marginRight: "8px" }} />
                       {forecast.temp ?? "-"} °C
                     </div>
@@ -925,10 +1228,22 @@ function LakeDetails() {
                       padding: "14px",
                     }}
                   >
-                    <div style={{ fontSize: "12px", color: "#64748b", marginBottom: "6px" }}>
+                    <div
+                      style={{
+                        fontSize: "12px",
+                        color: "#64748b",
+                        marginBottom: "6px",
+                      }}
+                    >
                       Wind
                     </div>
-                    <div style={{ fontSize: "18px", fontWeight: 800, color: "#0f172a" }}>
+                    <div
+                      style={{
+                        fontSize: "18px",
+                        fontWeight: 800,
+                        color: "#0f172a",
+                      }}
+                    >
                       <FaWind style={{ marginRight: "8px" }} />
                       {forecast.wind ?? "-"} m/s
                     </div>
@@ -942,10 +1257,22 @@ function LakeDetails() {
                       padding: "14px",
                     }}
                   >
-                    <div style={{ fontSize: "12px", color: "#64748b", marginBottom: "6px" }}>
+                    <div
+                      style={{
+                        fontSize: "12px",
+                        color: "#64748b",
+                        marginBottom: "6px",
+                      }}
+                    >
                       Pressure
                     </div>
-                    <div style={{ fontSize: "18px", fontWeight: 800, color: "#0f172a" }}>
+                    <div
+                      style={{
+                        fontSize: "18px",
+                        fontWeight: 800,
+                        color: "#0f172a",
+                      }}
+                    >
                       {forecast.pressure ?? "-"} hPa
                     </div>
                   </div>
@@ -958,10 +1285,22 @@ function LakeDetails() {
                       padding: "14px",
                     }}
                   >
-                    <div style={{ fontSize: "12px", color: "#64748b", marginBottom: "6px" }}>
+                    <div
+                      style={{
+                        fontSize: "12px",
+                        color: "#64748b",
+                        marginBottom: "6px",
+                      }}
+                    >
                       Location
                     </div>
-                    <div style={{ fontSize: "18px", fontWeight: 800, color: "#0f172a" }}>
+                    <div
+                      style={{
+                        fontSize: "18px",
+                        fontWeight: 800,
+                        color: "#0f172a",
+                      }}
+                    >
                       <FaWater style={{ marginRight: "8px" }} />
                       {forecast.location || "Unknown"}
                     </div>
@@ -977,10 +1316,22 @@ function LakeDetails() {
                       padding: "14px",
                     }}
                   >
-                    <div style={{ fontWeight: 800, color: "#0f172a", marginBottom: "10px" }}>
+                    <div
+                      style={{
+                        fontWeight: 800,
+                        color: "#0f172a",
+                        marginBottom: "10px",
+                      }}
+                    >
                       AI score breakdown
                     </div>
-                    <div style={{ fontSize: "14px", color: "#475569", lineHeight: 1.8 }}>
+                    <div
+                      style={{
+                        fontSize: "14px",
+                        color: "#475569",
+                        lineHeight: 1.8,
+                      }}
+                    >
                       Weather score: {forecast.breakdown.weather_score ?? "-"} / 100
                       <br />
                       Moon score: {forecast.breakdown.moon_score ?? "-"} / 100
@@ -1022,10 +1373,22 @@ function LakeDetails() {
                       background: "#f8fafc",
                     }}
                   >
-                    <div style={{ fontWeight: 800, color: "#0f172a", marginBottom: "6px" }}>
+                    <div
+                      style={{
+                        fontWeight: 800,
+                        color: "#0f172a",
+                        marginBottom: "6px",
+                      }}
+                    >
                       {item.species}
                     </div>
-                    <div style={{ fontSize: "13px", color: "#475569", lineHeight: 1.7 }}>
+                    <div
+                      style={{
+                        fontSize: "13px",
+                        color: "#475569",
+                        lineHeight: 1.7,
+                      }}
+                    >
                       Catches: {item.catches_count}
                       <br />
                       Average weight: {item.avg_weight_kg ?? "-"} kg
@@ -1045,7 +1408,9 @@ function LakeDetails() {
             </h2>
 
             {catches.length === 0 ? (
-              <div style={{ color: "#64748b" }}>No catches logged for this lake yet.</div>
+              <div style={{ color: "#64748b" }}>
+                No catches logged for this lake yet.
+              </div>
             ) : (
               <div style={{ display: "grid", gap: "12px" }}>
                 {catches.map((item) => (
@@ -1068,11 +1433,24 @@ function LakeDetails() {
                       }}
                     >
                       <div>
-                        <div style={{ fontSize: "16px", fontWeight: 800, color: "#0f172a" }}>
+                        <div
+                          style={{
+                            fontSize: "16px",
+                            fontWeight: 800,
+                            color: "#0f172a",
+                          }}
+                        >
                           {item.species || "Unknown species"}
                         </div>
-                        <div style={{ fontSize: "13px", color: "#64748b", marginTop: "4px" }}>
-                          By {item.full_name || "Unknown angler"} · {formatDateTime(item.catch_time || item.created_at)}
+                        <div
+                          style={{
+                            fontSize: "13px",
+                            color: "#64748b",
+                            marginTop: "4px",
+                          }}
+                        >
+                          By {item.full_name || "Unknown angler"} ·{" "}
+                          {formatDateTime(item.catch_time || item.created_at)}
                         </div>
                       </div>
 
@@ -1091,7 +1469,14 @@ function LakeDetails() {
                     </div>
 
                     {item.notes && (
-                      <div style={{ marginTop: "10px", fontSize: "14px", color: "#334155", lineHeight: 1.6 }}>
+                      <div
+                        style={{
+                          marginTop: "10px",
+                          fontSize: "14px",
+                          color: "#334155",
+                          lineHeight: 1.6,
+                        }}
+                      >
                         {item.notes}
                       </div>
                     )}
@@ -1124,7 +1509,9 @@ function LakeDetails() {
           </h2>
 
           {photos.length === 0 ? (
-            <div style={{ color: "#64748b" }}>No photos uploaded for this lake yet.</div>
+            <div style={{ color: "#64748b" }}>
+              No photos uploaded for this lake yet.
+            </div>
           ) : (
             <div
               style={{
@@ -1154,11 +1541,18 @@ function LakeDetails() {
                     }}
                   />
                   <div style={{ padding: "12px" }}>
-                    <div style={{ fontWeight: 800, color: "#0f172a", marginBottom: "4px" }}>
+                    <div
+                      style={{
+                        fontWeight: 800,
+                        color: "#0f172a",
+                        marginBottom: "4px",
+                      }}
+                    >
                       {photo.species || "Catch photo"}
                     </div>
                     <div style={{ fontSize: "12px", color: "#64748b" }}>
-                      {photo.weight_kg ?? "-"} kg · {formatDateTime(photo.catch_time || photo.created_at)}
+                      {photo.weight_kg ?? "-"} kg ·{" "}
+                      {formatDateTime(photo.catch_time || photo.created_at)}
                     </div>
                   </div>
                 </div>
@@ -1188,21 +1582,53 @@ function LakeDetails() {
                 padding: "16px",
               }}
             >
-              <div style={{ fontSize: "14px", color: "#64748b", marginBottom: "8px" }}>Average rating</div>
-              <div style={{ fontSize: "28px", fontWeight: 900, color: "#0f172a", marginBottom: "8px" }}>
+              <div
+                style={{
+                  fontSize: "14px",
+                  color: "#64748b",
+                  marginBottom: "8px",
+                }}
+              >
+                Average rating
+              </div>
+
+              <div
+                style={{
+                  fontSize: "28px",
+                  fontWeight: 900,
+                  color: "#0f172a",
+                  marginBottom: "8px",
+                }}
+              >
                 {reviewsSummary.average_rating ?? "N/A"} / 5
               </div>
-              <div style={{ fontSize: "13px", color: "#475569", marginBottom: "18px" }}>
-                {reviewsSummary.reviews_count ?? 0} review{Number(reviewsSummary.reviews_count) === 1 ? "" : "s"}
+
+              <div
+                style={{
+                  fontSize: "13px",
+                  color: "#475569",
+                  marginBottom: "18px",
+                }}
+              >
+                {reviewsSummary.reviews_count ?? 0} review
+                {Number(reviewsSummary.reviews_count) === 1 ? "" : "s"}
               </div>
 
               <form onSubmit={submitReview}>
-                <label style={{ display: "block", fontSize: "13px", fontWeight: 700, marginBottom: "6px" }}>
+                <label
+                  style={{
+                    display: "block",
+                    fontSize: "13px",
+                    fontWeight: 700,
+                    marginBottom: "6px",
+                  }}
+                >
                   Your rating
                 </label>
+
                 <select
                   value={reviewRating}
-                  onChange={(e) => setReviewRating(Number(e.target.value))}
+                  onChange={(event) => setReviewRating(Number(event.target.value))}
                   disabled={savingReview}
                   style={{
                     width: "100%",
@@ -1219,12 +1645,22 @@ function LakeDetails() {
                   <option value={1}>1 - Poor</option>
                 </select>
 
-                <label style={{ display: "block", fontSize: "13px", fontWeight: 700, marginBottom: "6px" }}>
+                <label
+                  style={{
+                    display: "block",
+                    fontSize: "13px",
+                    fontWeight: 700,
+                    marginBottom: "6px",
+                  }}
+                >
                   Comment
                 </label>
+
                 <textarea
                   value={reviewComment}
-                  onChange={(e) => setReviewComment(e.target.value.slice(0, 500))}
+                  onChange={(event) =>
+                    setReviewComment(event.target.value.slice(0, 500))
+                  }
                   rows={4}
                   disabled={savingReview}
                   placeholder="Share your experience with this lake..."
@@ -1238,7 +1674,14 @@ function LakeDetails() {
                   }}
                 />
 
-                <div style={{ fontSize: "12px", color: "#64748b", textAlign: "right", marginBottom: "12px" }}>
+                <div
+                  style={{
+                    fontSize: "12px",
+                    color: "#64748b",
+                    textAlign: "right",
+                    marginBottom: "12px",
+                  }}
+                >
                   {reviewComment.length}/500
                 </div>
 
@@ -1306,6 +1749,7 @@ function LakeDetails() {
                         <div style={{ fontWeight: 800, color: "#0f172a" }}>
                           {review.full_name || "Anonymous"}
                         </div>
+
                         <div
                           style={{
                             background: "#fef3c7",
@@ -1320,11 +1764,23 @@ function LakeDetails() {
                         </div>
                       </div>
 
-                      <div style={{ fontSize: "12px", color: "#64748b", marginBottom: "8px" }}>
+                      <div
+                        style={{
+                          fontSize: "12px",
+                          color: "#64748b",
+                          marginBottom: "8px",
+                        }}
+                      >
                         {formatDateTime(review.created_at)}
                       </div>
 
-                      <div style={{ fontSize: "14px", color: "#334155", lineHeight: 1.6 }}>
+                      <div
+                        style={{
+                          fontSize: "14px",
+                          color: "#334155",
+                          lineHeight: 1.6,
+                        }}
+                      >
                         {review.comment || "No comment provided."}
                       </div>
                     </div>
@@ -1344,12 +1800,22 @@ function LakeDetails() {
               border: "1px solid #bfdbfe",
             }}
           >
-            <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "8px" }}>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "10px",
+                marginBottom: "8px",
+              }}
+            >
               <FaLock style={{ color: "#1d4ed8" }} />
-              <div style={{ fontWeight: 800, color: "#1e3a8a" }}>Private lake access</div>
+              <div style={{ fontWeight: 800, color: "#1e3a8a" }}>
+                Private lake access
+              </div>
             </div>
             <div style={{ color: "#334155", lineHeight: 1.6 }}>
-              This lake is marked as private. Reservations are managed by the lake owner.
+              This lake is marked as private. Reservations are managed by the
+              lake owner.
             </div>
           </div>
         )}

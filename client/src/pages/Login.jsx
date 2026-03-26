@@ -1,38 +1,56 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { FaLock } from "react-icons/fa";
-import api from "../api/client";
+import { loginUser } from "../api/authApi";
 import { notifyError, notifySuccess } from "../ui/toast";
 
-const Login = ({ setAuth, setCurrentUser }) => {
+const getErrorMessage = (error, fallbackMessage) => {
+  const serverError = error?.response?.data?.error;
+  const responseData = error?.response?.data;
+
+  if (typeof serverError === "string" && serverError.trim()) {
+    return serverError;
+  }
+
+  if (typeof responseData === "string" && responseData.trim()) {
+    return responseData;
+  }
+
+  return fallbackMessage;
+};
+
+function Login({ setAuth, setCurrentUser }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
+
   const navigate = useNavigate();
 
-  const handleLogin = async (e) => {
-    e.preventDefault();
+  const handleLogin = async (event) => {
+    event.preventDefault();
+
     setMessage("");
     setSubmitting(true);
 
     try {
-      const res = await api.post("/auth/login", { email, password });
+      const data = await loginUser({ email, password });
 
-      localStorage.setItem("token", res.data.token);
-      setCurrentUser(res.data.user || null);
+      localStorage.setItem("token", data.token);
+      setCurrentUser(data.user || null);
       setAuth(true);
 
-      notifySuccess("Login successful");
-      setMessage("Login successful");
-      setTimeout(() => navigate("/"), 700);
-    } catch (err) {
-      notifyError(err, "Invalid credentials");
-      const msg =
-        err.response?.data?.error ||
-        err.response?.data ||
-        "Invalid credentials";
-      setMessage(typeof msg === "string" ? msg : "Invalid credentials");
+      const successMessage = "Login successful";
+      notifySuccess(successMessage);
+      setMessage(successMessage);
+
+      setTimeout(() => {
+        navigate("/");
+      }, 700);
+    } catch (error) {
+      const errorMessage = getErrorMessage(error, "Invalid credentials");
+      notifyError(error, "Invalid credentials");
+      setMessage(errorMessage);
     } finally {
       setSubmitting(false);
     }
@@ -72,7 +90,7 @@ const Login = ({ setAuth, setCurrentUser }) => {
           type="email"
           placeholder="Email"
           value={email}
-          onChange={(e) => setEmail(e.target.value)}
+          onChange={(event) => setEmail(event.target.value)}
           required
           style={{ padding: "10px" }}
           autoComplete="email"
@@ -82,7 +100,7 @@ const Login = ({ setAuth, setCurrentUser }) => {
           type="password"
           placeholder="Password"
           value={password}
-          onChange={(e) => setPassword(e.target.value)}
+          onChange={(event) => setPassword(event.target.value)}
           required
           style={{ padding: "10px" }}
           autoComplete="current-password"
@@ -104,6 +122,6 @@ const Login = ({ setAuth, setCurrentUser }) => {
       </form>
     </div>
   );
-};
+}
 
 export default Login;

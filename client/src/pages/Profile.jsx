@@ -1,7 +1,13 @@
 import React, { useEffect, useState } from "react";
 import { FaUserCog, FaSave, FaLock, FaBell } from "react-icons/fa";
-import api from "../api/client";
 import { notifyError, notifySuccess } from "../ui/toast";
+import {
+  getNotificationPreferences,
+  getProfile,
+  updateNotificationPreferences,
+  updatePassword,
+  updateProfile,
+} from "../api/profileApi";
 
 const pageStyle = {
   padding: 20,
@@ -36,135 +42,156 @@ const sectionTitleStyle = {
   color: "#0f172a",
 };
 
+const DEFAULT_PROFILE = {
+  full_name: "",
+  email: "",
+  role: "",
+  is_verified: false,
+  created_at: "",
+};
+
+const DEFAULT_PREFERENCES = {
+  email_alerts_enabled: true,
+  default_notification_frequency: "daily",
+  default_min_score: 0,
+};
+
+const DEFAULT_PASSWORD_FORM = {
+  current_password: "",
+  new_password: "",
+  confirm_password: "",
+};
+
+function formatErrorMessage(error, fallback) {
+  const serverError = error?.response?.data?.error;
+  const responseData = error?.response?.data;
+
+  if (typeof serverError === "string" && serverError.trim()) {
+    return serverError;
+  }
+
+  if (typeof responseData === "string" && responseData.trim()) {
+    return responseData;
+  }
+
+  return fallback;
+}
+
 export default function Profile({ setCurrentUser }) {
   const [loading, setLoading] = useState(true);
   const [savingProfile, setSavingProfile] = useState(false);
   const [savingPassword, setSavingPassword] = useState(false);
   const [savingPreferences, setSavingPreferences] = useState(false);
 
-  const [profile, setProfile] = useState({
-    full_name: "",
-    email: "",
-    role: "",
-    is_verified: false,
-    created_at: "",
-  });
-
-  const [preferences, setPreferences] = useState({
-    email_alerts_enabled: true,
-    default_notification_frequency: "daily",
-    default_min_score: 0,
-  });
-
-  const [passwordForm, setPasswordForm] = useState({
-    current_password: "",
-    new_password: "",
-    confirm_password: "",
-  });
+  const [profile, setProfile] = useState(DEFAULT_PROFILE);
+  const [preferences, setPreferences] = useState(DEFAULT_PREFERENCES);
+  const [passwordForm, setPasswordForm] = useState(DEFAULT_PASSWORD_FORM);
 
   useEffect(() => {
-    const load = async () => {
+    const loadProfileData = async () => {
       try {
         setLoading(true);
-        const [profileRes, preferencesRes] = await Promise.all([
-          api.get("/profile"),
-          api.get("/profile/notification-preferences"),
+
+        const [profileData, preferencesData] = await Promise.all([
+          getProfile(),
+          getNotificationPreferences(),
         ]);
 
-        setProfile(profileRes.data || {});
-        setCurrentUser(profileRes.data || null);
-        setPreferences(
-          preferencesRes.data || {
-            email_alerts_enabled: true,
-            default_notification_frequency: "daily",
-            default_min_score: 0,
-          },
-        );
-      } catch (err) {
-        notifyError(err, "Failed to load profile");
+        setProfile(profileData || DEFAULT_PROFILE);
+        setCurrentUser(profileData || null);
+        setPreferences(preferencesData || DEFAULT_PREFERENCES);
+      } catch (error) {
+        notifyError(error, formatErrorMessage(error, "Failed to load profile"));
       } finally {
         setLoading(false);
       }
     };
 
-    load();
+    loadProfileData();
   }, [setCurrentUser]);
 
-  const saveProfile = async (e) => {
-    e.preventDefault();
+  const handleProfileSubmit = async (event) => {
+    event.preventDefault();
 
-    if (!String(profile.full_name || "").trim()) {
+    const fullName = String(profile.full_name || "").trim();
+    const email = String(profile.email || "").trim();
+
+    if (!fullName) {
       notifyError(null, "Full name is required");
       return;
     }
 
-    if (!String(profile.email || "").trim()) {
+    if (!email) {
       notifyError(null, "Email is required");
       return;
     }
 
     try {
       setSavingProfile(true);
-      const res = await api.patch("/profile", {
-        full_name: String(profile.full_name || "").trim(),
-        email: String(profile.email || "").trim(),
+
+      const updatedProfile = await updateProfile({
+        full_name: fullName,
+        email,
       });
 
-      setProfile((prev) => ({ ...prev, ...(res.data || {}) }));
-      setCurrentUser(res.data || null);
+      setProfile((prev) => ({ ...prev, ...(updatedProfile || {}) }));
+      setCurrentUser(updatedProfile || null);
       notifySuccess("Profile updated");
-    } catch (err) {
-      notifyError(err, "Failed to update profile");
+    } catch (error) {
+      notifyError(
+        error,
+        formatErrorMessage(error, "Failed to update profile"),
+      );
     } finally {
       setSavingProfile(false);
     }
   };
 
-  const savePassword = async (e) => {
-    e.preventDefault();
+  const handlePasswordSubmit = async (event) => {
+    event.preventDefault();
 
-    if (
-      !passwordForm.current_password ||
-      !passwordForm.new_password ||
-      !passwordForm.confirm_password
-    ) {
+    const { current_password, new_password, confirm_password } = passwordForm;
+
+    if (!current_password || !new_password || !confirm_password) {
       notifyError(null, "All password fields are required");
       return;
     }
 
-    if (passwordForm.new_password.length < 6) {
+    if (new_password.length < 6) {
       notifyError(null, "New password must be at least 6 characters");
       return;
     }
 
-    if (passwordForm.new_password !== passwordForm.confirm_password) {
+    if (new_password !== confirm_password) {
       notifyError(null, "New password and confirm password do not match");
       return;
     }
 
     try {
       setSavingPassword(true);
-      await api.patch("/profile/password", {
-        current_password: passwordForm.current_password,
-        new_password: passwordForm.new_password,
+
+      await updatePassword({
+        current_password,
+        new_password,
       });
-      setPasswordForm({
-        current_password: "",
-        new_password: "",
-        confirm_password: "",
-      });
+
+      setPasswordForm(DEFAULT_PASSWORD_FORM);
       notifySuccess("Password changed successfully");
-    } catch (err) {
-      notifyError(err, "Failed to change password");
+    } catch (error) {
+      notifyError(
+        error,
+        formatErrorMessage(error, "Failed to change password"),
+      );
     } finally {
       setSavingPassword(false);
     }
   };
 
-  const savePreferences = async (e) => {
-    e.preventDefault();
+  const handlePreferencesSubmit = async (event) => {
+    event.preventDefault();
 
     const score = Number(preferences.default_min_score || 0);
+
     if (!Number.isInteger(score) || score < 0 || score > 100) {
       notifyError(null, "Default minimum score must be between 0 and 100");
       return;
@@ -172,16 +199,24 @@ export default function Profile({ setCurrentUser }) {
 
     try {
       setSavingPreferences(true);
-      const res = await api.patch("/profile/notification-preferences", {
+
+      const updatedPreferences = await updateNotificationPreferences({
         email_alerts_enabled: Boolean(preferences.email_alerts_enabled),
         default_notification_frequency:
           preferences.default_notification_frequency || "daily",
         default_min_score: score,
       });
-      setPreferences(res.data || preferences);
+
+      setPreferences(updatedPreferences || preferences);
       notifySuccess("Notification preferences updated");
-    } catch (err) {
-      notifyError(err, "Failed to update notification preferences");
+    } catch (error) {
+      notifyError(
+        error,
+        formatErrorMessage(
+          error,
+          "Failed to update notification preferences",
+        ),
+      );
     } finally {
       setSavingPreferences(false);
     }
@@ -217,7 +252,7 @@ export default function Profile({ setCurrentUser }) {
               Profile information
             </h3>
 
-            <form onSubmit={saveProfile}>
+            <form onSubmit={handleProfileSubmit}>
               <div
                 style={{
                   display: "grid",
@@ -232,10 +267,10 @@ export default function Profile({ setCurrentUser }) {
                   <input
                     type="text"
                     value={profile.full_name || ""}
-                    onChange={(e) =>
+                    onChange={(event) =>
                       setProfile((prev) => ({
                         ...prev,
-                        full_name: e.target.value,
+                        full_name: event.target.value,
                       }))
                     }
                     style={inputStyle}
@@ -249,8 +284,11 @@ export default function Profile({ setCurrentUser }) {
                   <input
                     type="email"
                     value={profile.email || ""}
-                    onChange={(e) =>
-                      setProfile((prev) => ({ ...prev, email: e.target.value }))
+                    onChange={(event) =>
+                      setProfile((prev) => ({
+                        ...prev,
+                        email: event.target.value,
+                      }))
                     }
                     style={inputStyle}
                   />
@@ -321,7 +359,7 @@ export default function Profile({ setCurrentUser }) {
               Change password
             </h3>
 
-            <form onSubmit={savePassword}>
+            <form onSubmit={handlePasswordSubmit}>
               <div
                 style={{
                   display: "grid",
@@ -336,10 +374,10 @@ export default function Profile({ setCurrentUser }) {
                   <input
                     type="password"
                     value={passwordForm.current_password}
-                    onChange={(e) =>
+                    onChange={(event) =>
                       setPasswordForm((prev) => ({
                         ...prev,
-                        current_password: e.target.value,
+                        current_password: event.target.value,
                       }))
                     }
                     style={inputStyle}
@@ -353,10 +391,10 @@ export default function Profile({ setCurrentUser }) {
                   <input
                     type="password"
                     value={passwordForm.new_password}
-                    onChange={(e) =>
+                    onChange={(event) =>
                       setPasswordForm((prev) => ({
                         ...prev,
-                        new_password: e.target.value,
+                        new_password: event.target.value,
                       }))
                     }
                     style={inputStyle}
@@ -370,10 +408,10 @@ export default function Profile({ setCurrentUser }) {
                   <input
                     type="password"
                     value={passwordForm.confirm_password}
-                    onChange={(e) =>
+                    onChange={(event) =>
                       setPasswordForm((prev) => ({
                         ...prev,
-                        confirm_password: e.target.value,
+                        confirm_password: event.target.value,
                       }))
                     }
                     style={inputStyle}
@@ -414,7 +452,7 @@ export default function Profile({ setCurrentUser }) {
               Notification preferences
             </h3>
 
-            <form onSubmit={savePreferences}>
+            <form onSubmit={handlePreferencesSubmit}>
               <div
                 style={{
                   display: "grid",
@@ -428,10 +466,10 @@ export default function Profile({ setCurrentUser }) {
                   </div>
                   <select
                     value={preferences.email_alerts_enabled ? "true" : "false"}
-                    onChange={(e) =>
+                    onChange={(event) =>
                       setPreferences((prev) => ({
                         ...prev,
-                        email_alerts_enabled: e.target.value === "true",
+                        email_alerts_enabled: event.target.value === "true",
                       }))
                     }
                     style={inputStyle}
@@ -449,10 +487,10 @@ export default function Profile({ setCurrentUser }) {
                     value={
                       preferences.default_notification_frequency || "daily"
                     }
-                    onChange={(e) =>
+                    onChange={(event) =>
                       setPreferences((prev) => ({
                         ...prev,
-                        default_notification_frequency: e.target.value,
+                        default_notification_frequency: event.target.value,
                       }))
                     }
                     style={inputStyle}
@@ -471,10 +509,10 @@ export default function Profile({ setCurrentUser }) {
                     min="0"
                     max="100"
                     value={Number(preferences.default_min_score || 0)}
-                    onChange={(e) =>
+                    onChange={(event) =>
                       setPreferences((prev) => ({
                         ...prev,
-                        default_min_score: e.target.value,
+                        default_min_score: event.target.value,
                       }))
                     }
                     style={inputStyle}

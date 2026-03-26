@@ -1,5 +1,14 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { FaDownload, FaFish, FaList, FaRedoAlt, FaSortAmountDown, FaTable, FaChevronLeft, FaChevronRight } from "react-icons/fa";
+import {
+  FaDownload,
+  FaFish,
+  FaList,
+  FaRedoAlt,
+  FaSortAmountDown,
+  FaTable,
+  FaChevronLeft,
+  FaChevronRight,
+} from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
 import useMyCatches from "../hooks/useMyCatches";
 import DashboardFilters from "../components/dashboard/DashboardFilters";
@@ -30,25 +39,58 @@ const SkeletonRow = ({ i }) => (
       }}
     />
     <div style={{ flex: 1 }}>
-      <div style={{ height: "16px", width: "55%", background: "#e9ecef", borderRadius: "6px" }} />
-      <div style={{ height: "12px", width: "35%", background: "#e9ecef", borderRadius: "6px", marginTop: "10px" }} />
-      <div style={{ height: "12px", width: "45%", background: "#e9ecef", borderRadius: "6px", marginTop: "12px" }} />
-      <div style={{ height: "12px", width: "30%", background: "#e9ecef", borderRadius: "6px", marginTop: "10px" }} />
+      <div
+        style={{
+          height: "16px",
+          width: "55%",
+          background: "#e9ecef",
+          borderRadius: "6px",
+        }}
+      />
+      <div
+        style={{
+          height: "12px",
+          width: "35%",
+          background: "#e9ecef",
+          borderRadius: "6px",
+          marginTop: "10px",
+        }}
+      />
+      <div
+        style={{
+          height: "12px",
+          width: "45%",
+          background: "#e9ecef",
+          borderRadius: "6px",
+          marginTop: "12px",
+        }}
+      />
+      <div
+        style={{
+          height: "12px",
+          width: "30%",
+          background: "#e9ecef",
+          borderRadius: "6px",
+          marginTop: "10px",
+        }}
+      />
     </div>
   </li>
 );
 
 const escapeCsv = (value) => {
-  const v = String(value ?? "");
-  if (/[",\n]/.test(v)) return `"${v.replace(/"/g, '""')}"`;
-  return v;
+  const normalized = String(value ?? "");
+  if (/[",\n]/.test(normalized)) {
+    return `"${normalized.replace(/"/g, '""')}"`;
+  }
+  return normalized;
 };
 
 const formatDateForExport = (value) => {
   if (!value) return "";
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return "";
-  return d.toISOString();
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toISOString();
 };
 
 const StatPill = ({ value, label }) => (
@@ -105,41 +147,70 @@ export default function MyCatches() {
 
   useEffect(() => {
     setPage(1);
-  }, [selectedLakeId, selectedSpecies, dateFrom, dateTo, searchTerm, sortBy, pageSize]);
+  }, [
+    selectedLakeId,
+    selectedSpecies,
+    dateFrom,
+    dateTo,
+    searchTerm,
+    sortBy,
+    pageSize,
+  ]);
 
   const hasAnyCatches = (catches || []).length > 0;
 
   const filteredCatches = useMemo(() => {
     const fromMs = dateFrom ? new Date(dateFrom).getTime() : null;
     const toMs = dateTo ? new Date(dateTo).getTime() : null;
-    const q = searchTerm.trim().toLowerCase();
+    const query = searchTerm.trim().toLowerCase();
 
-    return (catches || []).filter((c) => {
-      if (selectedLakeId !== "ALL" && String(c.water_body_id) !== String(selectedLakeId)) return false;
-      if (selectedSpecies !== "ALL" && c.species !== selectedSpecies) return false;
+    return (catches || []).filter((catchItem) => {
+      if (
+        selectedLakeId !== "ALL" &&
+        String(catchItem.water_body_id) !== String(selectedLakeId)
+      ) {
+        return false;
+      }
 
-      const when = c.catch_time || c.created_at;
-      const t = when ? new Date(when).getTime() : null;
-      if (t == null || Number.isNaN(t)) return false;
+      if (
+        selectedSpecies !== "ALL" &&
+        catchItem.species !== selectedSpecies
+      ) {
+        return false;
+      }
 
-      if (fromMs != null && t < fromMs) return false;
-      if (toMs != null && t > toMs + 24 * 60 * 60 * 1000 - 1) return false;
+      const timestamp = catchItem.catch_time || catchItem.created_at;
+      const timeValue = timestamp ? new Date(timestamp).getTime() : null;
 
-      if (q) {
-        const haystack = [
-          c.species,
-          c.lake_name,
-          c.notes,
-          c.weight_kg,
-          c.temperature,
-          c.pressure,
-          c.wind_speed,
-          c.moon_phase,
+      if (timeValue == null || Number.isNaN(timeValue)) {
+        return false;
+      }
+
+      if (fromMs != null && timeValue < fromMs) {
+        return false;
+      }
+
+      if (toMs != null && timeValue > toMs + 24 * 60 * 60 * 1000 - 1) {
+        return false;
+      }
+
+      if (query) {
+        const searchableText = [
+          catchItem.species,
+          catchItem.lake_name,
+          catchItem.notes,
+          catchItem.weight_kg,
+          catchItem.temperature,
+          catchItem.pressure,
+          catchItem.wind_speed,
+          catchItem.moon_phase,
         ]
-          .map((v) => String(v ?? "").toLowerCase())
+          .map((value) => String(value ?? "").toLowerCase())
           .join(" ");
 
-        if (!haystack.includes(q)) return false;
+        if (!searchableText.includes(query)) {
+          return false;
+        }
       }
 
       return true;
@@ -154,8 +225,12 @@ export default function MyCatches() {
       const bTime = new Date(b.catch_time || b.created_at || 0).getTime();
       const aWeight = Number(a.weight_kg || 0);
       const bWeight = Number(b.weight_kg || 0);
-      const aSpecies = String(a.species || "").localeCompare(String(b.species || ""));
-      const aLake = String(a.lake_name || "").localeCompare(String(b.lake_name || ""));
+      const speciesCompare = String(a.species || "").localeCompare(
+        String(b.species || ""),
+      );
+      const lakeCompare = String(a.lake_name || "").localeCompare(
+        String(b.lake_name || ""),
+      );
 
       switch (sortBy) {
         case "oldest":
@@ -165,9 +240,9 @@ export default function MyCatches() {
         case "weight_asc":
           return aWeight - bWeight || bTime - aTime;
         case "species_asc":
-          return aSpecies || bTime - aTime;
+          return speciesCompare || bTime - aTime;
         case "lake_asc":
-          return aLake || bTime - aTime;
+          return lakeCompare || bTime - aTime;
         case "newest":
         default:
           return bTime - aTime;
@@ -184,10 +259,22 @@ export default function MyCatches() {
 
   const countText = loading
     ? "Loading…"
-    : `Showing ${paginatedCatches.length ? startIndex + 1 : 0}-${Math.min(startIndex + paginatedCatches.length, sortedCatches.length)} of ${sortedCatches.length} filtered catches`;
+    : `Showing ${
+        paginatedCatches.length ? startIndex + 1 : 0
+      }-${Math.min(
+        startIndex + paginatedCatches.length,
+        sortedCatches.length,
+      )} of ${sortedCatches.length} filtered catches`;
 
   const goToLakeOnMap = (waterBodyId) => {
-    if (waterBodyId === null || waterBodyId === undefined || waterBodyId === "") return;
+    if (
+      waterBodyId === null ||
+      waterBodyId === undefined ||
+      waterBodyId === ""
+    ) {
+      return;
+    }
+
     navigate("/", { state: { lakeId: String(waterBodyId) } });
   };
 
@@ -201,7 +288,9 @@ export default function MyCatches() {
   };
 
   const exportCsv = () => {
-    if (!sortedCatches.length) return;
+    if (!sortedCatches.length) {
+      return;
+    }
 
     const headers = [
       "Lake",
@@ -218,41 +307,56 @@ export default function MyCatches() {
       "Image URL",
     ];
 
-    const rows = sortedCatches.map((c) => [
-      c.lake_name || "",
-      c.species || "",
-      c.weight_kg ?? "",
-      formatDateForExport(c.catch_time),
-      formatDateForExport(c.created_at),
-      c.temperature ?? "",
-      c.pressure ?? "",
-      c.wind_speed ?? "",
-      c.humidity ?? "",
-      c.moon_phase ?? "",
-      c.notes || "",
-      c.image_url ? `http://localhost:5000/uploads/${c.image_url}` : "",
+    const rows = sortedCatches.map((catchItem) => [
+      catchItem.lake_name || "",
+      catchItem.species || "",
+      catchItem.weight_kg ?? "",
+      formatDateForExport(catchItem.catch_time),
+      formatDateForExport(catchItem.created_at),
+      catchItem.temperature ?? "",
+      catchItem.pressure ?? "",
+      catchItem.wind_speed ?? "",
+      catchItem.humidity ?? "",
+      catchItem.moon_phase ?? "",
+      catchItem.notes || "",
+      catchItem.image_url
+        ? `http://localhost:5000/uploads/${catchItem.image_url}`
+        : "",
     ]);
 
-    const csv = [headers, ...rows].map((row) => row.map(escapeCsv).join(",")).join("\n");
+    const csvContent = [headers, ...rows]
+      .map((row) => row.map(escapeCsv).join(","))
+      .join("\n");
 
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const blob = new Blob([csvContent], {
+      type: "text/csv;charset=utf-8;",
+    });
+
     const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
+    const link = document.createElement("a");
     const today = new Date().toISOString().slice(0, 10);
 
-    a.href = url;
-    a.download = `my-catches-${today}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+    link.href = url;
+    link.download = `my-catches-${today}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
     URL.revokeObjectURL(url);
   };
 
-  const catchesWithPhotos = sortedCatches.filter((c) => c.image_url).length;
-  const catchesWithNotes = sortedCatches.filter((c) => String(c.notes || "").trim()).length;
+  const catchesWithPhotos = sortedCatches.filter((item) => item.image_url).length;
+  const catchesWithNotes = sortedCatches.filter((item) =>
+    String(item.notes || "").trim(),
+  ).length;
 
   return (
-    <div style={{ padding: "20px", background: "#f8fafc", minHeight: "calc(100vh - 60px)" }}>
+    <div
+      style={{
+        padding: "20px",
+        background: "#f8fafc",
+        minHeight: "calc(100vh - 60px)",
+      }}
+    >
       <div style={{ maxWidth: "1200px", margin: "0 auto" }}>
         <div
           style={{
@@ -264,15 +368,32 @@ export default function MyCatches() {
             boxShadow: "0 12px 28px rgba(13,110,253,0.18)",
           }}
         >
-          <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "8px" }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "10px",
+              marginBottom: "8px",
+            }}
+          >
             <FaList />
-            <div style={{ fontSize: "14px", fontWeight: 700, opacity: 0.95 }}>Catch records</div>
+            <div style={{ fontSize: "14px", fontWeight: 700, opacity: 0.95 }}>
+              Catch records
+            </div>
           </div>
 
           <h1 style={{ margin: "0 0 8px 0", fontSize: "28px" }}>My Catches</h1>
 
-          <div style={{ fontSize: "14px", opacity: 0.95, maxWidth: "760px", lineHeight: 1.6 }}>
-            This page is your fishing logbook. Use it to browse, filter, sort, review, and export your catch history in a clean, organized way.
+          <div
+            style={{
+              fontSize: "14px",
+              opacity: 0.95,
+              maxWidth: "760px",
+              lineHeight: 1.6,
+            }}
+          >
+            This page is your fishing logbook. Use it to browse, filter, sort,
+            review, and export your catch history in a clean, organized way.
           </div>
 
           <div
@@ -337,7 +458,15 @@ export default function MyCatches() {
               marginBottom: "14px",
             }}
           >
-            <h2 style={{ margin: 0, display: "flex", alignItems: "center", gap: "10px", color: "#0f172a" }}>
+            <h2
+              style={{
+                margin: 0,
+                display: "flex",
+                alignItems: "center",
+                gap: "10px",
+                color: "#0f172a",
+              }}
+            >
               <FaFish />
               Catch Log Manager
             </h2>
@@ -396,36 +525,54 @@ export default function MyCatches() {
             }}
           >
             <div>
-              <div style={{ fontSize: "12px", fontWeight: 700, color: "#64748b", marginBottom: "6px" }}>Sort by</div>
-              <div style={{ position: "relative" }}>
-                <select
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value)}
-                  style={{
-                    width: "100%",
-                    border: "1px solid #d1d5db",
-                    borderRadius: "10px",
-                    padding: "10px 12px",
-                    fontSize: "14px",
-                    background: "white",
-                    color: "#0f172a",
-                    outline: "none",
-                  }}
-                >
-                  {sortOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
+              <div
+                style={{
+                  fontSize: "12px",
+                  fontWeight: 700,
+                  color: "#64748b",
+                  marginBottom: "6px",
+                }}
+              >
+                Sort by
               </div>
+
+              <select
+                value={sortBy}
+                onChange={(event) => setSortBy(event.target.value)}
+                style={{
+                  width: "100%",
+                  border: "1px solid #d1d5db",
+                  borderRadius: "10px",
+                  padding: "10px 12px",
+                  fontSize: "14px",
+                  background: "white",
+                  color: "#0f172a",
+                  outline: "none",
+                }}
+              >
+                {sortOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div>
-              <div style={{ fontSize: "12px", fontWeight: 700, color: "#64748b", marginBottom: "6px" }}>Rows per page</div>
+              <div
+                style={{
+                  fontSize: "12px",
+                  fontWeight: 700,
+                  color: "#64748b",
+                  marginBottom: "6px",
+                }}
+              >
+                Rows per page
+              </div>
+
               <select
                 value={pageSize}
-                onChange={(e) => setPageSize(Number(e.target.value))}
+                onChange={(event) => setPageSize(Number(event.target.value))}
                 style={{
                   width: "100%",
                   border: "1px solid #d1d5db",
@@ -458,9 +605,24 @@ export default function MyCatches() {
             >
               <FaSortAmountDown style={{ color: "#2563eb" }} />
               <div>
-                <div style={{ fontSize: "12px", fontWeight: 700, color: "#64748b" }}>Current sort</div>
-                <div style={{ fontSize: "14px", fontWeight: 700, color: "#0f172a" }}>
-                  {sortOptions.find((option) => option.value === sortBy)?.label || "Newest first"}
+                <div
+                  style={{
+                    fontSize: "12px",
+                    fontWeight: 700,
+                    color: "#64748b",
+                  }}
+                >
+                  Current sort
+                </div>
+                <div
+                  style={{
+                    fontSize: "14px",
+                    fontWeight: 700,
+                    color: "#0f172a",
+                  }}
+                >
+                  {sortOptions.find((option) => option.value === sortBy)?.label ||
+                    "Newest first"}
                 </div>
               </div>
             </div>
@@ -478,15 +640,31 @@ export default function MyCatches() {
             >
               <FaTable style={{ color: "#2563eb" }} />
               <div>
-                <div style={{ fontSize: "12px", fontWeight: 700, color: "#64748b" }}>Page</div>
-                <div style={{ fontSize: "14px", fontWeight: 700, color: "#0f172a" }}>
+                <div
+                  style={{
+                    fontSize: "12px",
+                    fontWeight: 700,
+                    color: "#64748b",
+                  }}
+                >
+                  Page
+                </div>
+                <div
+                  style={{
+                    fontSize: "14px",
+                    fontWeight: 700,
+                    color: "#0f172a",
+                  }}
+                >
                   {currentPage} of {totalPages}
                 </div>
               </div>
             </div>
           </div>
 
-          <div style={{ color: "#64748b", fontSize: "14px", marginBottom: "12px" }}>{countText}</div>
+          <div style={{ color: "#64748b", fontSize: "14px", marginBottom: "12px" }}>
+            {countText}
+          </div>
 
           {error && (
             <div
@@ -538,7 +716,7 @@ export default function MyCatches() {
             />
           )}
 
-          {!showSkeleton && sortedCatches.length > 0 ? (
+          {!showSkeleton && sortedCatches.length > 0 && (
             <div
               style={{
                 display: "flex",
@@ -555,10 +733,17 @@ export default function MyCatches() {
                 Page {currentPage} of {totalPages}
               </div>
 
-              <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
+              <div
+                style={{
+                  display: "flex",
+                  gap: "8px",
+                  alignItems: "center",
+                  flexWrap: "wrap",
+                }}
+              >
                 <button
                   type="button"
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  onClick={() => setPage((prev) => Math.max(1, prev - 1))}
                   disabled={currentPage <= 1}
                   style={{
                     border: "1px solid #d1d5db",
@@ -579,7 +764,7 @@ export default function MyCatches() {
 
                 <button
                   type="button"
-                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
                   disabled={currentPage >= totalPages}
                   style={{
                     border: "1px solid #d1d5db",
@@ -599,7 +784,7 @@ export default function MyCatches() {
                 </button>
               </div>
             </div>
-          ) : null}
+          )}
         </div>
       </div>
     </div>

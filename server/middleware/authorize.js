@@ -5,13 +5,13 @@ const authorize = async (req, res, next) => {
   const authHeader = req.header("Authorization");
 
   if (!authHeader) {
-    return res.status(403).json("Authorization denied");
+    return res.status(401).json({ error: "Missing authorization header" });
   }
 
-  const token = authHeader.split(" ")[1];
+  const [scheme, token] = authHeader.split(" ");
 
-  if (!token) {
-    return res.status(403).json("Authorization denied");
+  if (scheme !== "Bearer" || !token) {
+    return res.status(401).json({ error: "Invalid authorization header" });
   }
 
   try {
@@ -42,7 +42,7 @@ const authorize = async (req, res, next) => {
 
     next();
   } catch (err) {
-    return res.status(401).json("Token is not valid");
+    return res.status(401).json({ error: "Token is not valid" });
   }
 };
 

@@ -1,40 +1,61 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { FaUserPlus } from "react-icons/fa";
-import api from "../api/client";
+import { registerUser } from "../api/authApi";
 import { notifyError, notifySuccess } from "../ui/toast";
 
-const Register = ({ setAuth, setCurrentUser }) => {
+const getErrorMessage = (error, fallbackMessage) => {
+  const serverError = error?.response?.data?.error;
+  const responseData = error?.response?.data;
+
+  if (typeof serverError === "string" && serverError.trim()) {
+    return serverError;
+  }
+
+  if (typeof responseData === "string" && responseData.trim()) {
+    return responseData;
+  }
+
+  return fallbackMessage;
+};
+
+function Register({ setAuth, setCurrentUser }) {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
+
   const navigate = useNavigate();
 
-  const handleRegister = async (e) => {
-    e.preventDefault();
+  const handleRegister = async (event) => {
+    event.preventDefault();
+
     setMessage("");
     setSubmitting(true);
 
     try {
-      const res = await api.post("/auth/register", {
+      const data = await registerUser({
         full_name: fullName,
         email,
         password,
       });
 
-      localStorage.setItem("token", res.data.token);
-      setCurrentUser(res.data.user || null);
+      localStorage.setItem("token", data.token);
+      setCurrentUser(data.user || null);
       setAuth(true);
 
-      notifySuccess("Registration successful");
-      setMessage("Registration successful");
-      setTimeout(() => navigate("/"), 700);
-    } catch (err) {
-      notifyError(err, "Registration failed");
-      const msg = err.response?.data || "Registration failed";
-      setMessage(typeof msg === "string" ? msg : "Registration failed");
+      const successMessage = "Registration successful";
+      notifySuccess(successMessage);
+      setMessage(successMessage);
+
+      setTimeout(() => {
+        navigate("/");
+      }, 700);
+    } catch (error) {
+      const errorMessage = getErrorMessage(error, "Registration failed");
+      notifyError(error, "Registration failed");
+      setMessage(errorMessage);
     } finally {
       setSubmitting(false);
     }
@@ -74,7 +95,7 @@ const Register = ({ setAuth, setCurrentUser }) => {
           type="text"
           placeholder="Full Name"
           value={fullName}
-          onChange={(e) => setFullName(e.target.value)}
+          onChange={(event) => setFullName(event.target.value)}
           required
           style={{ padding: "10px" }}
           autoComplete="name"
@@ -84,7 +105,7 @@ const Register = ({ setAuth, setCurrentUser }) => {
           type="email"
           placeholder="Email"
           value={email}
-          onChange={(e) => setEmail(e.target.value)}
+          onChange={(event) => setEmail(event.target.value)}
           required
           style={{ padding: "10px" }}
           autoComplete="email"
@@ -94,7 +115,7 @@ const Register = ({ setAuth, setCurrentUser }) => {
           type="password"
           placeholder="Password"
           value={password}
-          onChange={(e) => setPassword(e.target.value)}
+          onChange={(event) => setPassword(event.target.value)}
           required
           style={{ padding: "10px" }}
           autoComplete="new-password"
@@ -116,6 +137,6 @@ const Register = ({ setAuth, setCurrentUser }) => {
       </form>
     </div>
   );
-};
+}
 
 export default Register;

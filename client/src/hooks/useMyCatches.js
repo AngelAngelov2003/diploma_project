@@ -1,58 +1,37 @@
 import { useCallback, useEffect, useState } from "react";
-import api from "../api/client";
-import { notifyError } from "../ui/toast";
+import { getMyCatches } from "../api/myCatchesApi";
 
 export default function useMyCatches() {
   const [catches, setCatches] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  const load = useCallback(async (opts = {}) => {
-    const { silent = false } = opts;
-
-    setLoading(true);
-    setError("");
-
+  const load = useCallback(async () => {
     try {
-      const res = await api.get("/catches/my");
-      setCatches(res.data || []);
+      setLoading(true);
+      setError("");
+      const data = await getMyCatches();
+      setCatches(data || []);
     } catch (err) {
-      setError("Failed to load catch logs");
-      if (!silent) notifyError(err, "Failed to load catch logs");
+      setCatches([]);
+      setError(
+        err?.response?.data?.error ||
+          err?.response?.data ||
+          "Failed to load catches",
+      );
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    let alive = true;
+    load();
+  }, [load]);
 
-    const run = async () => {
-      setLoading(true);
-      setError("");
-
-      try {
-        const res = await api.get("/catches/my");
-        if (!alive) return;
-        setCatches(res.data || []);
-      } catch (err) {
-        if (!alive) return;
-        setError("Failed to load catch logs");
-        notifyError(err, "Failed to load catch logs");
-      } finally {
-        if (!alive) return;
-        setLoading(false);
-      }
-    };
-
-    run();
-
-    return () => {
-      alive = false;
-    };
-  }, []);
-
-  const reload = useCallback(() => load({ silent: false }), [load]);
-
-  return { catches, loading, error, reload };
+  return {
+    catches,
+    loading,
+    error,
+    reload: load,
+  };
 }

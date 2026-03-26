@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   FaChartBar,
   FaArrowRight,
@@ -13,6 +13,8 @@ import useMyCatches from "../hooks/useMyCatches";
 import DashboardFilters from "../components/dashboard/DashboardFilters";
 import DashboardCharts from "../components/dashboard/DashboardCharts";
 import CatchLogList from "../components/dashboard/CatchLogList";
+
+const SKELETON_DELAY_MS = 200;
 
 const SkeletonRow = ({ i }) => (
   <li
@@ -39,10 +41,41 @@ const SkeletonRow = ({ i }) => (
       }}
     />
     <div style={{ flex: 1 }}>
-      <div style={{ height: "16px", width: "55%", background: "#e9ecef", borderRadius: "6px" }} />
-      <div style={{ height: "12px", width: "35%", background: "#e9ecef", borderRadius: "6px", marginTop: "10px" }} />
-      <div style={{ height: "12px", width: "45%", background: "#e9ecef", borderRadius: "6px", marginTop: "12px" }} />
-      <div style={{ height: "12px", width: "30%", background: "#e9ecef", borderRadius: "6px", marginTop: "10px" }} />
+      <div
+        style={{
+          height: "16px",
+          width: "55%",
+          background: "#e9ecef",
+          borderRadius: "6px",
+        }}
+      />
+      <div
+        style={{
+          height: "12px",
+          width: "35%",
+          background: "#e9ecef",
+          borderRadius: "6px",
+          marginTop: "10px",
+        }}
+      />
+      <div
+        style={{
+          height: "12px",
+          width: "45%",
+          background: "#e9ecef",
+          borderRadius: "6px",
+          marginTop: "12px",
+        }}
+      />
+      <div
+        style={{
+          height: "12px",
+          width: "30%",
+          background: "#e9ecef",
+          borderRadius: "6px",
+          marginTop: "10px",
+        }}
+      />
     </div>
   </li>
 );
@@ -57,14 +90,45 @@ const StatCard = ({ icon, label, value, subvalue }) => (
       boxShadow: "0 6px 16px rgba(15,23,42,0.05)",
     }}
   >
-    <div style={{ display: "flex", alignItems: "center", gap: "10px", color: "#2563eb", marginBottom: "10px" }}>
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: "10px",
+        color: "#2563eb",
+        marginBottom: "10px",
+      }}
+    >
       <div style={{ fontSize: "18px" }}>{icon}</div>
-      <div style={{ fontSize: "13px", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+      <div
+        style={{
+          fontSize: "13px",
+          fontWeight: 700,
+          color: "#475569",
+          textTransform: "uppercase",
+          letterSpacing: "0.04em",
+        }}
+      >
         {label}
       </div>
     </div>
-    <div style={{ fontSize: "28px", fontWeight: 800, color: "#0f172a", lineHeight: 1.1 }}>{value}</div>
-    {subvalue ? <div style={{ marginTop: "8px", fontSize: "13px", color: "#64748b" }}>{subvalue}</div> : null}
+
+    <div
+      style={{
+        fontSize: "28px",
+        fontWeight: 800,
+        color: "#0f172a",
+        lineHeight: 1.1,
+      }}
+    >
+      {value}
+    </div>
+
+    {subvalue ? (
+      <div style={{ marginTop: "8px", fontSize: "13px", color: "#64748b" }}>
+        {subvalue}
+      </div>
+    ) : null}
   </div>
 );
 
@@ -78,22 +142,62 @@ const InsightCard = ({ title, children }) => (
       boxShadow: "0 6px 16px rgba(15,23,42,0.05)",
     }}
   >
-    <h3 style={{ margin: "0 0 14px 0", color: "#0f172a", fontSize: "18px" }}>{title}</h3>
+    <h3 style={{ margin: "0 0 14px 0", color: "#0f172a", fontSize: "18px" }}>
+      {title}
+    </h3>
     {children}
   </div>
 );
 
 const formatNumber = (value) => {
-  if (!Number.isFinite(value)) return "0";
+  if (!Number.isFinite(value)) {
+    return "0";
+  }
+
   return value % 1 === 0 ? String(value) : value.toFixed(2);
 };
 
 const formatDateLabel = (value) => {
-  if (!value) return "Unknown";
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return "Unknown";
-  return d.toLocaleDateString();
+  if (!value) {
+    return "Unknown";
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "Unknown";
+  }
+
+  return date.toLocaleDateString();
 };
+
+const getCatchTimestamp = (catchItem) => {
+  const when = catchItem.catch_time || catchItem.created_at;
+  const timestamp = when ? new Date(when).getTime() : null;
+
+  if (timestamp == null || Number.isNaN(timestamp)) {
+    return null;
+  }
+
+  return timestamp;
+};
+
+const buildSearchHaystack = (catchItem) =>
+  [
+    catchItem.species,
+    catchItem.lake_name,
+    catchItem.notes,
+    catchItem.weight_kg,
+    catchItem.temperature,
+    catchItem.pressure,
+    catchItem.wind_speed,
+    catchItem.moon_phase,
+  ]
+    .map((value) => String(value ?? "").toLowerCase())
+    .join(" ");
+
+const sortMapEntries = (entries) =>
+  [...entries].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
 
 export default function Dashboard() {
   const { catches, loading, error, reload } = useMyCatches();
@@ -120,7 +224,7 @@ export default function Dashboard() {
     if (loading) {
       timer = setTimeout(() => {
         setShowSkeleton(true);
-      }, 200);
+      }, SKELETON_DELAY_MS);
     } else {
       setShowSkeleton(false);
     }
@@ -133,34 +237,39 @@ export default function Dashboard() {
   const filteredCatches = useMemo(() => {
     const fromMs = dateFrom ? new Date(dateFrom).getTime() : null;
     const toMs = dateTo ? new Date(dateTo).getTime() : null;
-    const q = searchTerm.trim().toLowerCase();
+    const query = searchTerm.trim().toLowerCase();
 
-    return (catches || []).filter((c) => {
-      if (selectedLakeId !== "ALL" && String(c.water_body_id) !== String(selectedLakeId)) return false;
-      if (selectedSpecies !== "ALL" && c.species !== selectedSpecies) return false;
+    return (catches || []).filter((catchItem) => {
+      if (
+        selectedLakeId !== "ALL" &&
+        String(catchItem.water_body_id) !== String(selectedLakeId)
+      ) {
+        return false;
+      }
 
-      const when = c.catch_time || c.created_at;
-      const t = when ? new Date(when).getTime() : null;
-      if (t == null || Number.isNaN(t)) return false;
+      if (
+        selectedSpecies !== "ALL" &&
+        catchItem.species !== selectedSpecies
+      ) {
+        return false;
+      }
 
-      if (fromMs != null && t < fromMs) return false;
-      if (toMs != null && t > toMs + 24 * 60 * 60 * 1000 - 1) return false;
+      const timestamp = getCatchTimestamp(catchItem);
 
-      if (q) {
-        const haystack = [
-          c.species,
-          c.lake_name,
-          c.notes,
-          c.weight_kg,
-          c.temperature,
-          c.pressure,
-          c.wind_speed,
-          c.moon_phase,
-        ]
-          .map((v) => String(v ?? "").toLowerCase())
-          .join(" ");
+      if (timestamp == null) {
+        return false;
+      }
 
-        if (!haystack.includes(q)) return false;
+      if (fromMs != null && timestamp < fromMs) {
+        return false;
+      }
+
+      if (toMs != null && timestamp > toMs + 24 * 60 * 60 * 1000 - 1) {
+        return false;
+      }
+
+      if (query && !buildSearchHaystack(catchItem).includes(query)) {
+        return false;
       }
 
       return true;
@@ -169,40 +278,62 @@ export default function Dashboard() {
 
   const dashboardStats = useMemo(() => {
     const safeLogs = filteredCatches || [];
-
     const totalCatches = safeLogs.length;
-    const uniqueLakes = new Set(safeLogs.map((c) => c.water_body_id).filter(Boolean)).size;
-    const withWeight = safeLogs.filter((c) => Number.isFinite(Number(c.weight_kg)));
-    const totalWeight = withWeight.reduce((sum, c) => sum + Number(c.weight_kg || 0), 0);
-    const avgWeight = withWeight.length ? totalWeight / withWeight.length : 0;
+
+    const uniqueLakes = new Set(
+      safeLogs.map((catchItem) => catchItem.water_body_id).filter(Boolean),
+    ).size;
+
+    const catchesWithWeight = safeLogs.filter((catchItem) =>
+      Number.isFinite(Number(catchItem.weight_kg)),
+    );
+
+    const totalWeight = catchesWithWeight.reduce(
+      (sum, catchItem) => sum + Number(catchItem.weight_kg || 0),
+      0,
+    );
+
+    const avgWeight = catchesWithWeight.length
+      ? totalWeight / catchesWithWeight.length
+      : 0;
 
     const biggestCatch =
-      withWeight.length > 0
-        ? withWeight.reduce((max, c) => (Number(c.weight_kg || 0) > Number(max.weight_kg || 0) ? c : max), withWeight[0])
+      catchesWithWeight.length > 0
+        ? catchesWithWeight.reduce((maxCatch, currentCatch) =>
+            Number(currentCatch.weight_kg || 0) >
+            Number(maxCatch.weight_kg || 0)
+              ? currentCatch
+              : maxCatch,
+          )
         : null;
 
     const speciesMap = new Map();
     const lakeMap = new Map();
     const monthMap = new Map();
 
-    safeLogs.forEach((c) => {
-      const species = String(c.species || "Unknown").trim() || "Unknown";
-      const lake = String(c.lake_name || "Unknown lake").trim() || "Unknown lake";
-      const dateValue = c.catch_time || c.created_at;
-      const d = dateValue ? new Date(dateValue) : null;
+    safeLogs.forEach((catchItem) => {
+      const species = String(catchItem.species || "Unknown").trim() || "Unknown";
+      const lake =
+        String(catchItem.lake_name || "Unknown lake").trim() || "Unknown lake";
 
       speciesMap.set(species, (speciesMap.get(species) || 0) + 1);
       lakeMap.set(lake, (lakeMap.get(lake) || 0) + 1);
 
-      if (d && !Number.isNaN(d.getTime())) {
-        const monthKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      const when = catchItem.catch_time || catchItem.created_at;
+      const date = when ? new Date(when) : null;
+
+      if (date && !Number.isNaN(date.getTime())) {
+        const monthKey = `${date.getFullYear()}-${String(
+          date.getMonth() + 1,
+        ).padStart(2, "0")}`;
+
         monthMap.set(monthKey, (monthMap.get(monthKey) || 0) + 1);
       }
     });
 
-    const topSpeciesEntry = [...speciesMap.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0] || null;
-    const topLakeEntry = [...lakeMap.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0] || null;
-    const bestMonthEntry = [...monthMap.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0] || null;
+    const topSpeciesEntry = sortMapEntries(speciesMap.entries())[0] || null;
+    const topLakeEntry = sortMapEntries(lakeMap.entries())[0] || null;
+    const bestMonthEntry = sortMapEntries(monthMap.entries())[0] || null;
 
     const topSpecies = topSpeciesEntry
       ? { name: topSpeciesEntry[0], count: topSpeciesEntry[1] }
@@ -214,16 +345,18 @@ export default function Dashboard() {
 
     const bestMonth = bestMonthEntry
       ? {
-          label: new Date(`${bestMonthEntry[0]}-01T00:00:00`).toLocaleDateString(undefined, {
-            month: "long",
-            year: "numeric",
-          }),
+          label: new Date(`${bestMonthEntry[0]}-01T00:00:00`).toLocaleDateString(
+            undefined,
+            {
+              month: "long",
+              year: "numeric",
+            },
+          ),
           count: bestMonthEntry[1],
         }
       : null;
 
-    const speciesBreakdown = [...speciesMap.entries()]
-      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    const speciesBreakdown = sortMapEntries(speciesMap.entries())
       .slice(0, 5)
       .map(([name, count]) => ({
         name,
@@ -231,8 +364,7 @@ export default function Dashboard() {
         percent: totalCatches ? Math.round((count / totalCatches) * 100) : 0,
       }));
 
-    const lakeBreakdown = [...lakeMap.entries()]
-      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    const lakeBreakdown = sortMapEntries(lakeMap.entries())
       .slice(0, 5)
       .map(([name, count]) => ({
         name,
@@ -241,8 +373,8 @@ export default function Dashboard() {
       }));
 
     const recentSorted = [...safeLogs].sort((a, b) => {
-      const aTime = new Date(a.catch_time || a.created_at || 0).getTime();
-      const bTime = new Date(b.catch_time || b.created_at || 0).getTime();
+      const aTime = getCatchTimestamp(a) || 0;
+      const bTime = getCatchTimestamp(b) || 0;
       return bTime - aTime;
     });
 
@@ -268,7 +400,14 @@ export default function Dashboard() {
     : `Showing ${filteredCatches.length} of ${(catches || []).length} catches`;
 
   const goToLakeOnMap = (waterBodyId) => {
-    if (waterBodyId === null || waterBodyId === undefined || waterBodyId === "") return;
+    if (
+      waterBodyId === null ||
+      waterBodyId === undefined ||
+      waterBodyId === ""
+    ) {
+      return;
+    }
+
     navigate("/", { state: { lakeId: String(waterBodyId) } });
   };
 
@@ -285,7 +424,13 @@ export default function Dashboard() {
   };
 
   return (
-    <div style={{ padding: "20px", background: "#f8fafc", minHeight: "calc(100vh - 60px)" }}>
+    <div
+      style={{
+        padding: "20px",
+        background: "#f8fafc",
+        minHeight: "calc(100vh - 60px)",
+      }}
+    >
       <div style={{ maxWidth: "1200px", margin: "0 auto" }}>
         <div
           style={{
@@ -297,9 +442,18 @@ export default function Dashboard() {
             boxShadow: "0 18px 40px rgba(15,23,42,0.22)",
           }}
         >
-          <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "8px" }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "10px",
+              marginBottom: "8px",
+            }}
+          >
             <FaChartBar />
-            <div style={{ fontSize: "14px", fontWeight: 700, opacity: 0.95 }}>Fishing analytics</div>
+            <div style={{ fontSize: "14px", fontWeight: 700, opacity: 0.95 }}>
+              Fishing analytics
+            </div>
           </div>
 
           <div
@@ -312,13 +466,32 @@ export default function Dashboard() {
             }}
           >
             <div style={{ flex: "1 1 520px" }}>
-              <h1 style={{ margin: "0 0 10px 0", fontSize: "30px" }}>Fishing Dashboard</h1>
-              <div style={{ fontSize: "15px", opacity: 0.96, maxWidth: "760px", lineHeight: 1.7 }}>
-                This page focuses on insights, performance patterns, and personal fishing statistics based on your catch history.
-                Use it to understand what species, lakes, and periods perform best for you.
+              <h1 style={{ margin: "0 0 10px 0", fontSize: "30px" }}>
+                Fishing Dashboard
+              </h1>
+
+              <div
+                style={{
+                  fontSize: "15px",
+                  opacity: 0.96,
+                  maxWidth: "760px",
+                  lineHeight: 1.7,
+                }}
+              >
+                This page focuses on insights, performance patterns, and
+                personal fishing statistics based on your catch history. Use it
+                to understand what species, lakes, and periods perform best for
+                you.
               </div>
 
-              <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginTop: "16px" }}>
+              <div
+                style={{
+                  display: "flex",
+                  gap: "10px",
+                  flexWrap: "wrap",
+                  marginTop: "16px",
+                }}
+              >
                 <div
                   style={{
                     background: "rgba(255,255,255,0.16)",
@@ -412,19 +585,33 @@ export default function Dashboard() {
             icon={<FaWeightHanging />}
             label="Average weight"
             value={`${formatNumber(dashboardStats.avgWeight)} kg`}
-            subvalue={`Total weight: ${formatNumber(dashboardStats.totalWeight)} kg`}
+            subvalue={`Total weight: ${formatNumber(
+              dashboardStats.totalWeight,
+            )} kg`}
           />
           <StatCard
             icon={<FaMapMarkedAlt />}
             label="Best lake"
             value={dashboardStats.topLake ? dashboardStats.topLake.name : "No data"}
-            subvalue={dashboardStats.topLake ? `${dashboardStats.topLake.count} catches` : "No filtered catches yet"}
+            subvalue={
+              dashboardStats.topLake
+                ? `${dashboardStats.topLake.count} catches`
+                : "No filtered catches yet"
+            }
           />
           <StatCard
             icon={<FaTrophy />}
             label="Top species"
-            value={dashboardStats.topSpecies ? dashboardStats.topSpecies.name : "No data"}
-            subvalue={dashboardStats.topSpecies ? `${dashboardStats.topSpecies.count} catches` : "No filtered catches yet"}
+            value={
+              dashboardStats.topSpecies
+                ? dashboardStats.topSpecies.name
+                : "No data"
+            }
+            subvalue={
+              dashboardStats.topSpecies
+                ? `${dashboardStats.topSpecies.count} catches`
+                : "No filtered catches yet"
+            }
           />
         </div>
 
@@ -438,7 +625,9 @@ export default function Dashboard() {
         >
           <InsightCard title="Personal Records">
             {!dashboardStats.biggestCatch ? (
-              <div style={{ color: "#64748b", fontSize: "14px" }}>No record data yet for the current filters.</div>
+              <div style={{ color: "#64748b", fontSize: "14px" }}>
+                No record data yet for the current filters.
+              </div>
             ) : (
               <div style={{ display: "grid", gap: "12px" }}>
                 <div
@@ -449,18 +638,52 @@ export default function Dashboard() {
                     padding: "14px",
                   }}
                 >
-                  <div style={{ fontSize: "13px", fontWeight: 700, color: "#1d4ed8", marginBottom: "6px" }}>
+                  <div
+                    style={{
+                      fontSize: "13px",
+                      fontWeight: 700,
+                      color: "#1d4ed8",
+                      marginBottom: "6px",
+                    }}
+                  >
                     Biggest catch
                   </div>
-                  <div style={{ fontSize: "22px", fontWeight: 800, color: "#0f172a" }}>
-                    {formatNumber(Number(dashboardStats.biggestCatch.weight_kg || 0))} kg {dashboardStats.biggestCatch.species || "Unknown"}
+
+                  <div
+                    style={{
+                      fontSize: "22px",
+                      fontWeight: 800,
+                      color: "#0f172a",
+                    }}
+                  >
+                    {formatNumber(
+                      Number(dashboardStats.biggestCatch.weight_kg || 0),
+                    )}{" "}
+                    kg {dashboardStats.biggestCatch.species || "Unknown"}
                   </div>
-                  <div style={{ fontSize: "13px", color: "#475569", marginTop: "6px" }}>
-                    {dashboardStats.biggestCatch.lake_name || "Unknown lake"} • {formatDateLabel(dashboardStats.biggestCatch.catch_time || dashboardStats.biggestCatch.created_at)}
+
+                  <div
+                    style={{
+                      fontSize: "13px",
+                      color: "#475569",
+                      marginTop: "6px",
+                    }}
+                  >
+                    {dashboardStats.biggestCatch.lake_name || "Unknown lake"} •{" "}
+                    {formatDateLabel(
+                      dashboardStats.biggestCatch.catch_time ||
+                        dashboardStats.biggestCatch.created_at,
+                    )}
                   </div>
                 </div>
 
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr 1fr",
+                    gap: "10px",
+                  }}
+                >
                   <div
                     style={{
                       background: "#f8fafc",
@@ -469,10 +692,25 @@ export default function Dashboard() {
                       padding: "12px",
                     }}
                   >
-                    <div style={{ fontSize: "12px", fontWeight: 700, color: "#64748b", marginBottom: "4px" }}>
+                    <div
+                      style={{
+                        fontSize: "12px",
+                        fontWeight: 700,
+                        color: "#64748b",
+                        marginBottom: "4px",
+                      }}
+                    >
                       Unique lakes
                     </div>
-                    <div style={{ fontSize: "22px", fontWeight: 800, color: "#0f172a" }}>{dashboardStats.uniqueLakes}</div>
+                    <div
+                      style={{
+                        fontSize: "22px",
+                        fontWeight: 800,
+                        color: "#0f172a",
+                      }}
+                    >
+                      {dashboardStats.uniqueLakes}
+                    </div>
                   </div>
 
                   <div
@@ -483,14 +721,37 @@ export default function Dashboard() {
                       padding: "12px",
                     }}
                   >
-                    <div style={{ fontSize: "12px", fontWeight: 700, color: "#64748b", marginBottom: "4px" }}>
+                    <div
+                      style={{
+                        fontSize: "12px",
+                        fontWeight: 700,
+                        color: "#64748b",
+                        marginBottom: "4px",
+                      }}
+                    >
                       Best month
                     </div>
-                    <div style={{ fontSize: "16px", fontWeight: 800, color: "#0f172a" }}>
-                      {dashboardStats.bestMonth ? dashboardStats.bestMonth.label : "No data"}
+                    <div
+                      style={{
+                        fontSize: "16px",
+                        fontWeight: 800,
+                        color: "#0f172a",
+                      }}
+                    >
+                      {dashboardStats.bestMonth
+                        ? dashboardStats.bestMonth.label
+                        : "No data"}
                     </div>
-                    <div style={{ fontSize: "12px", color: "#64748b", marginTop: "4px" }}>
-                      {dashboardStats.bestMonth ? `${dashboardStats.bestMonth.count} catches` : ""}
+                    <div
+                      style={{
+                        fontSize: "12px",
+                        color: "#64748b",
+                        marginTop: "4px",
+                      }}
+                    >
+                      {dashboardStats.bestMonth
+                        ? `${dashboardStats.bestMonth.count} catches`
+                        : ""}
                     </div>
                   </div>
                 </div>
@@ -500,7 +761,9 @@ export default function Dashboard() {
 
           <InsightCard title="Top Species Breakdown">
             {!dashboardStats.speciesBreakdown.length ? (
-              <div style={{ color: "#64748b", fontSize: "14px" }}>No species data found for the current filters.</div>
+              <div style={{ color: "#64748b", fontSize: "14px" }}>
+                No species data found for the current filters.
+              </div>
             ) : (
               <div style={{ display: "grid", gap: "10px" }}>
                 {dashboardStats.speciesBreakdown.map((item) => (
@@ -513,11 +776,30 @@ export default function Dashboard() {
                       background: "#fff",
                     }}
                   >
-                    <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", marginBottom: "8px" }}>
-                      <div style={{ fontWeight: 700, color: "#0f172a" }}>{item.name}</div>
-                      <div style={{ fontSize: "13px", color: "#475569" }}>{item.count} catches</div>
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        gap: "10px",
+                        marginBottom: "8px",
+                      }}
+                    >
+                      <div style={{ fontWeight: 700, color: "#0f172a" }}>
+                        {item.name}
+                      </div>
+                      <div style={{ fontSize: "13px", color: "#475569" }}>
+                        {item.count} catches
+                      </div>
                     </div>
-                    <div style={{ height: "8px", background: "#e2e8f0", borderRadius: "999px", overflow: "hidden" }}>
+
+                    <div
+                      style={{
+                        height: "8px",
+                        background: "#e2e8f0",
+                        borderRadius: "999px",
+                        overflow: "hidden",
+                      }}
+                    >
                       <div
                         style={{
                           width: `${Math.max(item.percent, 4)}%`,
@@ -527,7 +809,16 @@ export default function Dashboard() {
                         }}
                       />
                     </div>
-                    <div style={{ fontSize: "12px", color: "#64748b", marginTop: "6px" }}>{item.percent}% of filtered catches</div>
+
+                    <div
+                      style={{
+                        fontSize: "12px",
+                        color: "#64748b",
+                        marginTop: "6px",
+                      }}
+                    >
+                      {item.percent}% of filtered catches
+                    </div>
                   </div>
                 ))}
               </div>
@@ -536,7 +827,9 @@ export default function Dashboard() {
 
           <InsightCard title="Top Lakes Breakdown">
             {!dashboardStats.lakeBreakdown.length ? (
-              <div style={{ color: "#64748b", fontSize: "14px" }}>No lake data found for the current filters.</div>
+              <div style={{ color: "#64748b", fontSize: "14px" }}>
+                No lake data found for the current filters.
+              </div>
             ) : (
               <div style={{ display: "grid", gap: "10px" }}>
                 {dashboardStats.lakeBreakdown.map((item) => (
@@ -549,11 +842,30 @@ export default function Dashboard() {
                       background: "#fff",
                     }}
                   >
-                    <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", marginBottom: "8px" }}>
-                      <div style={{ fontWeight: 700, color: "#0f172a" }}>{item.name}</div>
-                      <div style={{ fontSize: "13px", color: "#475569" }}>{item.count} catches</div>
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        gap: "10px",
+                        marginBottom: "8px",
+                      }}
+                    >
+                      <div style={{ fontWeight: 700, color: "#0f172a" }}>
+                        {item.name}
+                      </div>
+                      <div style={{ fontSize: "13px", color: "#475569" }}>
+                        {item.count} catches
+                      </div>
                     </div>
-                    <div style={{ height: "8px", background: "#e2e8f0", borderRadius: "999px", overflow: "hidden" }}>
+
+                    <div
+                      style={{
+                        height: "8px",
+                        background: "#e2e8f0",
+                        borderRadius: "999px",
+                        overflow: "hidden",
+                      }}
+                    >
                       <div
                         style={{
                           width: `${Math.max(item.percent, 4)}%`,
@@ -563,7 +875,16 @@ export default function Dashboard() {
                         }}
                       />
                     </div>
-                    <div style={{ fontSize: "12px", color: "#64748b", marginTop: "6px" }}>{item.percent}% of filtered catches</div>
+
+                    <div
+                      style={{
+                        fontSize: "12px",
+                        color: "#64748b",
+                        marginTop: "6px",
+                      }}
+                    >
+                      {item.percent}% of filtered catches
+                    </div>
                   </div>
                 ))}
               </div>
@@ -599,7 +920,15 @@ export default function Dashboard() {
             marginBottom: "12px",
           }}
         >
-          <h2 style={{ margin: 0, display: "flex", alignItems: "center", gap: "10px", color: "#0f172a" }}>
+          <h2
+            style={{
+              margin: 0,
+              display: "flex",
+              alignItems: "center",
+              gap: "10px",
+              color: "#0f172a",
+            }}
+          >
             <FaStream />
             Recent Filtered Catch Logs
           </h2>

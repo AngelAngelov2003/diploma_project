@@ -21,7 +21,15 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
+    const status = error.response?.status;
+    const message =
+      error.response?.data?.error || error.response?.data || "";
+
+    if (
+      status === 401 &&
+      typeof message === "string" &&
+      message.toLowerCase().includes("token")
+    ) {
       localStorage.removeItem("token");
     }
 
