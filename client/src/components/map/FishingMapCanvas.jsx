@@ -1,4 +1,13 @@
-import React, { lazy, memo, Suspense, useMemo, useRef, useState } from "react";
+import React, {
+  lazy,
+  memo,
+  Suspense,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useCallback,
+} from "react";
 import {
   Circle,
   GeoJSON,
@@ -67,10 +76,15 @@ function FishingMapCanvas({
   setSelectedRegion,
   showRegionOverview,
   setShowRegionOverview,
+  locationModeActive,
+  distanceKm,
+  distanceFilterActive,
 }) {
   const [zoom, setZoom] = useState(BULGARIA_ZOOM);
+  const [hoveredRegion, setHoveredRegion] = useState(null);
   const overlayOpen = Boolean(activeLake);
   const regionsLayerRef = useRef(null);
+  const hoveredRegionLayerRef = useRef(null);
 
   const activeLakeId =
     activeLake?.id === undefined || activeLake?.id === null
@@ -86,11 +100,16 @@ function FishingMapCanvas({
   const selectedLakeIcon = useMemo(() => createLakeIcon(true), []);
   const userLocationIcon = useMemo(() => createUserLocationIcon(), []);
 
+  const numericDistanceKm = useMemo(() => {
+    const value = Number(distanceKm);
+    return Number.isFinite(value) && value > 0 ? value : null;
+  }, [distanceKm]);
+
   const geometryLakes = useMemo(() => {
     if (showRegionOverview) return [];
 
     const lakesWithGeometry = filteredLakes.filter((lake) =>
-      hasRenderableGeometry(lake),
+      hasRenderableGeometry(lake)
     );
 
     if (zoom < 11) return [];
@@ -185,7 +204,7 @@ function FishingMapCanvas({
     return truncate(getDisplayDescription(activeLake.description), 110);
   }, [activeLake]);
 
-  const getRegionName = (feature) => {
+  const getRegionName = useCallback((feature) => {
     return (
       feature?.properties?.shapeName ||
       feature?.properties?.name ||
@@ -194,72 +213,127 @@ function FishingMapCanvas({
       feature?.properties?.ADM1_EN ||
       "Region"
     );
-  };
+  }, []);
 
-  const getRegionStyle = (feature) => {
-    const regionName = getRegionName(feature);
-    const isSelected = selectedRegion === regionName;
+  const clearHoveredRegion = useCallback(() => {
+    hoveredRegionLayerRef.current = null;
+    setHoveredRegion(null);
+  }, []);
 
-    return {
-      color: isSelected ? "#0f172a" : "#64748b",
-      weight: isSelected ? 3 : 1.2,
-      fillColor: isSelected ? "#60a5fa" : "#93c5fd",
-      fillOpacity: isSelected ? 0.2 : 0.08,
-      opacity: isSelected ? 1 : 0.72,
+  useEffect(() => {
+    if (!mapInstance) return;
+
+    const handleMapInteractionStart = () => {
+      clearHoveredRegion();
     };
-  };
 
-  const handleEachRegion = (feature, layer) => {
-    const regionName = getRegionName(feature);
+    mapInstance.on("zoomstart", handleMapInteractionStart);
+    mapInstance.on("movestart", handleMapInteractionStart);
 
-    layer.on({
-      mouseover: (e) => {
-        e.target.setStyle({
-          weight: 3,
-          fillOpacity: 0.24,
-          opacity: 1,
-          color: "#0f172a",
-        });
+    return () => {
+      mapInstance.off("zoomstart", handleMapInteractionStart);
+      mapInstance.off("movestart", handleMapInteractionStart);
+    };
+  }, [mapInstance, clearHoveredRegion]);
 
-        layer.unbindTooltip();
-        layer.bindTooltip(regionName, {
-          sticky: true,
-          direction: "center",
-          className: "region-tooltip",
-        });
-        layer.openTooltip();
+  useEffect(() => {
+    const handleVisibilityOrBlur = () => {
+      clearHoveredRegion();
+    };
 
-        if (!L.Browser.ie && !L.Browser.opera && !L.Browser.edge) {
-          e.target.bringToFront();
-        }
-      },
-      mouseout: (e) => {
-        if (regionsLayerRef.current) {
-          regionsLayerRef.current.resetStyle(e.target);
-        }
+    window.addEventListener("blur", handleVisibilityOrBlur);
+    document.addEventListener("visibilitychange", handleVisibilityOrBlur);
 
-        layer.closeTooltip();
-        layer.unbindTooltip();
-      },
-      click: (e) => {
-        const bounds = e.target.getBounds();
+    return () => {
+      window.removeEventListener("blur", handleVisibilityOrBlur);
+      document.removeEventListener("visibilitychange", handleVisibilityOrBlur);
+    };
+  }, [clearHoveredRegion]);
 
-        setSelectedRegion(regionName);
-        setActiveLake(null);
+  useEffect(() => {
+    if (!mapInstance) return;
 
-        if (mapInstance) {
-          mapInstance.fitBounds(bounds, {
-            padding: [30, 30],
-            maxZoom: 9,
-          });
-        }
+    const handleMapMouseOut = () => {
+      clearHoveredRegion();
+    };
 
-        setTimeout(() => {
-          setShowRegionOverview(false);
-        }, 180);
-      },
-    });
-  };
+    mapInstance.on("mouseout", handleMapMouseOut);
+
+    return () => {
+      mapInstance.off("mouseout", handleMapMouseOut);
+    };
+  }, [mapInstance, clearHoveredRegion]);
+
+  useEffect(() => {
+    if (!showRegionOverview) {
+      clearHoveredRegion();
+    }
+  }, [showRegionOverview, clearHoveredRegion]);
+
+  const getRegionStyle = useCallback(
+    (feature) => {
+      const regionName = getRegionName(feature);
+      const isSelected = selectedRegion === regionName;
+      const isHovered = hoveredRegion === regionName;
+
+      return {
+        color: isSelected || isHovered ? "#0f172a" : "#64748b",
+        weight: isSelected || isHovered ? 3 : 1.2,
+        fillColor: isSelected ? "#60a5fa" : "#93c5fd",
+        fillOpacity: isSelected ? 0.2 : isHovered ? 0.24 : 0.08,
+        opacity: isSelected || isHovered ? 1 : 0.72,
+      };
+    },
+    [getRegionName, selectedRegion, hoveredRegion]
+  );
+
+  const handleEachRegion = useCallback(
+    (feature, layer) => {
+      const regionName = getRegionName(feature);
+
+      layer.on({
+        mouseover: () => {
+          hoveredRegionLayerRef.current = layer;
+          setHoveredRegion(regionName);
+
+          if (!L.Browser.ie && !L.Browser.opera && !L.Browser.edge) {
+            layer.bringToFront();
+          }
+        },
+        mouseout: () => {
+          if (hoveredRegionLayerRef.current === layer) {
+            clearHoveredRegion();
+          }
+        },
+        click: (e) => {
+          const bounds = e.target.getBounds();
+
+          clearHoveredRegion();
+          setSelectedRegion(regionName);
+          setActiveLake(null);
+
+          if (mapInstance) {
+            mapInstance.fitBounds(bounds, {
+              padding: [30, 30],
+              maxZoom: 9,
+            });
+          }
+
+          setTimeout(() => {
+            setShowRegionOverview(false);
+          }, 180);
+        },
+      });
+    },
+    [
+      clearHoveredRegion,
+      getRegionName,
+      mapInstance,
+      setActiveLake,
+      setSelectedRegion,
+      setShowRegionOverview,
+    ]
+  );
 
   return (
     <section className="map-main-panel">
@@ -286,7 +360,7 @@ function FishingMapCanvas({
           }}
         />
 
-        {showRegionOverview && (
+        {showRegionOverview && !locationModeActive && (
           <GeoJSON
             ref={regionsLayerRef}
             data={bulgariaRegions}
@@ -357,6 +431,20 @@ function FishingMapCanvas({
             />
           ))}
 
+        {mapUserLocation && distanceFilterActive && numericDistanceKm && (
+          <Circle
+            center={[mapUserLocation.latitude, mapUserLocation.longitude]}
+            radius={numericDistanceKm * 1000}
+            pathOptions={{
+              color: "#f97316",
+              weight: 2,
+              fillColor: "#fb923c",
+              fillOpacity: 0.08,
+              dashArray: "10 8",
+            }}
+          />
+        )}
+
         {mapUserLocation && (
           <>
             <Circle
@@ -413,25 +501,32 @@ function FishingMapCanvas({
         )}
       </div>
 
-      {showRegionOverview && (
+      {showRegionOverview && !locationModeActive && (
         <div className="map-overview-card">
-          <div className="map-overview-card-label">Overview</div>
+          <div className="map-overview-card-label">
+            {hoveredRegion ? "Hovered region" : "Overview"}
+          </div>
           <div className="map-overview-card-title">
-            Explore Bulgaria by region
+            {hoveredRegion || "Explore Bulgaria by region"}
           </div>
           <div className="map-overview-card-text">
-            Hover a region to preview it, then click to zoom in and view lakes
-            in that area.
+            {hoveredRegion
+              ? "Click to zoom into this region and load its lakes."
+              : "Hover a region to preview it, then click to zoom in and view lakes in that area."}
           </div>
         </div>
       )}
 
       {selectedRegion && !activeLake && !showRegionOverview && (
         <div className="map-selected-preview">
-          <div className="map-selected-preview-label">Region</div>
+          <div className="map-selected-preview-label">
+            {locationModeActive ? "Nearby area" : "Region"}
+          </div>
           <div className="map-selected-preview-title">{selectedRegion}</div>
           <div className="map-selected-preview-text">
-            Explore lakes inside this region.
+            {locationModeActive
+              ? "Showing lakes around your current location."
+              : "Explore lakes inside this region."}
           </div>
         </div>
       )}

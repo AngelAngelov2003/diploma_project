@@ -21,7 +21,6 @@ import {
   getLocationErrorMessage,
   getRegionNameFromFeature,
   findRegionFeatureByPoint,
-  getBoundsForGeoJsonFeature,
   hasRenderableGeometry,
 } from "./fishingMap.utils";
 import {
@@ -93,6 +92,13 @@ function FishingMap() {
   const searchFetchTimerRef = useRef(null);
   const routeReleaseTimerRef = useRef(null);
 
+  const distanceFilterActive = distanceKm !== "ALL";
+  const locationModeActive = Boolean(
+    mapUserLocation &&
+      Number.isFinite(mapUserLocation.latitude) &&
+      Number.isFinite(mapUserLocation.longitude),
+  );
+
   useEffect(() => {
     routeLakeHandledRef.current = false;
   }, [normalizedLakeIdFromRoute]);
@@ -117,6 +123,10 @@ function FishingMap() {
     const handleZoomState = () => {
       const currentZoom = mapInstance.getZoom();
 
+      if (locationModeActive || distanceFilterActive) {
+        return;
+      }
+
       if (currentZoom <= 8) {
         setShowRegionOverview(true);
         setSelectedRegion(null);
@@ -129,7 +139,7 @@ function FishingMap() {
     return () => {
       mapInstance.off("zoomend", handleZoomState);
     };
-  }, [mapInstance]);
+  }, [mapInstance, locationModeActive, distanceFilterActive]);
 
   useEffect(() => {
     const handleResize = () => {
@@ -212,7 +222,7 @@ function FishingMap() {
         sortBy,
         userLat: userLocation?.latitude,
         userLng: userLocation?.longitude,
-        distanceKm: distanceKm !== "ALL" ? distanceKm : undefined,
+        distanceKm: distanceFilterActive ? distanceKm : undefined,
       });
 
       if (requestId !== latestBoundsRequestIdRef.current) return;
@@ -234,6 +244,7 @@ function FishingMap() {
     sortBy,
     userLocation,
     distanceKm,
+    distanceFilterActive,
   ]);
 
   const scheduleBoundsFetch = useCallback(
@@ -303,6 +314,52 @@ function FishingMap() {
       );
     });
   }, []);
+
+  const focusMapOnUserArea = useCallback(
+    (nextLocation, radiusKm = null) => {
+      if (!mapInstance) {
+        return false;
+      }
+
+      const matchedRegion = findRegionFeatureByPoint(
+        bulgariaRegions,
+        nextLocation,
+      );
+
+      if (matchedRegion) {
+        setSelectedRegion(getRegionNameFromFeature(matchedRegion));
+      } else {
+        setSelectedRegion(null);
+      }
+
+      setShowRegionOverview(false);
+
+      const latitude = Number(nextLocation?.latitude);
+      const longitude = Number(nextLocation?.longitude);
+
+      if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+        return false;
+      }
+
+      const center = L.latLng(latitude, longitude);
+      const numericRadiusKm = Number(radiusKm);
+
+      if (Number.isFinite(numericRadiusKm) && numericRadiusKm > 0) {
+        const radiusMeters = numericRadiusKm * 1000;
+        const radiusBounds = center.toBounds(radiusMeters * 2);
+
+        mapInstance.fitBounds(radiusBounds.pad(0.12), {
+          padding: [40, 40],
+          maxZoom: 11,
+        });
+        return true;
+      }
+
+      mapInstance.flyTo(center, 10, { duration: 1.2 });
+      return true;
+    },
+    [mapInstance],
+  );
 
   useEffect(() => {
     if (!mapInstance || openingLakeFromRoute) return;
@@ -485,38 +542,6 @@ function FishingMap() {
     [visibleLakes],
   );
 
-  const focusMapOnLocationRegion = useCallback(
-    (nextLocation) => {
-      if (!mapInstance) {
-        return false;
-      }
-
-      const matchedRegion = findRegionFeatureByPoint(bulgariaRegions, nextLocation);
-
-      if (matchedRegion) {
-        const regionName = getRegionNameFromFeature(matchedRegion);
-        const regionBounds = getBoundsForGeoJsonFeature(matchedRegion);
-
-        setSelectedRegion(regionName);
-        setShowRegionOverview(false);
-
-        if (regionBounds) {
-          mapInstance.fitBounds(regionBounds, {
-            padding: [40, 40],
-            maxZoom: 9,
-          });
-        }
-
-        return true;
-      }
-
-      const userLatLng = L.latLng(nextLocation.latitude, nextLocation.longitude);
-      mapInstance.flyTo(userLatLng, 10, { duration: 1.2 });
-      return false;
-    },
-    [mapInstance],
-  );
-
   const markerCount = useMemo(
     () =>
       visibleLakes.filter(
@@ -536,9 +561,15 @@ function FishingMap() {
     setSearchMatches([]);
     setActiveLake(null);
     setSelectedRegion(null);
-    setShowRegionOverview(true);
+
+    if (!locationModeActive && !distanceFilterActive) {
+      setShowRegionOverview(true);
+    } else {
+      setShowRegionOverview(false);
+    }
+
     mapInstance.flyTo(BULGARIA_CENTER, BULGARIA_ZOOM, { duration: 1.2 });
-  }, [mapInstance]);
+  }, [mapInstance, locationModeActive, distanceFilterActive]);
 
   const handleUseMyLocation = useCallback(async () => {
     try {
@@ -546,20 +577,24 @@ function FishingMap() {
       setLocationError("");
 
       const nextLocation = await getCurrentUserLocation();
+      const radiusToUse = shouldActivateDistanceAfterLocation
+        ? Number(sliderDistanceKm || DEFAULT_DISTANCE_KM)
+        : null;
 
       setUserLocation(nextLocation);
       setMapUserLocation(nextLocation);
       setSearchTerm("");
       setSearchMatches([]);
       setActiveLake(null);
-      focusMapOnLocationRegion(nextLocation);
+
+      focusMapOnUserArea(nextLocation, radiusToUse);
 
       if (shouldActivateDistanceAfterLocation) {
         setDistanceKm(String(sliderDistanceKm || DEFAULT_DISTANCE_KM));
         setShouldActivateDistanceAfterLocation(false);
         notifySuccess("Location detected and distance filter activated");
       } else {
-        notifySuccess("Location detected. Nearest sorting is now available.");
+        notifySuccess("Location detected. Nearby lakes are now shown.");
       }
     } catch (error) {
       const message =
@@ -577,12 +612,13 @@ function FishingMap() {
     getCurrentUserLocation,
     shouldActivateDistanceAfterLocation,
     sliderDistanceKm,
-    focusMapOnLocationRegion,
+    focusMapOnUserArea,
   ]);
 
   const handleZoomToMyLocation = useCallback(async () => {
     try {
       const nextLocation = await getCurrentUserLocation();
+      const radiusToUse = distanceFilterActive ? Number(distanceKm) : null;
 
       setMapUserLocation(nextLocation);
       setUserLocation(nextLocation);
@@ -590,7 +626,7 @@ function FishingMap() {
       setSearchMatches([]);
       setActiveLake(null);
 
-      focusMapOnLocationRegion(nextLocation);
+      focusMapOnUserArea(nextLocation, radiusToUse);
     } catch (error) {
       const message =
         error?.message === "Geolocation is not supported in this browser"
@@ -599,18 +635,23 @@ function FishingMap() {
 
       notifyError(null, message);
     }
-  }, [focusMapOnLocationRegion, getCurrentUserLocation]);
+  }, [
+    focusMapOnUserArea,
+    getCurrentUserLocation,
+    distanceFilterActive,
+    distanceKm,
+  ]);
 
   const handleDistanceSliderChange = useCallback(
     (e) => {
       const nextValue = Number(e.target.value);
       setSliderDistanceKm(nextValue);
 
-      if (distanceKm !== "ALL" && userLocation) {
+      if (distanceFilterActive && userLocation) {
         setDistanceKm(String(nextValue));
       }
     },
-    [distanceKm, userLocation],
+    [distanceFilterActive, userLocation],
   );
 
   const handleEnableDistanceFilter = useCallback(() => {
@@ -620,8 +661,12 @@ function FishingMap() {
       return;
     }
 
+    setMapUserLocation(userLocation);
     setDistanceKm(String(sliderDistanceKm));
-  }, [userLocation, handleUseMyLocation, sliderDistanceKm]);
+    setShowRegionOverview(false);
+    setActiveLake(null);
+    focusMapOnUserArea(userLocation, Number(sliderDistanceKm));
+  }, [userLocation, handleUseMyLocation, sliderDistanceKm, focusMapOnUserArea]);
 
   const clearDistanceFilter = useCallback(() => {
     setUserLocation(null);
@@ -629,11 +674,18 @@ function FishingMap() {
     setLocationError("");
     setDistanceKm("ALL");
     setShouldActivateDistanceAfterLocation(false);
+    setSelectedRegion(null);
+    setShowRegionOverview(true);
+    setActiveLake(null);
 
     if (sortBy === "nearest") {
       setSortBy("default");
     }
-  }, [sortBy]);
+
+    if (mapInstance) {
+      mapInstance.flyTo(BULGARIA_CENTER, BULGARIA_ZOOM, { duration: 1.2 });
+    }
+  }, [sortBy, mapInstance]);
 
   const selectedLakeDistance = useMemo(() => {
     if (!activeLake || !userLocation) return null;
@@ -645,8 +697,6 @@ function FishingMap() {
 
     return getDistanceKm(userLocation, { lat, lng });
   }, [activeLake, userLocation]);
-
-  const distanceFilterActive = distanceKm !== "ALL";
 
   return (
     <div className="fishing-map-page">
@@ -703,6 +753,9 @@ function FishingMap() {
         setSelectedRegion={setSelectedRegion}
         showRegionOverview={showRegionOverview}
         setShowRegionOverview={setShowRegionOverview}
+        locationModeActive={locationModeActive}
+        distanceKm={distanceKm}
+        distanceFilterActive={distanceFilterActive}
       />
     </div>
   );
