@@ -1,3 +1,4 @@
+import React from "react";
 import L from "leaflet";
 
 export const BULGARIA_CENTER = [42.7339, 25.4858];
@@ -166,6 +167,96 @@ export const highlightText = (text, query) => {
   );
 };
 
+export const getRegionNameFromFeature = (feature) => {
+  return (
+    feature?.properties?.shapeName ||
+    feature?.properties?.name ||
+    feature?.properties?.NAME_1 ||
+    feature?.properties?.adm1_en ||
+    feature?.properties?.ADM1_EN ||
+    "Region"
+  );
+};
+
+const normalizeRegionRings = (geometry) => {
+  if (!geometry) return [];
+  if (geometry.type === "Polygon") {
+    return [geometry.coordinates || []];
+  }
+  if (geometry.type === "MultiPolygon") {
+    return geometry.coordinates || [];
+  }
+  return [];
+};
+
+const pointInRing = (pointLng, pointLat, ring) => {
+  let inside = false;
+
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const xi = Number(ring[i][0]);
+    const yi = Number(ring[i][1]);
+    const xj = Number(ring[j][0]);
+    const yj = Number(ring[j][1]);
+
+    const intersects =
+      ((yi > pointLat) !== (yj > pointLat)) &&
+      (pointLng <
+        ((xj - xi) * (pointLat - yi)) / ((yj - yi) || Number.EPSILON) + xi);
+
+    if (intersects) {
+      inside = !inside;
+    }
+  }
+
+  return inside;
+};
+
+const pointInPolygonGeometry = (pointLng, pointLat, geometry) => {
+  const polygons = normalizeRegionRings(geometry);
+
+  return polygons.some((polygonRings) => {
+    if (!polygonRings?.length) return false;
+
+    const [outerRing, ...holes] = polygonRings;
+
+    if (!pointInRing(pointLng, pointLat, outerRing)) {
+      return false;
+    }
+
+    return !holes.some((hole) => pointInRing(pointLng, pointLat, hole));
+  });
+};
+
+export const findRegionFeatureByPoint = (featureCollection, location) => {
+  const pointLat = Number(location?.latitude ?? location?.lat);
+  const pointLng = Number(location?.longitude ?? location?.lng);
+
+  if (
+    !featureCollection?.features?.length ||
+    !Number.isFinite(pointLat) ||
+    !Number.isFinite(pointLng)
+  ) {
+    return null;
+  }
+
+  return (
+    featureCollection.features.find((feature) =>
+      pointInPolygonGeometry(pointLng, pointLat, feature?.geometry),
+    ) || null
+  );
+};
+
+export const getBoundsForGeoJsonFeature = (feature) => {
+  if (!feature) {
+    return null;
+  }
+
+  const layer = L.geoJSON(feature);
+  const bounds = layer.getBounds();
+
+  return bounds.isValid() ? bounds : null;
+};
+
 export const createLakeIcon = (isSelected = false) =>
   L.divIcon({
     className: "custom-lake-marker-wrapper",
@@ -174,8 +265,8 @@ export const createLakeIcon = (isSelected = false) =>
         <div class="custom-lake-marker-dot"></div>
       </div>
     `,
-    iconSize: [22, 22],
-    iconAnchor: [11, 11],
+    iconSize: [24, 24],
+    iconAnchor: [12, 12],
   });
 
 export const createUserLocationIcon = () =>
@@ -187,8 +278,8 @@ export const createUserLocationIcon = () =>
         <div class="user-location-core"></div>
       </div>
     `,
-    iconSize: [22, 22],
-    iconAnchor: [11, 11],
+    iconSize: [44, 44],
+    iconAnchor: [22, 22],
   });
 
 export const createClusterCustomIcon = (cluster) => {

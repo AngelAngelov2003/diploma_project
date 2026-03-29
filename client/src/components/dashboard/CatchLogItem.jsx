@@ -1,4 +1,5 @@
 import React from "react";
+import styles from "./CatchLogItem.module.css";
 import { FaFish } from "react-icons/fa";
 import { formatDateTime } from "../../utils/date";
 
@@ -15,70 +16,36 @@ export default function CatchLogItem({ log, onLakeClick }) {
   };
 
   return (
-    <li
-      style={{
-        background: "#f8f9fa",
-        margin: "10px 0",
-        padding: "15px",
-        border: "1px solid #ddd",
-        borderRadius: "12px",
-        display: "flex",
-        gap: "14px",
-        alignItems: "flex-start",
-      }}
-    >
-      <div
-        style={{
-          width: "120px",
-          height: "120px",
-          borderRadius: "12px",
-          overflow: "hidden",
-          background: "#fff",
-          border: "1px solid #e6e6e6",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          flexShrink: 0,
-        }}
-      >
+    <li className={styles.item}>
+      <div className={styles.imageBox}>
         {imgSrc ? (
-          <img src={imgSrc} alt="Catch" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+          <img src={imgSrc} alt="Catch" className={styles.image} />
         ) : (
           <FaFish size={38} color="#6c757d" />
         )}
       </div>
 
-      <div style={{ flex: 1 }}>
-        <div style={{ fontSize: "16px" }}>
+      <div className={styles.content}>
+        <div className={styles.title}>
           <strong>{log.species}</strong> — {log.weight_kg}kg
         </div>
 
         <button
           type="button"
           onClick={handleLakeClick}
-          style={{
-            color: "#007bff",
-            marginTop: "4px",
-            cursor: "pointer",
-            textDecoration: "underline",
-            display: "inline-block",
-            background: "transparent",
-            border: "none",
-            padding: 0,
-            font: "inherit",
-          }}
+          className={styles.lakeButton}
         >
           📍 {log.lake_name || log.water_body_name || "Unknown location"}
         </button>
 
-        <div style={{ marginTop: "8px", color: "#666" }}>
+        <div className={styles.meta}>
           <small>
             Catch time: <strong>{formatDateTime(when)}</strong>
           </small>
         </div>
 
         {log.notes && (
-          <div style={{ marginTop: "8px", color: "#444" }}>
+          <div className={styles.notes}>
             <small>Notes: {log.notes}</small>
           </div>
         )}

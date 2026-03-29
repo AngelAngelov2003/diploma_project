@@ -212,12 +212,6 @@ function FishingMapCanvas({
   const handleEachRegion = (feature, layer) => {
     const regionName = getRegionName(feature);
 
-    layer.bindTooltip(regionName, {
-      permanent: true,
-      direction: "center",
-      className: "region-label",
-    });
-
     layer.on({
       mouseover: (e) => {
         e.target.setStyle({
@@ -244,12 +238,8 @@ function FishingMapCanvas({
           regionsLayerRef.current.resetStyle(e.target);
         }
 
+        layer.closeTooltip();
         layer.unbindTooltip();
-        layer.bindTooltip(regionName, {
-          permanent: true,
-          direction: "center",
-          className: "region-label",
-        });
       },
       click: (e) => {
         const bounds = e.target.getBounds();
@@ -318,14 +308,12 @@ function FishingMapCanvas({
               key={`geometry-${lake.id}`}
               data={lake.boundary}
               style={() => ({
-                color: isSelected ? "#0f172a" : "#2563eb",
-                fillColor: isSelected ? "#38bdf8" : "#60a5fa",
-                fillOpacity: isSelected ? 0.42 : 0.18,
-                weight: isSelected ? 4 : 2,
+                color: "#2563eb",
+                fillColor: "#2563eb",
+                fillOpacity: isSelected ? 0.78 : 0.62,
+                weight: isSelected ? 3.2 : 2.4,
+                opacity: 1,
               })}
-              eventHandlers={{
-                click: () => focusLake(lake),
-              }}
             />
           );
         })}

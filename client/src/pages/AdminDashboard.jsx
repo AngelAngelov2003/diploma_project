@@ -7,10 +7,7 @@ import {
   FaStar,
   FaTrash,
   FaSave,
-  FaSearch,
   FaFileAlt,
-  FaChevronLeft,
-  FaChevronRight,
 } from "react-icons/fa";
 import {
   deleteAdminOwnerClaimRequest,
@@ -26,189 +23,18 @@ import {
   updateAdminUser,
   updateAdminWaterBody,
 } from "../api/adminApi";
-
-const pageStyle = {
-  padding: 24,
-  background: "#f8fafc",
-  minHeight: "calc(100vh - 60px)",
-};
-
-const shellStyle = {
-  maxWidth: 1400,
-  margin: "0 auto",
-};
-
-const heroStyle = {
-  background: "linear-gradient(135deg, #0f172a 0%, #2563eb 100%)",
-  color: "white",
-  borderRadius: 22,
-  padding: 24,
-  marginBottom: 20,
-  boxShadow: "0 10px 30px rgba(15,23,42,0.12)",
-};
-
-const cardStyle = {
-  background: "white",
-  border: "1px solid #e5e7eb",
-  borderRadius: 18,
-  padding: 18,
-  boxShadow: "0 6px 16px rgba(15,23,42,0.05)",
-};
-
-const statCardStyle = {
-  background: "white",
-  border: "1px solid #e5e7eb",
-  borderRadius: 18,
-  padding: 18,
-  boxShadow: "0 6px 16px rgba(15,23,42,0.05)",
-};
-
-const inputStyle = {
-  width: "100%",
-  padding: "10px 12px",
-  borderRadius: 10,
-  border: "1px solid #d1d5db",
-  boxSizing: "border-box",
-  background: "white",
-  fontSize: 14,
-};
-
-const textareaStyle = {
-  width: "100%",
-  padding: "10px 12px",
-  borderRadius: 10,
-  border: "1px solid #d1d5db",
-  boxSizing: "border-box",
-  background: "white",
-  fontSize: 14,
-  resize: "vertical",
-};
-
-const tabButton = (active) => ({
-  border: "none",
-  background: active ? "#1d4ed8" : "white",
-  color: active ? "white" : "#0f172a",
-  borderRadius: 14,
-  padding: "12px 16px",
-  cursor: "pointer",
-  fontWeight: 800,
-  fontSize: 15,
-  boxShadow: active
-    ? "0 10px 22px rgba(37,99,235,0.2)"
-    : "0 3px 10px rgba(15,23,42,0.05)",
-  display: "inline-flex",
-  alignItems: "center",
-  gap: 8,
-});
-
-const primaryBtn = {
-  background: "#0d6efd",
-  color: "white",
-  border: "none",
-  padding: "10px 14px",
-  borderRadius: 10,
-  cursor: "pointer",
-  fontWeight: 700,
-};
-
-const secondaryBtn = {
-  background: "#334155",
-  color: "white",
-  border: "none",
-  padding: "10px 14px",
-  borderRadius: 10,
-  cursor: "pointer",
-  fontWeight: 700,
-};
-
-const dangerBtn = {
-  background: "#dc2626",
-  color: "white",
-  border: "none",
-  padding: "10px 14px",
-  borderRadius: 10,
-  cursor: "pointer",
-  fontWeight: 700,
-};
-
-const successBtn = {
-  background: "#16a34a",
-  color: "white",
-  border: "none",
-  padding: "10px 14px",
-  borderRadius: 10,
-  cursor: "pointer",
-  fontWeight: 700,
-};
-
-const warningBtn = {
-  background: "#f59e0b",
-  color: "white",
-  border: "none",
-  padding: "10px 14px",
-  borderRadius: 10,
-  cursor: "pointer",
-  fontWeight: 700,
-};
-
-const mutedStyle = {
-  color: "#64748b",
-  fontSize: 14,
-};
-
-const formatDateTime = (value) => {
-  if (!value) return "Unknown";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString();
-};
-
-const statusBadgeStyle = (status) => ({
-  display: "inline-flex",
-  alignItems: "center",
-  padding: "6px 10px",
-  borderRadius: 999,
-  fontSize: 12,
-  fontWeight: 800,
-  background:
-    status === "approved"
-      ? "#dcfce7"
-      : status === "rejected"
-        ? "#fee2e2"
-        : "#fef3c7",
-  color:
-    status === "approved"
-      ? "#166534"
-      : status === "rejected"
-        ? "#991b1b"
-        : "#92400e",
-});
-
-const filterButton = (active) => ({
-  border: "1px solid #d1d5db",
-  background: active ? "#1d4ed8" : "white",
-  color: active ? "white" : "#0f172a",
-  borderRadius: 999,
-  padding: "8px 14px",
-  cursor: "pointer",
-  fontWeight: 700,
-  fontSize: 13,
-});
-
-const paginationBtn = (active = false, disabled = false) => ({
-  minWidth: 40,
-  height: 40,
-  borderRadius: 10,
-  border: "1px solid #d1d5db",
-  background: disabled ? "#f8fafc" : active ? "#1d4ed8" : "white",
-  color: disabled ? "#94a3b8" : active ? "white" : "#0f172a",
-  cursor: disabled ? "not-allowed" : "pointer",
-  fontWeight: 800,
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-  gap: 6,
-});
+import styles from "./AdminDashboard.module.css";
+import ui from "../styles/ui.module.css";
+import ActionButton from "../components/ui/ActionButton";
+import Card from "../components/ui/Card";
+import PageContainer from "../components/ui/PageContainer";
+import Pagination from "../components/ui/Pagination";
+import SearchInput from "../components/ui/SearchInput";
+import SectionHeader from "../components/ui/SectionHeader";
+import StatCard from "../components/ui/StatCard";
+import StatusBadge from "../components/ui/StatusBadge";
+import TabButton from "../components/ui/TabButton";
+import { formatDateTime } from "../utils/date";
 
 const PAGE_SIZE = 5;
 
@@ -645,299 +471,90 @@ export default function AdminDashboard() {
   };
 
   const renderError = (text, onRetry) => (
-    <div
-      style={{
-        border: "1px solid #fecaca",
-        background: "#fef2f2",
-        color: "#991b1b",
-        borderRadius: 12,
-        padding: 14,
-        display: "flex",
-        justifyContent: "space-between",
-        gap: 12,
-        alignItems: "center",
-        flexWrap: "wrap",
-      }}
-    >
+    <div className={ui.alertError}>
       <div>{text}</div>
-      <button type="button" onClick={onRetry} style={secondaryBtn}>
+      <ActionButton tone="neutral" onClick={onRetry}>
         Retry
-      </button>
+      </ActionButton>
     </div>
   );
-
-  const renderPagination = ({
-    currentPage,
-    totalPages,
-    totalItems,
-    startIndex,
-    endIndex,
-    onPageChange,
-  }) => {
-    if (totalItems === 0) {
-      return null;
-    }
-
-    const pageNumbers = [];
-    const startPage = Math.max(1, currentPage - 2);
-    const endPage = Math.min(totalPages, currentPage + 2);
-
-    for (let page = startPage; page <= endPage; page += 1) {
-      pageNumbers.push(page);
-    }
-
-    return (
-      <div
-        style={{
-          marginTop: 18,
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          gap: 12,
-          flexWrap: "wrap",
-          borderTop: "1px solid #e5e7eb",
-          paddingTop: 14,
-        }}
-      >
-        <div style={{ fontSize: 13, color: "#64748b" }}>
-          Showing <strong>{totalItems === 0 ? 0 : startIndex + 1}</strong>–
-          <strong>{endIndex}</strong> of <strong>{totalItems}</strong>
-        </div>
-
-        <div
-          style={{
-            display: "flex",
-            gap: 8,
-            alignItems: "center",
-            flexWrap: "wrap",
-          }}
-        >
-          <button
-            type="button"
-            onClick={() => onPageChange(currentPage - 1)}
-            disabled={currentPage <= 1}
-            style={paginationBtn(false, currentPage <= 1)}
-          >
-            <FaChevronLeft />
-          </button>
-
-          {startPage > 1 && (
-            <>
-              <button
-                type="button"
-                onClick={() => onPageChange(1)}
-                style={paginationBtn(currentPage === 1)}
-              >
-                1
-              </button>
-              {startPage > 2 ? (
-                <span style={{ color: "#64748b" }}>...</span>
-              ) : null}
-            </>
-          )}
-
-          {pageNumbers.map((page) => (
-            <button
-              key={page}
-              type="button"
-              onClick={() => onPageChange(page)}
-              style={paginationBtn(currentPage === page)}
-            >
-              {page}
-            </button>
-          ))}
-
-          {endPage < totalPages && (
-            <>
-              {endPage < totalPages - 1 ? (
-                <span style={{ color: "#64748b" }}>...</span>
-              ) : null}
-              <button
-                type="button"
-                onClick={() => onPageChange(totalPages)}
-                style={paginationBtn(currentPage === totalPages)}
-              >
-                {totalPages}
-              </button>
-            </>
-          )}
-
-          <button
-            type="button"
-            onClick={() => onPageChange(currentPage + 1)}
-            disabled={currentPage >= totalPages}
-            style={paginationBtn(false, currentPage >= totalPages)}
-          >
-            <FaChevronRight />
-          </button>
-        </div>
-      </div>
-    );
-  };
 
   const pendingOwnerClaimsCount = Number(analytics?.totals?.pending_owner_claims || 0);
 
   return (
-    <div style={pageStyle}>
-      <div style={shellStyle}>
-        <div style={heroStyle}>
-          <div style={{ fontSize: 13, opacity: 0.92, marginBottom: 8 }}>
+    <div className={styles.page}>
+      <PageContainer width="wide" className={styles.shell}>
+        <div className={styles.hero}>
+          <div className={styles.heroEyebrow}>
             Administration
           </div>
-          <h1 style={{ margin: "0 0 8px 0", fontSize: 30, fontWeight: 900 }}>
+          <h1 className={styles.heroTitle}>
             Admin Dashboard
           </h1>
-          <div
-            style={{
-              maxWidth: 900,
-              lineHeight: 1.6,
-              fontSize: 14,
-              opacity: 0.98,
-            }}
-          >
+          <div className={styles.heroText}>
             Manage platform statistics, water bodies, users, reviews, and
             ownership verification requests from one place.
           </div>
         </div>
 
-        <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 18 }}>
-          <button
-            type="button"
+        <div className={ui.tabRow}>
+          <TabButton
+            active={activeTab === "overview"}
             onClick={() => setActiveTab("overview")}
-            style={tabButton(activeTab === "overview")}
+            icon={<FaChartBar />}
           >
-            <FaChartBar />
             Overview
-          </button>
+          </TabButton>
 
-          <button
-            type="button"
+          <TabButton
+            active={activeTab === "water-bodies"}
             onClick={() => setActiveTab("water-bodies")}
-            style={tabButton(activeTab === "water-bodies")}
+            icon={<FaWater />}
           >
-            <FaWater />
             Water Bodies
-          </button>
+          </TabButton>
 
-          <button
-            type="button"
+          <TabButton
+            active={activeTab === "users"}
             onClick={() => setActiveTab("users")}
-            style={tabButton(activeTab === "users")}
+            icon={<FaUsers />}
           >
-            <FaUsers />
             Users
-          </button>
+          </TabButton>
 
-          <button
-            type="button"
+          <TabButton
+            active={activeTab === "reviews"}
             onClick={() => setActiveTab("reviews")}
-            style={tabButton(activeTab === "reviews")}
+            icon={<FaStar />}
           >
-            <FaStar />
             Reviews
-          </button>
+          </TabButton>
 
-          <button
-            type="button"
+          <TabButton
+            active={activeTab === "owner-claims"}
             onClick={() => setActiveTab("owner-claims")}
-            style={tabButton(activeTab === "owner-claims")}
+            icon={<FaFileAlt />}
+            badge={pendingOwnerClaimsCount > 0 ? pendingOwnerClaimsCount : null}
           >
-            <FaFileAlt />
-            <span>Ownership Requests</span>
-            {pendingOwnerClaimsCount > 0 ? (
-              <span
-                style={{
-                  minWidth: 22,
-                  height: 22,
-                  borderRadius: 999,
-                  background: activeTab === "owner-claims" ? "white" : "#dc2626",
-                  color: activeTab === "owner-claims" ? "#dc2626" : "white",
-                  display: "inline-flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: 12,
-                  fontWeight: 900,
-                  padding: "0 6px",
-                }}
-              >
-                {pendingOwnerClaimsCount}
-              </span>
-            ) : null}
-          </button>
+            Ownership Requests
+          </TabButton>
         </div>
 
         {activeTab === "overview" && (
-          <div style={{ display: "grid", gap: 18 }}>
+          <div className={styles.overviewStack}>
             {overviewError ? (
               renderError(overviewError, loadOverview)
             ) : loadingOverview ? (
-              <div style={cardStyle}>Loading analytics...</div>
+              <Card className={styles.card}>Loading analytics...</Card>
             ) : !analytics ? (
-              <div style={cardStyle}>No analytics available.</div>
+              <Card className={styles.card}>No analytics available.</Card>
             ) : (
               <>
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-                    gap: 16,
-                  }}
-                >
-                  <div style={statCardStyle}>
-                    <div style={mutedStyle}>Total Users</div>
-                    <div
-                      style={{
-                        fontSize: 30,
-                        fontWeight: 900,
-                        color: "#0f172a",
-                        marginTop: 8,
-                      }}
-                    >
-                      {analytics.totals?.users ?? 0}
-                    </div>
-                  </div>
-
-                  <div style={statCardStyle}>
-                    <div style={mutedStyle}>Total Water Bodies</div>
-                    <div
-                      style={{
-                        fontSize: 30,
-                        fontWeight: 900,
-                        color: "#0f172a",
-                        marginTop: 8,
-                      }}
-                    >
-                      {analytics.totals?.water_bodies ?? 0}
-                    </div>
-                  </div>
-
-                  <div style={statCardStyle}>
-                    <div style={mutedStyle}>Total Reviews</div>
-                    <div
-                      style={{
-                        fontSize: 30,
-                        fontWeight: 900,
-                        color: "#0f172a",
-                        marginTop: 8,
-                      }}
-                    >
-                      {analytics.totals?.reviews ?? 0}
-                    </div>
-                  </div>
-
-                  <div style={statCardStyle}>
-                    <div style={mutedStyle}>Total Catches</div>
-                    <div
-                      style={{
-                        fontSize: 30,
-                        fontWeight: 900,
-                        color: "#0f172a",
-                        marginTop: 8,
-                      }}
-                    >
-                      {analytics.totals?.catches ?? 0}
-                    </div>
-                  </div>
+                <div className={styles.statsGrid}>
+                  <StatCard label="Total Users" value={analytics.totals?.users ?? 0} className={styles.statCard} />
+                  <StatCard label="Total Water Bodies" value={analytics.totals?.water_bodies ?? 0} className={styles.statCard} />
+                  <StatCard label="Total Reviews" value={analytics.totals?.reviews ?? 0} className={styles.statCard} />
+                  <StatCard label="Total Catches" value={analytics.totals?.catches ?? 0} className={styles.statCard} />
                 </div>
 
                 <div
@@ -947,7 +564,7 @@ export default function AdminDashboard() {
                     gap: 16,
                   }}
                 >
-                  <div style={cardStyle}>
+                  <div className={styles.card}>
                     <h3 style={{ marginTop: 0, marginBottom: 14 }}>
                       Platform Totals
                     </h3>
@@ -979,12 +596,12 @@ export default function AdminDashboard() {
                     </div>
                   </div>
 
-                  <div style={cardStyle}>
+                  <div className={styles.card}>
                     <h3 style={{ marginTop: 0, marginBottom: 14 }}>
                       Top Lakes By Catches
                     </h3>
                     {!analytics.topLakes?.length ? (
-                      <div style={mutedStyle}>No lake statistics yet.</div>
+                      <div className={styles.muted}>No lake statistics yet.</div>
                     ) : (
                       <div style={{ display: "grid", gap: 10 }}>
                         {analytics.topLakes.map((item) => (
@@ -1015,12 +632,12 @@ export default function AdminDashboard() {
                     )}
                   </div>
 
-                  <div style={cardStyle}>
+                  <div className={styles.card}>
                     <h3 style={{ marginTop: 0, marginBottom: 14 }}>
                       Top Species
                     </h3>
                     {!analytics.topSpecies?.length ? (
-                      <div style={mutedStyle}>No species statistics yet.</div>
+                      <div className={styles.muted}>No species statistics yet.</div>
                     ) : (
                       <div style={{ display: "grid", gap: 10 }}>
                         {analytics.topSpecies.map((item, index) => (
@@ -1057,52 +674,24 @@ export default function AdminDashboard() {
         )}
 
         {activeTab === "water-bodies" && (
-          <div ref={waterBodiesSectionRef} style={cardStyle}>
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                gap: 12,
-                alignItems: "center",
-                flexWrap: "wrap",
-                marginBottom: 14,
-              }}
-            >
-              <h3 style={{ margin: 0 }}>Manage Water Bodies</h3>
-
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                  border: "1px solid #d1d5db",
-                  borderRadius: 12,
-                  padding: "10px 12px",
-                  background: "white",
-                  minWidth: 320,
-                }}
-              >
-                <FaSearch style={{ color: "#64748b" }} />
-                <input
+          <div ref={waterBodiesSectionRef} className={styles.card}>
+            <SectionHeader
+              title="Manage Water Bodies"
+              action={
+                <SearchInput
                   value={lakeSearch}
                   onChange={(e) => setLakeSearch(e.target.value)}
                   placeholder="Search water bodies..."
-                  style={{
-                    border: "none",
-                    outline: "none",
-                    width: "100%",
-                    fontSize: 14,
-                  }}
                 />
-              </div>
-            </div>
+              }
+            />
 
             {waterBodiesError ? (
               renderError(waterBodiesError, loadWaterBodies)
             ) : loadingWaterBodies ? (
-              <div style={mutedStyle}>Loading water bodies...</div>
+              <div className={styles.muted}>Loading water bodies...</div>
             ) : !filteredWaterBodies.length ? (
-              <div style={mutedStyle}>No water bodies found.</div>
+              <div className={styles.muted}>No water bodies found.</div>
             ) : (
               <>
                 <div style={{ display: "grid", gap: 14 }}>
@@ -1124,31 +713,31 @@ export default function AdminDashboard() {
                         }}
                       >
                         <div>
-                          <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>
+                          <div className={ui.fieldLabel}>
                             Name
                           </div>
                           <input
                             type="text"
                             value={lake.name || ""}
                             onChange={(e) => updateLakeLocal(lake.id, "name", e.target.value)}
-                            style={inputStyle}
+                            className={styles.input}
                           />
                         </div>
 
                         <div>
-                          <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>
+                          <div className={ui.fieldLabel}>
                             Type
                           </div>
                           <input
                             type="text"
                             value={lake.type || ""}
                             onChange={(e) => updateLakeLocal(lake.id, "type", e.target.value)}
-                            style={inputStyle}
+                            className={styles.input}
                           />
                         </div>
 
                         <div>
-                          <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>
+                          <div className={ui.fieldLabel}>
                             Price per day
                           </div>
                           <input
@@ -1159,12 +748,12 @@ export default function AdminDashboard() {
                             onChange={(e) =>
                               updateLakeLocal(lake.id, "price_per_day", e.target.value)
                             }
-                            style={inputStyle}
+                            className={styles.input}
                           />
                         </div>
 
                         <div>
-                          <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>
+                          <div className={ui.fieldLabel}>
                             Capacity
                           </div>
                           <input
@@ -1172,12 +761,12 @@ export default function AdminDashboard() {
                             min="1"
                             value={Number(lake.capacity || 1)}
                             onChange={(e) => updateLakeLocal(lake.id, "capacity", e.target.value)}
-                            style={inputStyle}
+                            className={styles.input}
                           />
                         </div>
 
                         <div>
-                          <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>
+                          <div className={ui.fieldLabel}>
                             Private
                           </div>
                           <select
@@ -1185,7 +774,7 @@ export default function AdminDashboard() {
                             onChange={(e) =>
                               updateLakeLocal(lake.id, "is_private", e.target.value === "true")
                             }
-                            style={inputStyle}
+                            className={styles.input}
                           >
                             <option value="false">Public</option>
                             <option value="true">Private</option>
@@ -1193,7 +782,7 @@ export default function AdminDashboard() {
                         </div>
 
                         <div>
-                          <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>
+                          <div className={ui.fieldLabel}>
                             Reservable
                           </div>
                           <select
@@ -1205,7 +794,7 @@ export default function AdminDashboard() {
                                 e.target.value === "true",
                               )
                             }
-                            style={inputStyle}
+                            className={styles.input}
                           >
                             <option value="false">Disabled</option>
                             <option value="true">Enabled</option>
@@ -1213,7 +802,7 @@ export default function AdminDashboard() {
                         </div>
 
                         <div>
-                          <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>
+                          <div className={ui.fieldLabel}>
                             Owner
                           </div>
                           <select
@@ -1221,7 +810,7 @@ export default function AdminDashboard() {
                             onChange={(e) =>
                               updateLakeLocal(lake.id, "owner_id", e.target.value || null)
                             }
-                            style={inputStyle}
+                            className={styles.input}
                           >
                             <option value="">No owner</option>
                             {users.map((user) => (
@@ -1234,19 +823,19 @@ export default function AdminDashboard() {
                       </div>
 
                       <div style={{ marginTop: 12 }}>
-                        <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>
+                        <div className={ui.fieldLabel}>
                           Description
                         </div>
                         <textarea
                           rows={3}
                           value={lake.description || ""}
                           onChange={(e) => updateLakeLocal(lake.id, "description", e.target.value)}
-                          style={textareaStyle}
+                          className={styles.textarea}
                         />
                       </div>
 
                       <div style={{ marginTop: 12 }}>
-                        <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>
+                        <div className={ui.fieldLabel}>
                           Availability notes
                         </div>
                         <textarea
@@ -1255,7 +844,7 @@ export default function AdminDashboard() {
                           onChange={(e) =>
                             updateLakeLocal(lake.id, "availability_notes", e.target.value)
                           }
-                          style={textareaStyle}
+                          className={styles.textarea}
                         />
                       </div>
 
@@ -1269,102 +858,74 @@ export default function AdminDashboard() {
                           flexWrap: "wrap",
                         }}
                       >
-                        <div style={{ fontSize: 13, color: "#64748b" }}>
+                        <div className={ui.metaText}>
                           Owner:{" "}
                           {lake.owner_name
                             ? `${lake.owner_name} (${lake.owner_email})`
                             : "No owner"}
                         </div>
 
-                        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                          <button
+                        <div className={ui.buttonRow}>
+                          <ActionButton
                             type="button"
                             disabled={savingWaterBodyId === lake.id}
                             onClick={() => saveLake(lake)}
-                            style={primaryBtn}
+                            tone="primary"
                           >
-                            <FaSave style={{ marginRight: 8 }} />
+                            <FaSave className={ui.buttonIcon} />
                             {savingWaterBodyId === lake.id ? "Saving..." : "Save"}
-                          </button>
+                          </ActionButton>
 
-                          <button
+                          <ActionButton
                             type="button"
                             disabled={deletingId === lake.id}
                             onClick={() => deleteLake(lake.id)}
-                            style={dangerBtn}
+                            tone="danger"
                           >
-                            <FaTrash style={{ marginRight: 8 }} />
+                            <FaTrash className={ui.buttonIcon} />
                             {deletingId === lake.id ? "Deleting..." : "Delete"}
-                          </button>
+                          </ActionButton>
                         </div>
                       </div>
                     </div>
                   ))}
                 </div>
 
-                {renderPagination({
-                  currentPage: paginatedWaterBodies.currentPage,
-                  totalPages: paginatedWaterBodies.totalPages,
-                  totalItems: paginatedWaterBodies.totalItems,
-                  startIndex: paginatedWaterBodies.startIndex,
-                  endIndex: paginatedWaterBodies.endIndex,
-                  onPageChange: (page) => {
+                <Pagination
+                  currentPage={paginatedWaterBodies.currentPage}
+                  totalPages={paginatedWaterBodies.totalPages}
+                  totalItems={paginatedWaterBodies.totalItems}
+                  startIndex={paginatedWaterBodies.startIndex}
+                  endIndex={paginatedWaterBodies.endIndex}
+                  onPageChange={(page) => {
                     setWaterBodiesPage(page);
                     scrollToSectionTop(waterBodiesSectionRef);
-                  },
-                })}
+                  }}
+                />
               </>
             )}
           </div>
         )}
 
         {activeTab === "users" && (
-          <div ref={usersSectionRef} style={cardStyle}>
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                gap: 12,
-                alignItems: "center",
-                flexWrap: "wrap",
-                marginBottom: 14,
-              }}
-            >
-              <h3 style={{ margin: 0 }}>Manage Users</h3>
-
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                  border: "1px solid #d1d5db",
-                  borderRadius: 12,
-                  padding: "10px 12px",
-                  background: "white",
-                  minWidth: 320,
-                }}
-              >
-                <FaSearch style={{ color: "#64748b" }} />
-                <input
+          <div ref={usersSectionRef} className={styles.card}>
+            <SectionHeader
+              title="Manage Users"
+              action={
+                <SearchInput
                   value={userSearch}
                   onChange={(e) => setUserSearch(e.target.value)}
                   placeholder="Search users..."
-                  style={{
-                    border: "none",
-                    outline: "none",
-                    width: "100%",
-                    fontSize: 14,
-                  }}
                 />
-              </div>
-            </div>
+              }
+            />
 
             {usersError ? (
               renderError(usersError, loadUsers)
             ) : loadingUsers ? (
-              <div style={mutedStyle}>Loading users...</div>
+              <div className={styles.muted}>Loading users...</div>
             ) : !filteredUsers.length ? (
-              <div style={mutedStyle}>No users found.</div>
+              <div className={styles.muted}>No users found.</div>
             ) : (
               <>
                 <div style={{ display: "grid", gap: 12 }}>
@@ -1386,7 +947,7 @@ export default function AdminDashboard() {
                         }}
                       >
                         <div>
-                          <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>
+                          <div className={ui.fieldLabel}>
                             Full name
                           </div>
                           <input
@@ -1395,30 +956,30 @@ export default function AdminDashboard() {
                             onChange={(e) =>
                               updateUserLocal(user.id, "full_name", e.target.value)
                             }
-                            style={inputStyle}
+                            className={styles.input}
                           />
                         </div>
 
                         <div>
-                          <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>
+                          <div className={ui.fieldLabel}>
                             Email
                           </div>
                           <input
                             type="email"
                             value={user.email || ""}
                             onChange={(e) => updateUserLocal(user.id, "email", e.target.value)}
-                            style={inputStyle}
+                            className={styles.input}
                           />
                         </div>
 
                         <div>
-                          <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>
+                          <div className={ui.fieldLabel}>
                             Role
                           </div>
                           <select
                             value={user.role || "user"}
                             onChange={(e) => updateUserLocal(user.id, "role", e.target.value)}
-                            style={inputStyle}
+                            className={styles.input}
                           >
                             <option value="user">user</option>
                             <option value="owner">owner</option>
@@ -1427,7 +988,7 @@ export default function AdminDashboard() {
                         </div>
 
                         <div>
-                          <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>
+                          <div className={ui.fieldLabel}>
                             Active
                           </div>
                           <select
@@ -1435,7 +996,7 @@ export default function AdminDashboard() {
                             onChange={(e) =>
                               updateUserLocal(user.id, "is_active", e.target.value === "true")
                             }
-                            style={inputStyle}
+                            className={styles.input}
                           >
                             <option value="true">Active</option>
                             <option value="false">Inactive</option>
@@ -1453,100 +1014,72 @@ export default function AdminDashboard() {
                           flexWrap: "wrap",
                         }}
                       >
-                        <div style={{ fontSize: 13, color: "#64748b" }}>
+                        <div className={ui.metaText}>
                           Created: {formatDateTime(user.created_at)} | Verified:{" "}
                           {user.is_verified ? "Yes" : "No"}
                         </div>
 
-                        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                          <button
+                        <div className={ui.buttonRow}>
+                          <ActionButton
                             type="button"
                             disabled={savingUserId === user.id}
                             onClick={() => saveUser(user)}
-                            style={secondaryBtn}
+                            tone="neutral"
                           >
-                            <FaSave style={{ marginRight: 8 }} />
+                            <FaSave className={ui.buttonIcon} />
                             {savingUserId === user.id ? "Saving..." : "Save"}
-                          </button>
+                          </ActionButton>
 
-                          <button
+                          <ActionButton
                             type="button"
                             disabled={deletingId === user.id}
                             onClick={() => deleteUser(user.id)}
-                            style={dangerBtn}
+                            tone="danger"
                           >
-                            <FaTrash style={{ marginRight: 8 }} />
+                            <FaTrash className={ui.buttonIcon} />
                             {deletingId === user.id ? "Deleting..." : "Delete"}
-                          </button>
+                          </ActionButton>
                         </div>
                       </div>
                     </div>
                   ))}
                 </div>
 
-                {renderPagination({
-                  currentPage: paginatedUsers.currentPage,
-                  totalPages: paginatedUsers.totalPages,
-                  totalItems: paginatedUsers.totalItems,
-                  startIndex: paginatedUsers.startIndex,
-                  endIndex: paginatedUsers.endIndex,
-                  onPageChange: (page) => {
+                <Pagination
+                  currentPage={paginatedUsers.currentPage}
+                  totalPages={paginatedUsers.totalPages}
+                  totalItems={paginatedUsers.totalItems}
+                  startIndex={paginatedUsers.startIndex}
+                  endIndex={paginatedUsers.endIndex}
+                  onPageChange={(page) => {
                     setUsersPage(page);
                     scrollToSectionTop(usersSectionRef);
-                  },
-                })}
+                  }}
+                />
               </>
             )}
           </div>
         )}
 
         {activeTab === "reviews" && (
-          <div ref={reviewsSectionRef} style={cardStyle}>
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                gap: 12,
-                alignItems: "center",
-                flexWrap: "wrap",
-                marginBottom: 14,
-              }}
-            >
-              <h3 style={{ margin: 0 }}>Manage Reviews</h3>
-
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                  border: "1px solid #d1d5db",
-                  borderRadius: 12,
-                  padding: "10px 12px",
-                  background: "white",
-                  minWidth: 320,
-                }}
-              >
-                <FaSearch style={{ color: "#64748b" }} />
-                <input
+          <div ref={reviewsSectionRef} className={styles.card}>
+            <SectionHeader
+              title="Manage Reviews"
+              action={
+                <SearchInput
                   value={reviewSearch}
                   onChange={(e) => setReviewSearch(e.target.value)}
                   placeholder="Search reviews..."
-                  style={{
-                    border: "none",
-                    outline: "none",
-                    width: "100%",
-                    fontSize: 14,
-                  }}
                 />
-              </div>
-            </div>
+              }
+            />
 
             {reviewsError ? (
               renderError(reviewsError, loadReviews)
             ) : loadingReviews ? (
-              <div style={mutedStyle}>Loading reviews...</div>
+              <div className={styles.muted}>Loading reviews...</div>
             ) : !filteredReviews.length ? (
-              <div style={mutedStyle}>No reviews found.</div>
+              <div className={styles.muted}>No reviews found.</div>
             ) : (
               <>
                 <div style={{ display: "grid", gap: 12 }}>
@@ -1627,124 +1160,75 @@ export default function AdminDashboard() {
                       </div>
 
                       <div style={{ marginTop: 12, display: "flex", justifyContent: "flex-end" }}>
-                        <button
+                        <ActionButton
                           type="button"
                           disabled={deletingId === review.id}
                           onClick={() => deleteReview(review.id)}
-                          style={dangerBtn}
+                          tone="danger"
                         >
-                          <FaTrash style={{ marginRight: 8 }} />
+                          <FaTrash className={ui.buttonIcon} />
                           {deletingId === review.id ? "Deleting..." : "Delete review"}
-                        </button>
+                        </ActionButton>
                       </div>
                     </div>
                   ))}
                 </div>
 
-                {renderPagination({
-                  currentPage: paginatedReviews.currentPage,
-                  totalPages: paginatedReviews.totalPages,
-                  totalItems: paginatedReviews.totalItems,
-                  startIndex: paginatedReviews.startIndex,
-                  endIndex: paginatedReviews.endIndex,
-                  onPageChange: (page) => {
+                <Pagination
+                  currentPage={paginatedReviews.currentPage}
+                  totalPages={paginatedReviews.totalPages}
+                  totalItems={paginatedReviews.totalItems}
+                  startIndex={paginatedReviews.startIndex}
+                  endIndex={paginatedReviews.endIndex}
+                  onPageChange={(page) => {
                     setReviewsPage(page);
                     scrollToSectionTop(reviewsSectionRef);
-                  },
-                })}
+                  }}
+                />
               </>
             )}
           </div>
         )}
 
         {activeTab === "owner-claims" && (
-          <div ref={ownerClaimsSectionRef} style={cardStyle}>
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                gap: 12,
-                alignItems: "center",
-                flexWrap: "wrap",
-                marginBottom: 14,
-              }}
-            >
-              <h3 style={{ margin: 0, display: "flex", alignItems: "center", gap: 10 }}>
-                <span>Ownership Verification Requests</span>
-                {pendingOwnerClaimsCount > 0 ? (
-                  <span
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      minWidth: 24,
-                      height: 24,
-                      borderRadius: 999,
-                      background: "#dc2626",
-                      color: "white",
-                      fontSize: 12,
-                      fontWeight: 900,
-                      padding: "0 8px",
-                    }}
-                  >
-                    {pendingOwnerClaimsCount}
-                  </span>
-                ) : null}
-              </h3>
-
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                  border: "1px solid #d1d5db",
-                  borderRadius: 12,
-                  padding: "10px 12px",
-                  background: "white",
-                  minWidth: 320,
-                }}
-              >
-                <FaSearch style={{ color: "#64748b" }} />
-                <input
+          <div ref={ownerClaimsSectionRef} className={styles.card}>
+            <SectionHeader
+              title={`Ownership Verification Requests${pendingOwnerClaimsCount > 0 ? ` (${pendingOwnerClaimsCount})` : ""}`}
+              action={
+                <SearchInput
                   value={ownerClaimSearch}
                   onChange={(e) => setOwnerClaimSearch(e.target.value)}
                   placeholder="Search ownership requests..."
-                  style={{
-                    border: "none",
-                    outline: "none",
-                    width: "100%",
-                    fontSize: 14,
-                  }}
                 />
-              </div>
-            </div>
+              }
+            />
 
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 16 }}>
+            <div className={ui.filterRow}>
               <button
                 type="button"
                 onClick={() => setOwnerClaimStatusFilter("all")}
-                style={filterButton(ownerClaimStatusFilter === "all")}
+                className={[ui.filterButton, ownerClaimStatusFilter === "all" ? ui.filterButtonActive : ""].filter(Boolean).join(" ")}
               >
                 All
               </button>
               <button
                 type="button"
                 onClick={() => setOwnerClaimStatusFilter("pending")}
-                style={filterButton(ownerClaimStatusFilter === "pending")}
+                className={[ui.filterButton, ownerClaimStatusFilter === "pending" ? ui.filterButtonActive : ""].filter(Boolean).join(" ")}
               >
                 Pending
               </button>
               <button
                 type="button"
                 onClick={() => setOwnerClaimStatusFilter("approved")}
-                style={filterButton(ownerClaimStatusFilter === "approved")}
+                className={[ui.filterButton, ownerClaimStatusFilter === "approved" ? ui.filterButtonActive : ""].filter(Boolean).join(" ")}
               >
                 Approved
               </button>
               <button
                 type="button"
                 onClick={() => setOwnerClaimStatusFilter("rejected")}
-                style={filterButton(ownerClaimStatusFilter === "rejected")}
+                className={[ui.filterButton, ownerClaimStatusFilter === "rejected" ? ui.filterButtonActive : ""].filter(Boolean).join(" ")}
               >
                 Rejected
               </button>
@@ -1753,9 +1237,9 @@ export default function AdminDashboard() {
             {ownerClaimsError ? (
               renderError(ownerClaimsError, loadOwnerClaims)
             ) : loadingOwnerClaims ? (
-              <div style={mutedStyle}>Loading ownership requests...</div>
+              <div className={styles.muted}>Loading ownership requests...</div>
             ) : !filteredOwnerClaims.length ? (
-              <div style={mutedStyle}>No ownership requests found.</div>
+              <div className={styles.muted}>No ownership requests found.</div>
             ) : (
               <>
                 <div style={{ display: "grid", gap: 14 }}>
@@ -1794,30 +1278,28 @@ export default function AdminDashboard() {
                           <div style={{ fontSize: 14, color: "#334155" }}>
                             {item.full_name} ({item.email})
                           </div>
-                          <div style={{ fontSize: 13, color: "#64748b" }}>
+                          <div className={ui.metaText}>
                             Phone: {item.phone || "Not provided"}
                           </div>
-                          <div style={{ fontSize: 13, color: "#64748b" }}>
+                          <div className={ui.metaText}>
                             Company: {item.company_name || "Not provided"}
                           </div>
-                          <div style={{ fontSize: 13, color: "#64748b" }}>
+                          <div className={ui.metaText}>
                             Submitted: {formatDateTime(item.created_at)}
                           </div>
                           {item.reviewed_at ? (
-                            <div style={{ fontSize: 13, color: "#64748b" }}>
+                            <div className={ui.metaText}>
                               Reviewed: {formatDateTime(item.reviewed_at)}
                             </div>
                           ) : null}
                         </div>
 
-                        <div style={statusBadgeStyle(item.status)}>
-                          {String(item.status || "").toUpperCase()}
-                        </div>
+                        <StatusBadge status={item.status} />
                       </div>
 
                       <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
                         <div>
-                          <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>
+                          <div className={ui.fieldLabel}>
                             Claim message
                           </div>
                           <div
@@ -1835,7 +1317,7 @@ export default function AdminDashboard() {
                         </div>
 
                         <div>
-                          <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>
+                          <div className={ui.fieldLabel}>
                             Proof document
                           </div>
                           {item.proof_document_url ? (
@@ -1843,25 +1325,18 @@ export default function AdminDashboard() {
                               href={getUploadUrl(item.proof_document_url)}
                               target="_blank"
                               rel="noreferrer"
-                              style={{
-                                display: "inline-flex",
-                                alignItems: "center",
-                                gap: 8,
-                                color: "#2563eb",
-                                fontWeight: 700,
-                                textDecoration: "none",
-                              }}
+                              className={ui.inlineLink}
                             >
                               <FaFileAlt />
                               Open document
                             </a>
                           ) : (
-                            <div style={mutedStyle}>No document uploaded.</div>
+                            <div className={styles.muted}>No document uploaded.</div>
                           )}
                         </div>
 
                         <div>
-                          <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>
+                          <div className={ui.fieldLabel}>
                             Admin note
                           </div>
                           <textarea
@@ -1870,7 +1345,7 @@ export default function AdminDashboard() {
                             onChange={(e) =>
                               updateOwnerClaimLocal(item.id, "admin_note", e.target.value)
                             }
-                            style={textareaStyle}
+                            className={styles.textarea}
                           />
                         </div>
                       </div>
@@ -1885,53 +1360,53 @@ export default function AdminDashboard() {
                           flexWrap: "wrap",
                         }}
                       >
-                        <div style={{ fontSize: 13, color: "#64748b" }}>
+                        <div className={ui.metaText}>
                           Reviewed by: {item.reviewed_by_name || "Not reviewed yet"}
                         </div>
 
-                        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                        <div className={ui.buttonRow}>
                           {item.status !== "approved" ? (
-                            <button
+                            <ActionButton
                               type="button"
                               disabled={savingOwnerClaimId === item.id}
                               onClick={() => reviewOwnerClaim(item.id, "approved")}
-                              style={successBtn}
+                              tone="success"
                             >
                               {savingOwnerClaimId === item.id ? "Saving..." : "Approve"}
-                            </button>
+                            </ActionButton>
                           ) : null}
 
                           {item.status !== "rejected" ? (
-                            <button
+                            <ActionButton
                               type="button"
                               disabled={savingOwnerClaimId === item.id}
                               onClick={() => reviewOwnerClaim(item.id, "rejected")}
-                              style={dangerBtn}
+                              tone="danger"
                             >
                               {savingOwnerClaimId === item.id ? "Saving..." : "Reject"}
-                            </button>
+                            </ActionButton>
                           ) : null}
 
                           {item.status !== "pending" ? (
-                            <button
+                            <ActionButton
                               type="button"
                               disabled={savingOwnerClaimId === item.id}
                               onClick={() => reviewOwnerClaim(item.id, "pending")}
-                              style={warningBtn}
+                              tone="warning"
                             >
                               {savingOwnerClaimId === item.id ? "Saving..." : "Move to pending"}
-                            </button>
+                            </ActionButton>
                           ) : null}
 
                           {item.status === "rejected" ? (
-                            <button
+                            <ActionButton
                               type="button"
                               disabled={deletingId === item.id}
                               onClick={() => deleteOwnerClaim(item.id)}
-                              style={secondaryBtn}
+                              tone="neutral"
                             >
                               {deletingId === item.id ? "Removing..." : "Hide rejected"}
-                            </button>
+                            </ActionButton>
                           ) : null}
                         </div>
                       </div>
@@ -1939,22 +1414,22 @@ export default function AdminDashboard() {
                   ))}
                 </div>
 
-                {renderPagination({
-                  currentPage: paginatedOwnerClaims.currentPage,
-                  totalPages: paginatedOwnerClaims.totalPages,
-                  totalItems: paginatedOwnerClaims.totalItems,
-                  startIndex: paginatedOwnerClaims.startIndex,
-                  endIndex: paginatedOwnerClaims.endIndex,
-                  onPageChange: (page) => {
+                <Pagination
+                  currentPage={paginatedOwnerClaims.currentPage}
+                  totalPages={paginatedOwnerClaims.totalPages}
+                  totalItems={paginatedOwnerClaims.totalItems}
+                  startIndex={paginatedOwnerClaims.startIndex}
+                  endIndex={paginatedOwnerClaims.endIndex}
+                  onPageChange={(page) => {
                     setOwnerClaimsPage(page);
                     scrollToSectionTop(ownerClaimsSectionRef);
-                  },
-                })}
+                  }}
+                />
               </>
             )}
           </div>
         )}
-      </div>
+      </PageContainer>
     </div>
   );
 }

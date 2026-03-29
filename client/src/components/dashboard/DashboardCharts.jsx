@@ -16,62 +16,22 @@ import {
   buildTopSpecies,
   buildTrendByDay,
 } from "../../utils/dashboardCharts";
+import styles from "./DashboardCharts.module.css";
 
 function ChartsLoadingSkeleton() {
-  const boxStyle = {
-    border: "1px solid #eee",
-    borderRadius: "12px",
-    padding: "10px",
-    background: "white",
-    minWidth: 0,
-  };
-
-  const skeletonBar = (h) => ({
-    height: h,
-    borderRadius: "10px",
-    background: "linear-gradient(90deg, #f2f2f2 25%, #e9e9e9 37%, #f2f2f2 63%)",
-    backgroundSize: "400% 100%",
-    animation: "dash-skeleton 1.2s ease-in-out infinite",
-  });
-
   return (
-    <div
-      style={{
-        marginTop: "12px",
-        display: "grid",
-        gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
-        gap: "12px",
-        minWidth: 0,
-      }}
-    >
-      <style>{`
-        @keyframes dash-skeleton {
-          0% { background-position: 100% 0; }
-          100% { background-position: 0 0; }
-        }
-      `}</style>
-
-      <div style={boxStyle}>
-        <div style={{ fontSize: "13px", fontWeight: 700, marginBottom: "8px" }}>Charts loading…</div>
-        <div style={skeletonBar(220)} />
+    <div className={styles.skeletonGrid}>
+      <div className={styles.skeletonCard}>
+        <div className={styles.skeletonTitle}>Charts loading…</div>
+        <div className={styles.skeletonBar} style={{ height: 220 }} />
       </div>
-
-      <div style={boxStyle}>
-        <div style={{ fontSize: "13px", fontWeight: 700, marginBottom: "8px" }}>Charts loading…</div>
-        <div style={skeletonBar(220)} />
+      <div className={styles.skeletonCard}>
+        <div className={styles.skeletonTitle}>Charts loading…</div>
+        <div className={styles.skeletonBar} style={{ height: 220 }} />
       </div>
     </div>
   );
 }
-
-const chartCardStyle = {
-  border: "1px solid #eee",
-  borderRadius: "12px",
-  padding: "10px",
-  minWidth: 0,
-  overflow: "hidden",
-  background: "white",
-};
 
 export default function DashboardCharts({
   logs,
@@ -99,18 +59,15 @@ export default function DashboardCharts({
 
   return (
     <>
-      <div style={{ marginTop: "14px", display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
+      <div className={styles.toolbar}>
         <button
           type="button"
           onClick={() => setShowCharts((v) => !v)}
           disabled={disableLoadCharts}
+          className={styles.toggleButton}
           style={{
             background: showCharts ? "#6c757d" : "#007bff",
             opacity: disableLoadCharts ? 0.65 : 1,
-            color: "white",
-            border: "none",
-            padding: "10px 14px",
-            borderRadius: "10px",
             cursor: disableLoadCharts ? "not-allowed" : "pointer",
           }}
           title={disableLoadCharts ? "Loading your catches…" : undefined}
@@ -118,38 +75,28 @@ export default function DashboardCharts({
           {showCharts ? "Hide charts" : loading ? "Loading…" : "Load charts"}
         </button>
 
-        <div style={{ marginLeft: "auto", fontSize: "12px", color: "#666" }}>{countText}</div>
+        <div className={styles.countText}>{countText}</div>
       </div>
 
       {showCharts && (
-        <div
-          style={{
-            marginTop: "10px",
-            background: "white",
-            border: "1px solid #e6e6e6",
-            borderRadius: "14px",
-            padding: "12px",
-            minWidth: 0,
-            overflow: "hidden",
-          }}
-        >
-          <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center" }}>
-            <label style={{ display: "flex", gap: "8px", alignItems: "center", fontSize: "13px", color: "#333" }}>
+        <div className={styles.panel}>
+          <div className={styles.checkboxRow}>
+            <label className={styles.checkboxLabel}>
               <input type="checkbox" checked={showChartSpecies} onChange={(e) => setShowChartSpecies(e.target.checked)} />
               Top species
             </label>
 
-            <label style={{ display: "flex", gap: "8px", alignItems: "center", fontSize: "13px", color: "#333" }}>
+            <label className={styles.checkboxLabel}>
               <input type="checkbox" checked={showChartLakes} onChange={(e) => setShowChartLakes(e.target.checked)} />
               Top lakes
             </label>
 
-            <label style={{ display: "flex", gap: "8px", alignItems: "center", fontSize: "13px", color: "#333" }}>
+            <label className={styles.checkboxLabel}>
               <input type="checkbox" checked={showChartTrend} onChange={(e) => setShowChartTrend(e.target.checked)} />
               Catches over time
             </label>
 
-            <label style={{ display: "flex", gap: "8px", alignItems: "center", fontSize: "13px", color: "#333" }}>
+            <label className={styles.checkboxLabel}>
               <input
                 type="checkbox"
                 checked={showChartAvgWeight}
@@ -162,22 +109,14 @@ export default function DashboardCharts({
           {loading ? (
             <ChartsLoadingSkeleton />
           ) : !anyChartSelected ? (
-            <div style={{ padding: "14px 2px", color: "#666" }}>Select at least one chart.</div>
+            <div className={styles.emptyState}>Select at least one chart.</div>
           ) : (
-            <div
-              style={{
-                marginTop: "12px",
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
-                gap: "12px",
-                minWidth: 0,
-              }}
-            >
+            <div className={styles.chartGrid}>
               {showChartSpecies && (
-                <div style={chartCardStyle}>
-                  <div style={{ fontSize: "13px", fontWeight: 700, marginBottom: "8px" }}>Top species (count)</div>
+                <div className={styles.chartCard}>
+                  <div className={styles.chartTitle}>Top species (count)</div>
                   {chartSpeciesTop.length === 0 ? (
-                    <div style={{ padding: "10px 0", color: "#666" }}>No data.</div>
+                    <div className={styles.noData}>No data.</div>
                   ) : (
                     <ResponsiveContainer width="100%" height={220}>
                       <BarChart data={chartSpeciesTop} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
@@ -193,10 +132,10 @@ export default function DashboardCharts({
               )}
 
               {showChartLakes && (
-                <div style={chartCardStyle}>
-                  <div style={{ fontSize: "13px", fontWeight: 700, marginBottom: "8px" }}>Top lakes (count)</div>
+                <div className={styles.chartCard}>
+                  <div className={styles.chartTitle}>Top lakes (count)</div>
                   {chartLakesTop.length === 0 ? (
-                    <div style={{ padding: "10px 0", color: "#666" }}>No data.</div>
+                    <div className={styles.noData}>No data.</div>
                   ) : (
                     <ResponsiveContainer width="100%" height={220}>
                       <BarChart data={chartLakesTop} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
@@ -212,10 +151,10 @@ export default function DashboardCharts({
               )}
 
               {showChartTrend && (
-                <div style={chartCardStyle}>
-                  <div style={{ fontSize: "13px", fontWeight: 700, marginBottom: "8px" }}>Catches over time</div>
+                <div className={styles.chartCard}>
+                  <div className={styles.chartTitle}>Catches over time</div>
                   {chartTrendByDay.length === 0 ? (
-                    <div style={{ padding: "10px 0", color: "#666" }}>No data.</div>
+                    <div className={styles.noData}>No data.</div>
                   ) : (
                     <ResponsiveContainer width="100%" height={220}>
                       <LineChart data={chartTrendByDay} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
@@ -231,7 +170,7 @@ export default function DashboardCharts({
               )}
 
               {showChartAvgWeight && (
-                <div style={chartCardStyle}>
+                <div className={styles.chartCard}>
                   <div style={{ fontSize: "13px", fontWeight: 700, marginBottom: "8px" }}>
                     Avg weight by species (kg)
                   </div>

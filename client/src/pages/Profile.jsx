@@ -8,39 +8,8 @@ import {
   updatePassword,
   updateProfile,
 } from "../api/profileApi";
-
-const pageStyle = {
-  padding: 20,
-  background: "#f8fafc",
-  minHeight: "calc(100vh - 60px)",
-};
-
-const cardStyle = {
-  background: "white",
-  border: "1px solid #e5e7eb",
-  borderRadius: 16,
-  padding: 18,
-  boxShadow: "0 6px 16px rgba(15,23,42,0.05)",
-};
-
-const inputStyle = {
-  width: "100%",
-  padding: "10px",
-  borderRadius: 10,
-  border: "1px solid #ddd",
-  boxSizing: "border-box",
-  background: "white",
-};
-
-const sectionTitleStyle = {
-  display: "flex",
-  alignItems: "center",
-  gap: "10px",
-  margin: "0 0 14px 0",
-  fontSize: "18px",
-  fontWeight: 800,
-  color: "#0f172a",
-};
+import ActionButton from "../components/ui/ActionButton";
+import styles from "./Profile.module.css";
 
 const DEFAULT_PROFILE = {
   full_name: "",
@@ -223,45 +192,31 @@ export default function Profile({ setCurrentUser }) {
   };
 
   if (loading) {
-    return <div style={{ padding: 20 }}>Loading profile...</div>;
+    return <div className={styles.loading}>Loading profile...</div>;
   }
 
   return (
-    <div style={pageStyle}>
-      <div style={{ maxWidth: 1000, margin: "0 auto" }}>
-        <div
-          style={{
-            background: "linear-gradient(135deg, #0d6efd 0%, #0aa2ff 100%)",
-            color: "white",
-            borderRadius: 18,
-            padding: 22,
-            marginBottom: 18,
-          }}
-        >
-          <h2 style={{ marginTop: 0, marginBottom: 8 }}>Profile Settings</h2>
-          <div style={{ opacity: 0.95, lineHeight: 1.6, fontSize: 14 }}>
+    <div className={styles.page}>
+      <div className={styles.shell}>
+        <div className={styles.hero}>
+          <h2 className={styles.heroTitle}>Profile Settings</h2>
+          <div className={styles.heroText}>
             Manage your personal information, password, and notification
             preferences.
           </div>
         </div>
 
-        <div style={{ display: "grid", gap: 16 }}>
-          <div style={cardStyle}>
-            <h3 style={sectionTitleStyle}>
+        <div className={styles.stack}>
+          <div className={styles.card}>
+            <h3 className={styles.sectionTitle}>
               <FaUserCog />
               Profile information
             </h3>
 
             <form onSubmit={handleProfileSubmit}>
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
-                  gap: 12,
-                }}
-              >
+              <div className={styles.formGrid}>
                 <div>
-                  <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>
+                  <div className={styles.fieldLabel}>
                     Full name
                   </div>
                   <input
@@ -273,12 +228,12 @@ export default function Profile({ setCurrentUser }) {
                         full_name: event.target.value,
                       }))
                     }
-                    style={inputStyle}
+                    className={styles.input}
                   />
                 </div>
 
                 <div>
-                  <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>
+                  <div className={styles.fieldLabel}>
                     Email
                   </div>
                   <input
@@ -290,85 +245,65 @@ export default function Profile({ setCurrentUser }) {
                         email: event.target.value,
                       }))
                     }
-                    style={inputStyle}
+                    className={styles.input}
                   />
                 </div>
 
                 <div>
-                  <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>
+                  <div className={styles.fieldLabel}>
                     Role
                   </div>
                   <input
                     type="text"
                     value={profile.role || ""}
                     disabled
-                    style={{ ...inputStyle, background: "#f8fafc" }}
+                    className={`${styles.input} ${styles.inputDisabled}`}
                   />
                 </div>
 
                 <div>
-                  <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>
+                  <div className={styles.fieldLabel}>
                     Verified
                   </div>
                   <input
                     type="text"
                     value={profile.is_verified ? "Yes" : "No"}
                     disabled
-                    style={{ ...inputStyle, background: "#f8fafc" }}
+                    className={`${styles.input} ${styles.inputDisabled}`}
                   />
                 </div>
               </div>
 
-              <div style={{ marginTop: 12, fontSize: 13, color: "#64748b" }}>
+              <div className={styles.metaText} style={{ marginTop: 12 }}>
                 Member since:{" "}
                 {profile.created_at
                   ? new Date(profile.created_at).toLocaleString()
                   : "Unknown"}
               </div>
 
-              <div
-                style={{
-                  marginTop: 14,
-                  display: "flex",
-                  justifyContent: "flex-end",
-                }}
-              >
-                <button
+              <div className={styles.actionRow}>
+                <ActionButton
                   type="submit"
+                  tone="primary"
                   disabled={savingProfile}
-                  style={{
-                    background: "#0d6efd",
-                    color: "white",
-                    border: "none",
-                    padding: "10px 14px",
-                    borderRadius: 10,
-                    cursor: savingProfile ? "not-allowed" : "pointer",
-                    fontWeight: 700,
-                  }}
                 >
-                  <FaSave style={{ marginRight: 8 }} />
+                  <FaSave className="button-icon" style={{ marginRight: 8 }} />
                   {savingProfile ? "Saving..." : "Save profile"}
-                </button>
+                </ActionButton>
               </div>
             </form>
           </div>
 
-          <div style={cardStyle}>
-            <h3 style={sectionTitleStyle}>
+          <div className={styles.card}>
+            <h3 className={styles.sectionTitle}>
               <FaLock />
               Change password
             </h3>
 
             <form onSubmit={handlePasswordSubmit}>
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
-                  gap: 12,
-                }}
-              >
+              <div className={styles.formGrid}>
                 <div>
-                  <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>
+                  <div className={styles.fieldLabel}>
                     Current password
                   </div>
                   <input
@@ -380,12 +315,12 @@ export default function Profile({ setCurrentUser }) {
                         current_password: event.target.value,
                       }))
                     }
-                    style={inputStyle}
+                    className={styles.input}
                   />
                 </div>
 
                 <div>
-                  <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>
+                  <div className={styles.fieldLabel}>
                     New password
                   </div>
                   <input
@@ -397,12 +332,12 @@ export default function Profile({ setCurrentUser }) {
                         new_password: event.target.value,
                       }))
                     }
-                    style={inputStyle}
+                    className={styles.input}
                   />
                 </div>
 
                 <div>
-                  <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>
+                  <div className={styles.fieldLabel}>
                     Confirm new password
                   </div>
                   <input
@@ -414,54 +349,34 @@ export default function Profile({ setCurrentUser }) {
                         confirm_password: event.target.value,
                       }))
                     }
-                    style={inputStyle}
+                    className={styles.input}
                   />
                 </div>
               </div>
 
-              <div
-                style={{
-                  marginTop: 14,
-                  display: "flex",
-                  justifyContent: "flex-end",
-                }}
-              >
-                <button
+              <div className={styles.actionRow}>
+                <ActionButton
                   type="submit"
+                  tone="neutral"
                   disabled={savingPassword}
-                  style={{
-                    background: "#334155",
-                    color: "white",
-                    border: "none",
-                    padding: "10px 14px",
-                    borderRadius: 10,
-                    cursor: savingPassword ? "not-allowed" : "pointer",
-                    fontWeight: 700,
-                  }}
                 >
-                  <FaLock style={{ marginRight: 8 }} />
+                  <FaLock className="button-icon" style={{ marginRight: 8 }} />
                   {savingPassword ? "Saving..." : "Change password"}
-                </button>
+                </ActionButton>
               </div>
             </form>
           </div>
 
-          <div style={cardStyle}>
-            <h3 style={sectionTitleStyle}>
+          <div className={styles.card}>
+            <h3 className={styles.sectionTitle}>
               <FaBell />
               Notification preferences
             </h3>
 
             <form onSubmit={handlePreferencesSubmit}>
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
-                  gap: 12,
-                }}
-              >
+              <div className={styles.formGrid}>
                 <div>
-                  <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>
+                  <div className={styles.fieldLabel}>
                     Email alerts enabled
                   </div>
                   <select
@@ -472,7 +387,7 @@ export default function Profile({ setCurrentUser }) {
                         email_alerts_enabled: event.target.value === "true",
                       }))
                     }
-                    style={inputStyle}
+                    className={styles.input}
                   >
                     <option value="true">Enabled</option>
                     <option value="false">Disabled</option>
@@ -480,7 +395,7 @@ export default function Profile({ setCurrentUser }) {
                 </div>
 
                 <div>
-                  <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>
+                  <div className={styles.fieldLabel}>
                     Default frequency
                   </div>
                   <select
@@ -493,7 +408,7 @@ export default function Profile({ setCurrentUser }) {
                         default_notification_frequency: event.target.value,
                       }))
                     }
-                    style={inputStyle}
+                    className={styles.input}
                   >
                     <option value="daily">Daily</option>
                     <option value="weekly">Weekly</option>
@@ -501,7 +416,7 @@ export default function Profile({ setCurrentUser }) {
                 </div>
 
                 <div>
-                  <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>
+                  <div className={styles.fieldLabel}>
                     Default minimum score
                   </div>
                   <input
@@ -515,34 +430,20 @@ export default function Profile({ setCurrentUser }) {
                         default_min_score: event.target.value,
                       }))
                     }
-                    style={inputStyle}
+                    className={styles.input}
                   />
                 </div>
               </div>
 
-              <div
-                style={{
-                  marginTop: 14,
-                  display: "flex",
-                  justifyContent: "flex-end",
-                }}
-              >
-                <button
+              <div className={styles.actionRow}>
+                <ActionButton
                   type="submit"
+                  tone="success"
                   disabled={savingPreferences}
-                  style={{
-                    background: "#16a34a",
-                    color: "white",
-                    border: "none",
-                    padding: "10px 14px",
-                    borderRadius: 10,
-                    cursor: savingPreferences ? "not-allowed" : "pointer",
-                    fontWeight: 700,
-                  }}
                 >
-                  <FaSave style={{ marginRight: 8 }} />
+                  <FaSave className="button-icon" style={{ marginRight: 8 }} />
                   {savingPreferences ? "Saving..." : "Save preferences"}
-                </button>
+                </ActionButton>
               </div>
             </form>
           </div>

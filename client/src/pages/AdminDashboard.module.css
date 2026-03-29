@@ -1,0 +1,33 @@
+.page { composes: page from "../styles/ui.module.css"; padding: 24px; }
+.shell { composes: shell shellWide from "../styles/ui.module.css"; }
+.hero { composes: hero heroDark from "../styles/ui.module.css"; }
+.heroEyebrow {
+  font-size: 13px;
+  opacity: 0.92;
+  margin-bottom: 8px;
+}
+.heroTitle {
+  margin: 0 0 8px 0;
+  font-size: 30px;
+  font-weight: 900;
+}
+.heroText {
+  max-width: 900px;
+  line-height: 1.6;
+  font-size: 14px;
+  opacity: 0.98;
+}
+.card { composes: card from "../styles/ui.module.css"; border-radius: 18px; }
+.statCard { composes: card from "../styles/ui.module.css"; border-radius: 18px; }
+.statsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+}
+.overviewStack {
+  display: grid;
+  gap: 18px;
+}
+.input { composes: input from "../styles/ui.module.css"; padding: 10px 12px; border-color: #d1d5db; font-size: 14px; }
+.textarea { composes: input from "../styles/ui.module.css"; padding: 10px 12px; border-color: #d1d5db; font-size: 14px; resize: vertical; }
+.muted { composes: mutedText from "../styles/ui.module.css"; font-size: 14px; }

@@ -20,6 +20,7 @@ import {
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { notifyError, notifySuccess } from "../ui/toast";
+import { createLakeIcon } from "../features/fishing-map/fishingMap.utils";
 import {
   createAlert,
   getAlertStatus,
@@ -213,6 +214,9 @@ function LakeDetails() {
 
     return () => window.removeEventListener("resize", onResize);
   }, []);
+
+
+  const selectedLakeMapIcon = useMemo(() => createLakeIcon(true), []);
 
   const mapCenter = useMemo(() => {
     if (
@@ -1080,8 +1084,8 @@ function LakeDetails() {
                 style={{ height: "100%", width: "100%" }}
               >
                 <TileLayer
-                  url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-                  attribution="Tiles © Esri"
+                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                  attribution="&copy; OpenStreetMap contributors"
                   maxZoom={19}
                 />
 
@@ -1089,6 +1093,7 @@ function LakeDetails() {
                   Number.isFinite(Number(lake.longitude)) && (
                     <Marker
                       position={[Number(lake.latitude), Number(lake.longitude)]}
+                      icon={selectedLakeMapIcon}
                     />
                   )}
 
@@ -1099,10 +1104,10 @@ function LakeDetails() {
                       coord[0],
                     ])}
                     pathOptions={{
-                      color: "#0d6efd",
-                      fillColor: "#38bdf8",
-                      fillOpacity: 0.35,
-                      weight: 3,
+                      color: "#2563eb",
+                      fillColor: "#60a5fa",
+                      fillOpacity: 0.18,
+                      weight: 2,
                     }}
                   />
                 )}

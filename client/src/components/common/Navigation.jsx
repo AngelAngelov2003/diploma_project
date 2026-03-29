@@ -12,6 +12,8 @@ import {
   FaUserCog,
   FaMapMarkedAlt,
   FaChartPie,
+  FaSignInAlt,
+  FaUserPlus,
 } from "react-icons/fa";
 
 const Navigation = ({ isAuthenticated, onLogout, currentUser }) => {
@@ -31,7 +33,8 @@ const Navigation = ({ isAuthenticated, onLogout, currentUser }) => {
 
   const isAdmin = currentUser?.role === "admin";
 
-  const linkClassName = ({ isActive }) => `main-nav-link ${isActive ? "active" : ""}`;
+  const linkClassName = ({ isActive }) =>
+    `main-nav-link ${isActive ? "active" : ""}`;
 
   return (
     <>
@@ -87,7 +90,8 @@ const Navigation = ({ isAuthenticated, onLogout, currentUser }) => {
                 {showMenu && (
                   <div className="main-user-dropdown">
                     <div className="main-user-dropdown-header">
-                      {currentUser?.full_name || "User"} {currentUser?.role ? `• ${currentUser.role}` : ""}
+                      {currentUser?.full_name || "User"}
+                      {currentUser?.role ? ` • ${currentUser.role}` : ""}
                     </div>
 
                     <div
@@ -175,9 +179,12 @@ const Navigation = ({ isAuthenticated, onLogout, currentUser }) => {
           ) : (
             <>
               <NavLink to="/login" className={linkClassName}>
+                <FaSignInAlt />
                 <span>Login</span>
               </NavLink>
+
               <NavLink to="/register" className={linkClassName}>
+                <FaUserPlus />
                 <span>Register</span>
               </NavLink>
             </>

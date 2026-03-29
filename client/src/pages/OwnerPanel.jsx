@@ -11,29 +11,7 @@ import {
   submitClaimRequest,
   updateOwnerLake,
 } from "../api/ownerApi";
-
-const pageStyle = {
-  padding: 20,
-  background: "#f8fafc",
-  minHeight: "calc(100vh - 60px)",
-};
-
-const cardStyle = {
-  background: "white",
-  border: "1px solid #e5e7eb",
-  borderRadius: 16,
-  padding: 18,
-  boxShadow: "0 6px 16px rgba(15,23,42,0.05)",
-};
-
-const inputStyle = {
-  width: "100%",
-  padding: "10px",
-  borderRadius: 10,
-  border: "1px solid #ddd",
-  boxSizing: "border-box",
-  background: "white",
-};
+import styles from "./OwnerPanel.module.css";
 
 const DEFAULT_CLAIM_FORM = {
   full_name: "",
@@ -331,30 +309,22 @@ export default function OwnerPanel() {
   };
 
   if (loading) {
-    return <div style={{ padding: 20 }}>Loading owner panel...</div>;
+    return <div className={styles.loading}>Loading owner panel...</div>;
   }
 
   return (
-    <div style={pageStyle}>
-      <div style={{ maxWidth: 1200, margin: "0 auto" }}>
-        <div
-          style={{
-            background: "linear-gradient(135deg, #0d6efd 0%, #0aa2ff 100%)",
-            color: "white",
-            borderRadius: 18,
-            padding: 22,
-            marginBottom: 18,
-          }}
-        >
-          <h2 style={{ marginTop: 0, marginBottom: 8 }}>Owner Panel</h2>
-          <div style={{ opacity: 0.95, lineHeight: 1.6, fontSize: 14 }}>
+    <div className={styles.page}>
+      <div className={styles.shell}>
+        <div className={styles.hero}>
+          <h2 className={styles.heroTitle}>Owner Panel</h2>
+          <div className={styles.heroText}>
             Manage your private reservoirs, blocked dates, pricing, capacity,
             and reservation availability.
           </div>
         </div>
 
-        <div style={{ display: "grid", gap: 16 }}>
-          <div style={cardStyle}>
+        <div className={styles.stack}>
+          <div className={styles.card}>
             <h3 style={{ marginTop: 0, marginBottom: 14 }}>
               Request ownership verification
             </h3>
@@ -510,7 +480,7 @@ export default function OwnerPanel() {
                                     full_name: event.target.value,
                                   }))
                                 }
-                                style={inputStyle}
+                                className={styles.input}
                               />
                             </div>
 
@@ -533,7 +503,7 @@ export default function OwnerPanel() {
                                     email: event.target.value,
                                   }))
                                 }
-                                style={inputStyle}
+                                className={styles.input}
                               />
                             </div>
 
@@ -556,7 +526,7 @@ export default function OwnerPanel() {
                                     phone: event.target.value,
                                   }))
                                 }
-                                style={inputStyle}
+                                className={styles.input}
                               />
                             </div>
 
@@ -579,7 +549,7 @@ export default function OwnerPanel() {
                                     company_name: event.target.value,
                                   }))
                                 }
-                                style={inputStyle}
+                                className={styles.input}
                               />
                             </div>
                           </div>
@@ -603,10 +573,8 @@ export default function OwnerPanel() {
                                   message: event.target.value,
                                 }))
                               }
-                              style={{
-                                ...inputStyle,
-                                resize: "vertical",
-                              }}
+                              className={styles.input}
+                              style={{ resize: "vertical" }}
                             />
                           </div>
 
@@ -630,7 +598,7 @@ export default function OwnerPanel() {
                                     event.target.files?.[0] || null,
                                 }))
                               }
-                              style={inputStyle}
+                              className={styles.input}
                             />
                           </div>
 
@@ -689,14 +657,14 @@ export default function OwnerPanel() {
           </div>
 
           {!lakes.length ? (
-            <div style={cardStyle}>You do not own any lakes yet.</div>
+            <div className={styles.card}>You do not own any lakes yet.</div>
           ) : (
             lakes.map((lake) => {
               const busy = savingId === lake.id;
               const blocked = blockedDatesByLake[lake.id] || [];
 
               return (
-                <div key={lake.id} style={cardStyle}>
+                <div key={lake.id} className={styles.card}>
                   <div
                     style={{
                       display: "grid",
@@ -717,7 +685,7 @@ export default function OwnerPanel() {
                         onChange={(event) =>
                           updateLocalLake(lake.id, "name", event.target.value)
                         }
-                        style={inputStyle}
+                        className={styles.input}
                       />
                     </div>
 
@@ -733,7 +701,7 @@ export default function OwnerPanel() {
                         onChange={(event) =>
                           updateLocalLake(lake.id, "type", event.target.value)
                         }
-                        style={inputStyle}
+                        className={styles.input}
                       />
                     </div>
 
@@ -755,7 +723,7 @@ export default function OwnerPanel() {
                             event.target.value,
                           )
                         }
-                        style={inputStyle}
+                        className={styles.input}
                       />
                     </div>
 
@@ -776,7 +744,7 @@ export default function OwnerPanel() {
                             event.target.value,
                           )
                         }
-                        style={inputStyle}
+                        className={styles.input}
                       />
                     </div>
 
@@ -795,7 +763,7 @@ export default function OwnerPanel() {
                             event.target.value === "true",
                           )
                         }
-                        style={inputStyle}
+                        className={styles.input}
                       >
                         <option value="true">Private</option>
                         <option value="false">Public</option>
@@ -817,7 +785,7 @@ export default function OwnerPanel() {
                             event.target.value === "true",
                           )
                         }
-                        style={inputStyle}
+                        className={styles.input}
                       >
                         <option value="true">Enabled</option>
                         <option value="false">Disabled</option>
@@ -841,10 +809,8 @@ export default function OwnerPanel() {
                           event.target.value,
                         )
                       }
-                      style={{
-                        ...inputStyle,
-                        resize: "vertical",
-                      }}
+                      className={styles.input}
+                      style={{ resize: "vertical" }}
                     />
                   </div>
 
@@ -865,10 +831,8 @@ export default function OwnerPanel() {
                         )
                       }
                       placeholder="Example: Closed on Mondays, open from sunrise to sunset."
-                      style={{
-                        ...inputStyle,
-                        resize: "vertical",
-                      }}
+                      className={styles.input}
+                      style={{ resize: "vertical" }}
                     />
                   </div>
 
@@ -936,7 +900,7 @@ export default function OwnerPanel() {
                               [lake.id]: event.target.value,
                             }))
                           }
-                          style={inputStyle}
+                          className={styles.input}
                         />
                       </div>
 
@@ -960,7 +924,7 @@ export default function OwnerPanel() {
                             }))
                           }
                           placeholder="Optional reason"
-                          style={inputStyle}
+                          className={styles.input}
                         />
                       </div>
 

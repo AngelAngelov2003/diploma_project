@@ -1,4 +1,5 @@
 import React from "react";
+import styles from "./CatchLogItem.module.css";
 import CatchLogItem from "./CatchLogItem";
 
 export default function CatchLogList({ logs, onLakeClick, loading, hasAnyCatches }) {
@@ -9,7 +10,7 @@ export default function CatchLogList({ logs, onLakeClick, loading, hasAnyCatches
   }
 
   return (
-    <ul style={{ listStyle: "none", padding: 0 }}>
+    <ul className={styles.list}>
       {logs.map((c) => (
         <CatchLogItem key={c.id} log={c} onLakeClick={onLakeClick} />
       ))}

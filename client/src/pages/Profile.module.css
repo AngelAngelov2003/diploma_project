@@ -1,0 +1,45 @@
+.page {
+  composes: page from "../styles/ui.module.css";
+}
+.shell {
+  composes: shell shellNarrow from "../styles/ui.module.css";
+}
+.hero {
+  composes: hero heroPrimary from "../styles/ui.module.css";
+}
+.heroTitle {
+  composes: heroTitle from "../styles/ui.module.css";
+}
+.heroText {
+  composes: heroText from "../styles/ui.module.css";
+}
+.stack {
+  composes: stack from "../styles/ui.module.css";
+}
+.card {
+  composes: card from "../styles/ui.module.css";
+}
+.sectionTitle {
+  composes: sectionTitle from "../styles/ui.module.css";
+}
+.input {
+  composes: input from "../styles/ui.module.css";
+}
+.inputDisabled {
+  composes: inputDisabled from "../styles/ui.module.css";
+}
+.loading {
+  composes: loading from "../styles/ui.module.css";
+}
+.formGrid {
+  composes: formGrid from "../styles/ui.module.css";
+}
+.fieldLabel {
+  composes: fieldLabel from "../styles/ui.module.css";
+}
+.metaText {
+  composes: metaText from "../styles/ui.module.css";
+}
+.actionRow {
+  composes: actionRow from "../styles/ui.module.css";
+}

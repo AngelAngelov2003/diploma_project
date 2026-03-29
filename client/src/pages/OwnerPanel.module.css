@@ -1,0 +1,27 @@
+.page {
+  composes: page from "../styles/ui.module.css";
+}
+.shell {
+  composes: shell shellMedium from "../styles/ui.module.css";
+}
+.hero {
+  composes: hero heroPrimary from "../styles/ui.module.css";
+}
+.heroTitle {
+  composes: heroTitle from "../styles/ui.module.css";
+}
+.heroText {
+  composes: heroText from "../styles/ui.module.css";
+}
+.stack {
+  composes: stack from "../styles/ui.module.css";
+}
+.card {
+  composes: card from "../styles/ui.module.css";
+}
+.input {
+  composes: input from "../styles/ui.module.css";
+}
+.loading {
+  composes: loading from "../styles/ui.module.css";
+}

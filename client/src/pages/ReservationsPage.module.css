@@ -1,0 +1,64 @@
+.page {
+  composes: page from "../styles/ui.module.css";
+}
+.shell {
+  composes: shell shellMedium from "../styles/ui.module.css";
+}
+.hero {
+  composes: hero heroPrimary from "../styles/ui.module.css";
+}
+.heroTitle {
+  composes: heroTitle from "../styles/ui.module.css";
+}
+.heroText {
+  composes: heroText from "../styles/ui.module.css";
+}
+.card {
+  composes: card from "../styles/ui.module.css";
+}
+.cardTitle {
+  composes: cardTitle from "../styles/ui.module.css";
+}
+.loading {
+  composes: loading from "../styles/ui.module.css";
+}
+.stack {
+  composes: stack from "../styles/ui.module.css";
+  gap: 20px;
+}
+.emptyState {
+  composes: emptyState from "../styles/ui.module.css";
+}
+.itemList {
+  composes: itemList from "../styles/ui.module.css";
+}
+.itemCard {
+  composes: itemCard from "../styles/ui.module.css";
+}
+.splitRow {
+  composes: splitRow from "../styles/ui.module.css";
+}
+.itemTitle {
+  composes: itemTitle from "../styles/ui.module.css";
+}
+.metaText {
+  composes: metaText from "../styles/ui.module.css";
+}
+.noteText {
+  composes: noteText from "../styles/ui.module.css";
+}
+.actionColumn {
+  composes: actionColumn from "../styles/ui.module.css";
+}
+.buttonRow {
+  composes: buttonRow from "../styles/ui.module.css";
+}
+.metaBlock {
+  composes: metaBlock from "../styles/ui.module.css";
+}
+.metaBlockCompact {
+  composes: metaBlockCompact from "../styles/ui.module.css";
+}
+.noteBlock {
+  composes: noteBlock from "../styles/ui.module.css";
+}

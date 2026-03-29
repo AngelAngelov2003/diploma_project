@@ -7,6 +7,7 @@ import React, {
 } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import L from "leaflet";
+import bulgariaRegions from "../../data/geoBoundaries-BGR-ADM1.json";
 import { notifyError, notifySuccess } from "../../ui/toast";
 import FishingMapSidebar from "../../components/map/FishingMapSidebar";
 import FishingMapCanvas from "../../components/map/FishingMapCanvas";
@@ -18,6 +19,9 @@ import {
   getDistanceKm,
   getGeoOptions,
   getLocationErrorMessage,
+  getRegionNameFromFeature,
+  findRegionFeatureByPoint,
+  getBoundsForGeoJsonFeature,
   hasRenderableGeometry,
 } from "./fishingMap.utils";
 import {
@@ -481,6 +485,38 @@ function FishingMap() {
     [visibleLakes],
   );
 
+  const focusMapOnLocationRegion = useCallback(
+    (nextLocation) => {
+      if (!mapInstance) {
+        return false;
+      }
+
+      const matchedRegion = findRegionFeatureByPoint(bulgariaRegions, nextLocation);
+
+      if (matchedRegion) {
+        const regionName = getRegionNameFromFeature(matchedRegion);
+        const regionBounds = getBoundsForGeoJsonFeature(matchedRegion);
+
+        setSelectedRegion(regionName);
+        setShowRegionOverview(false);
+
+        if (regionBounds) {
+          mapInstance.fitBounds(regionBounds, {
+            padding: [40, 40],
+            maxZoom: 9,
+          });
+        }
+
+        return true;
+      }
+
+      const userLatLng = L.latLng(nextLocation.latitude, nextLocation.longitude);
+      mapInstance.flyTo(userLatLng, 10, { duration: 1.2 });
+      return false;
+    },
+    [mapInstance],
+  );
+
   const markerCount = useMemo(
     () =>
       visibleLakes.filter(
@@ -513,6 +549,10 @@ function FishingMap() {
 
       setUserLocation(nextLocation);
       setMapUserLocation(nextLocation);
+      setSearchTerm("");
+      setSearchMatches([]);
+      setActiveLake(null);
+      focusMapOnLocationRegion(nextLocation);
 
       if (shouldActivateDistanceAfterLocation) {
         setDistanceKm(String(sliderDistanceKm || DEFAULT_DISTANCE_KM));
@@ -537,6 +577,7 @@ function FishingMap() {
     getCurrentUserLocation,
     shouldActivateDistanceAfterLocation,
     sliderDistanceKm,
+    focusMapOnLocationRegion,
   ]);
 
   const handleZoomToMyLocation = useCallback(async () => {
@@ -549,26 +590,7 @@ function FishingMap() {
       setSearchMatches([]);
       setActiveLake(null);
 
-      if (mapInstance) {
-        const userLatLng = L.latLng(
-          nextLocation.latitude,
-          nextLocation.longitude,
-        );
-
-        const focusBounds = L.latLngBounds(
-          [userLatLng.lat - 0.035, userLatLng.lng - 0.035],
-          [userLatLng.lat + 0.035, userLatLng.lng + 0.035],
-        );
-
-        mapInstance.flyTo(userLatLng, 13, { duration: 1.2 });
-
-        setTimeout(() => {
-          mapInstance.fitBounds(focusBounds, {
-            padding: [60, 60],
-            maxZoom: 13,
-          });
-        }, 250);
-      }
+      focusMapOnLocationRegion(nextLocation);
     } catch (error) {
       const message =
         error?.message === "Geolocation is not supported in this browser"
@@ -577,7 +599,7 @@ function FishingMap() {
 
       notifyError(null, message);
     }
-  }, [getCurrentUserLocation, mapInstance]);
+  }, [focusMapOnLocationRegion, getCurrentUserLocation]);
 
   const handleDistanceSliderChange = useCallback(
     (e) => {
