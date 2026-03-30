@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { notifyError, notifySuccess } from "../ui/toast";
 import {
   cancelReservation,
@@ -7,8 +7,13 @@ import {
   updateReservationStatus,
 } from "../api/reservationsApi";
 import ActionButton from "../components/ui/ActionButton";
+import Pagination from "../components/ui/Pagination";
+import SearchInput from "../components/ui/SearchInput";
 import StatusBadge from "../components/ui/StatusBadge";
+import TabButton from "../components/ui/TabButton";
 import styles from "./ReservationsPage.module.css";
+
+const PAGE_SIZE = 5;
 
 const formatDate = (value) => {
   if (!value) return "Unknown date";
@@ -24,19 +29,93 @@ const formatDateTime = (value) => {
   return date.toLocaleString();
 };
 
-export default function ReservationsPage() {
+const getStatusCount = (items, status) => {
+  if (status === "all") {
+    return items.length;
+  }
+
+  return items.filter((item) => item.status === status).length;
+};
+
+const paginateItems = (items, currentPage, pageSize = PAGE_SIZE) => {
+  const totalItems = items.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+  const safePage = Math.min(Math.max(1, currentPage), totalPages);
+  const startIndex = (safePage - 1) * pageSize;
+  const endIndex = startIndex + pageSize;
+
+  return {
+    items: items.slice(startIndex, endIndex),
+    totalItems,
+    totalPages,
+    currentPage: safePage,
+    startIndex,
+    endIndex: Math.min(endIndex, totalItems),
+  };
+};
+
+const filterReservations = (items, statusFilter, query, textFactory) => {
+  const normalizedQuery = query.trim().toLowerCase();
+
+  return items.filter((item) => {
+    const matchesStatus = statusFilter === "all" || item.status === statusFilter;
+    const matchesQuery =
+      !normalizedQuery || textFactory(item).toLowerCase().includes(normalizedQuery);
+
+    return matchesStatus && matchesQuery;
+  });
+};
+
+const MY_STATUS_FILTERS = [
+  { key: "all", label: "All" },
+  { key: "pending", label: "Pending" },
+  { key: "approved", label: "Approved" },
+  { key: "rejected", label: "Rejected" },
+  { key: "cancelled", label: "Cancelled" },
+];
+
+const INCOMING_STATUS_FILTERS = [
+  { key: "all", label: "All" },
+  { key: "pending", label: "Pending" },
+  { key: "approved", label: "Approved" },
+  { key: "rejected", label: "Rejected" },
+];
+
+export default function ReservationsPage({ currentUser }) {
   const [myReservations, setMyReservations] = useState([]);
   const [incomingReservations, setIncomingReservations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [savingId, setSavingId] = useState("");
 
-  const loadReservations = async () => {
+  const [myStatusFilter, setMyStatusFilter] = useState("all");
+  const [incomingStatusFilter, setIncomingStatusFilter] = useState("pending");
+  const [mySearch, setMySearch] = useState("");
+  const [incomingSearch, setIncomingSearch] = useState("");
+  const [myPage, setMyPage] = useState(1);
+  const [incomingPage, setIncomingPage] = useState(1);
+
+  const mySectionRef = useRef(null);
+  const incomingSectionRef = useRef(null);
+  const normalizedRole = String(currentUser?.role || "").trim().toLowerCase();
+  const canManageIncomingReservations =
+    normalizedRole === "owner" || normalizedRole === "admin";
+
+  const scrollToSectionTop = (ref) => {
+    setTimeout(() => {
+      ref?.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }, 0);
+  };
+
+  const loadReservations = useCallback(async () => {
     try {
       setLoading(true);
 
       const [myReservationsData, incomingReservationsData] = await Promise.all([
         getMyReservations(),
-        getIncomingReservations(),
+        canManageIncomingReservations ? getIncomingReservations() : Promise.resolve([]),
       ]);
 
       setMyReservations(myReservationsData || []);
@@ -48,11 +127,19 @@ export default function ReservationsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [canManageIncomingReservations]);
 
   useEffect(() => {
     loadReservations();
-  }, []);
+  }, [loadReservations]);
+
+  useEffect(() => {
+    setMyPage(1);
+  }, [myStatusFilter, mySearch]);
+
+  useEffect(() => {
+    setIncomingPage(1);
+  }, [incomingStatusFilter, incomingSearch]);
 
   const handleCancelReservation = async (reservationId) => {
     try {
@@ -80,6 +167,60 @@ export default function ReservationsPage() {
     }
   };
 
+  const filteredMyReservations = useMemo(
+    () =>
+      filterReservations(
+        myReservations,
+        myStatusFilter,
+        mySearch,
+        (item) =>
+          [
+            item.lake_name,
+            item.status,
+            item.notes,
+            item.reservation_date,
+            item.created_at,
+            item.people_count,
+          ]
+            .map((value) => String(value || ""))
+            .join(" "),
+      ),
+    [myReservations, myStatusFilter, mySearch],
+  );
+
+  const filteredIncomingReservations = useMemo(
+    () =>
+      filterReservations(
+        incomingReservations,
+        incomingStatusFilter,
+        incomingSearch,
+        (item) =>
+          [
+            item.lake_name,
+            item.status,
+            item.notes,
+            item.reservation_date,
+            item.created_at,
+            item.people_count,
+            item.full_name,
+            item.email,
+          ]
+            .map((value) => String(value || ""))
+            .join(" "),
+      ),
+    [incomingReservations, incomingStatusFilter, incomingSearch],
+  );
+
+  const paginatedMyReservations = useMemo(
+    () => paginateItems(filteredMyReservations, myPage),
+    [filteredMyReservations, myPage],
+  );
+
+  const paginatedIncomingReservations = useMemo(
+    () => paginateItems(filteredIncomingReservations, incomingPage),
+    [filteredIncomingReservations, incomingPage],
+  );
+
   if (loading) {
     return <div className={styles.loading}>Loading reservations...</div>;
   }
@@ -93,136 +234,225 @@ export default function ReservationsPage() {
             Manage your reservation requests and review incoming requests for
             lakes you own.
           </div>
+          )}
         </div>
 
         <div className={styles.stack}>
-          <div className={styles.card}>
-            <h3 className={styles.cardTitle}>My reservations</h3>
+          <div ref={mySectionRef} className={styles.card}>
+            <div className={styles.sectionHeader}>
+              <h3 className={styles.cardTitle}>My reservations</h3>
+              <SearchInput
+                value={mySearch}
+                onChange={(event) => setMySearch(event.target.value)}
+                placeholder="Search my reservations..."
+                minWidth={320}
+              />
+            </div>
 
-            {myReservations.length === 0 ? (
+            <div className={styles.filterRow}>
+              {MY_STATUS_FILTERS.map((filter) => (
+                <TabButton
+                  key={filter.key}
+                  active={myStatusFilter === filter.key}
+                  onClick={() => setMyStatusFilter(filter.key)}
+                  badge={getStatusCount(myReservations, filter.key)}
+                >
+                  {filter.label}
+                </TabButton>
+              ))}
+            </div>
+
+            {filteredMyReservations.length === 0 ? (
               <div className={styles.emptyState}>
-                You do not have any reservations yet.
+                {myReservations.length === 0
+                  ? "You do not have any reservations yet."
+                  : "No reservations match the selected filters."}
               </div>
             ) : (
-              <div className={styles.itemList}>
-                {myReservations.map((item) => (
-                  <div key={item.id} className={styles.itemCard}>
-                    <div className={styles.splitRow}>
-                      <div>
-                        <div className={styles.itemTitle}>
-                          {item.lake_name}
-                        </div>
-                        <div className={`${styles.metaText} ${styles.metaBlock}`}>
-                          Date: {formatDate(item.reservation_date)}
-                        </div>
-                        <div className={`${styles.metaText} ${styles.metaBlockCompact}`}>
-                          Created: {formatDateTime(item.created_at)}
-                        </div>
-                        <div className={`${styles.noteText} ${styles.noteBlock}`}>
-                          Notes: {item.notes || "No notes"}
-                        </div>
-                      </div>
-
-                      <div className={styles.actionColumn}>
-                        <StatusBadge status={item.status} />
-
-                        {item.status !== "cancelled" && (
-                          <ActionButton
-                            type="button"
-                            tone="danger"
-                            compact
-                            disabled={savingId === item.id}
-                            onClick={() => handleCancelReservation(item.id)}
+              <>
+                <div className={styles.itemList}>
+                  {paginatedMyReservations.items.map((item) => (
+                    <div key={item.id} className={styles.itemCard}>
+                      <div className={styles.splitRow}>
+                        <div>
+                          <div className={styles.itemTitle}>{item.lake_name}</div>
+                          <div className={`${styles.metaText} ${styles.metaBlock}`}>
+                            Date: {formatDate(item.reservation_date)}
+                          </div>
+                          <div
+                            className={`${styles.metaText} ${styles.metaBlockCompact}`}
                           >
-                            Cancel
-                          </ActionButton>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div className={styles.card}>
-            <h3 className={styles.cardTitle}>Incoming reservations</h3>
-
-            {incomingReservations.length === 0 ? (
-              <div className={styles.emptyState}>
-                No incoming reservations for your private lakes.
-              </div>
-            ) : (
-              <div className={styles.itemList}>
-                {incomingReservations.map((item) => (
-                  <div key={item.id} className={styles.itemCard}>
-                    <div className={styles.splitRow}>
-                      <div>
-                        <div className={styles.itemTitle}>
-                          {item.lake_name}
-                        </div>
-                        <div className={`${styles.metaText} ${styles.metaBlock}`}>
-                          User: {item.full_name || "Unknown"}{" "}
-                          {item.email ? `(${item.email})` : ""}
-                        </div>
-                        <div className={`${styles.metaText} ${styles.metaBlockCompact}`}>
-                          Date: {formatDate(item.reservation_date)}
-                        </div>
-                        <div className={`${styles.metaText} ${styles.metaBlockCompact}`}>
-                          Created: {formatDateTime(item.created_at)}
-                        </div>
-                        <div className={`${styles.noteText} ${styles.noteBlock}`}>
-                          Notes: {item.notes || "No notes"}
-                        </div>
-                      </div>
-
-                      <div className={styles.actionColumn}>
-                        <StatusBadge status={item.status} />
-
-                        <div className={styles.buttonRow}>
-                          <ActionButton
-                            type="button"
-                            tone="success"
-                            compact
-                            disabled={savingId === item.id}
-                            onClick={() =>
-                              handleUpdateIncomingStatus(item.id, "approved")
-                            }
+                            Created: {formatDateTime(item.created_at)}
+                          </div>
+                          <div
+                            className={`${styles.metaText} ${styles.metaBlockCompact}`}
                           >
-                            Approve
-                          </ActionButton>
+                            People: {item.people_count || 1}
+                          </div>
+                          <div className={`${styles.noteText} ${styles.noteBlock}`}>
+                            Notes: {item.notes || "No notes"}
+                          </div>
+                        </div>
 
-                          <ActionButton
-                            type="button"
-                            tone="danger"
-                            compact
-                            disabled={savingId === item.id}
-                            onClick={() =>
-                              handleUpdateIncomingStatus(item.id, "rejected")
-                            }
-                          >
-                            Reject
-                          </ActionButton>
+                        <div className={styles.actionColumn}>
+                          <StatusBadge status={item.status} />
 
-                          <ActionButton
-                            type="button"
-                            tone="neutral"
-                            compact
-                            disabled={savingId === item.id}
-                            onClick={() =>
-                              handleUpdateIncomingStatus(item.id, "pending")
-                            }
-                          >
-                            Mark Pending
-                          </ActionButton>
+                          {item.status !== "cancelled" && (
+                            <ActionButton
+                              type="button"
+                              tone="danger"
+                              compact
+                              disabled={savingId === item.id}
+                              onClick={() => handleCancelReservation(item.id)}
+                            >
+                              Cancel
+                            </ActionButton>
+                          )}
                         </div>
                       </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+
+                <Pagination
+                  currentPage={paginatedMyReservations.currentPage}
+                  totalPages={paginatedMyReservations.totalPages}
+                  totalItems={paginatedMyReservations.totalItems}
+                  startIndex={paginatedMyReservations.startIndex}
+                  endIndex={paginatedMyReservations.endIndex}
+                  onPageChange={(page) => {
+                    setMyPage(page);
+                    scrollToSectionTop(mySectionRef);
+                  }}
+                />
+              </>
             )}
           </div>
+
+          {canManageIncomingReservations && (
+          <div ref={incomingSectionRef} className={styles.card}>
+            <div className={styles.sectionHeader}>
+              <h3 className={styles.cardTitle}>Incoming reservations</h3>
+              <SearchInput
+                value={incomingSearch}
+                onChange={(event) => setIncomingSearch(event.target.value)}
+                placeholder="Search incoming reservations..."
+                minWidth={320}
+              />
+            </div>
+
+            <div className={styles.filterRow}>
+              {INCOMING_STATUS_FILTERS.map((filter) => (
+                <TabButton
+                  key={filter.key}
+                  active={incomingStatusFilter === filter.key}
+                  onClick={() => setIncomingStatusFilter(filter.key)}
+                  badge={getStatusCount(incomingReservations, filter.key)}
+                >
+                  {filter.label}
+                </TabButton>
+              ))}
+            </div>
+
+            {filteredIncomingReservations.length === 0 ? (
+              <div className={styles.emptyState}>
+                {incomingReservations.length === 0
+                  ? "No incoming reservations for your private lakes."
+                  : "No incoming reservations match the selected filters."}
+              </div>
+            ) : (
+              <>
+                <div className={styles.itemList}>
+                  {paginatedIncomingReservations.items.map((item) => (
+                    <div key={item.id} className={styles.itemCard}>
+                      <div className={styles.splitRow}>
+                        <div>
+                          <div className={styles.itemTitle}>{item.lake_name}</div>
+                          <div className={`${styles.metaText} ${styles.metaBlock}`}>
+                            User: {item.full_name || "Unknown"}{" "}
+                            {item.email ? `(${item.email})` : ""}
+                          </div>
+                          <div
+                            className={`${styles.metaText} ${styles.metaBlockCompact}`}
+                          >
+                            Date: {formatDate(item.reservation_date)}
+                          </div>
+                          <div
+                            className={`${styles.metaText} ${styles.metaBlockCompact}`}
+                          >
+                            Created: {formatDateTime(item.created_at)}
+                          </div>
+                          <div
+                            className={`${styles.metaText} ${styles.metaBlockCompact}`}
+                          >
+                            People: {item.people_count || 1}
+                          </div>
+                          <div className={`${styles.noteText} ${styles.noteBlock}`}>
+                            Notes: {item.notes || "No notes"}
+                          </div>
+                        </div>
+
+                        <div className={styles.actionColumn}>
+                          <StatusBadge status={item.status} />
+
+                          <div className={styles.buttonRow}>
+                            <ActionButton
+                              type="button"
+                              tone="success"
+                              compact
+                              disabled={savingId === item.id}
+                              onClick={() =>
+                                handleUpdateIncomingStatus(item.id, "approved")
+                              }
+                            >
+                              Approve
+                            </ActionButton>
+
+                            <ActionButton
+                              type="button"
+                              tone="danger"
+                              compact
+                              disabled={savingId === item.id}
+                              onClick={() =>
+                                handleUpdateIncomingStatus(item.id, "rejected")
+                              }
+                            >
+                              Reject
+                            </ActionButton>
+
+                            <ActionButton
+                              type="button"
+                              tone="neutral"
+                              compact
+                              disabled={savingId === item.id}
+                              onClick={() =>
+                                handleUpdateIncomingStatus(item.id, "pending")
+                              }
+                            >
+                              Mark Pending
+                            </ActionButton>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <Pagination
+                  currentPage={paginatedIncomingReservations.currentPage}
+                  totalPages={paginatedIncomingReservations.totalPages}
+                  totalItems={paginatedIncomingReservations.totalItems}
+                  startIndex={paginatedIncomingReservations.startIndex}
+                  endIndex={paginatedIncomingReservations.endIndex}
+                  onPageChange={(page) => {
+                    setIncomingPage(page);
+                    scrollToSectionTop(incomingSectionRef);
+                  }}
+                />
+              </>
+            )}
+          </div>
+          )}
         </div>
       </div>
     </div>

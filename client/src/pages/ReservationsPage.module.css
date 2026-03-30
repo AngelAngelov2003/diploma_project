@@ -62,3 +62,10 @@
 .noteBlock {
   composes: noteBlock from "../styles/ui.module.css";
 }
+
+.sectionHeader {
+  composes: sectionHeader from "../styles/ui.module.css";
+}
+.filterRow {
+  composes: filterRow from "../styles/ui.module.css";
+}

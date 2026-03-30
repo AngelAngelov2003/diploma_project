@@ -224,6 +224,7 @@ function LakeDetails() {
   );
   const [blockedDates, setBlockedDates] = useState([]);
   const [reservationDate, setReservationDate] = useState("");
+  const [reservationPeopleCount, setReservationPeopleCount] = useState(1);
   const [reservationNotes, setReservationNotes] = useState("");
   const [savingReservation, setSavingReservation] = useState(false);
 
@@ -335,6 +336,14 @@ function LakeDetails() {
     () => new Set((blockedDates || []).map((item) => String(item.blocked_date).slice(0, 10))),
     [blockedDates],
   );
+
+  const latestReservation = reservationStatus?.reservation || null;
+  const canSubmitReservationRequest =
+    !latestReservation ||
+    latestReservation.status === "cancelled" ||
+    latestReservation.status === "rejected";
+  const reservationEstimatedTotal =
+    Number(lake?.price_per_day || 0) * Number(reservationPeopleCount || 1);
 
   const paginatedSpecies = useMemo(
     () => paginateItems(speciesSummary, speciesPage, DEFAULT_PAGE_SIZES.species),
@@ -533,10 +542,12 @@ function LakeDetails() {
       await createReservation({
         water_body_id: id,
         reservation_date: reservationDate,
+        people_count: Number(reservationPeopleCount || 1),
         notes: reservationNotes.trim(),
       });
 
-      notifySuccess("Reservation request sent");
+      notifySuccess("Reservation request sent for owner approval");
+      setReservationPeopleCount(1);
       setReservationNotes("");
       await loadReservationStatus();
     } catch (error) {
@@ -553,7 +564,7 @@ function LakeDetails() {
 
     try {
       setSavingReservation(true);
-      await cancelReservationRequest(reservationStatus.reservation.id);
+      await cancelReservationRequest(latestReservation.id);
       notifySuccess("Reservation cancelled");
       await loadReservationStatus();
     } catch (error) {
@@ -801,7 +812,7 @@ function LakeDetails() {
           <div style={{ ...cardStyle, marginBottom: "20px" }}>
             <h2 style={sectionTitleStyle}>
               <FaCalendarAlt />
-              Private lake reservation
+              Reservation request
             </h2>
 
             <div
@@ -827,7 +838,7 @@ function LakeDetails() {
                     marginBottom: "6px",
                   }}
                 >
-                  Reservations
+                  Reservation flow
                 </div>
                 <div
                   style={{
@@ -836,7 +847,7 @@ function LakeDetails() {
                     color: "#0f172a",
                   }}
                 >
-                  {lake.is_reservable ? "Open" : "Closed"}
+                  {lake.is_reservable ? "Request approval available" : "Closed"}
                 </div>
               </div>
 
@@ -905,7 +916,7 @@ function LakeDetails() {
               </div>
             )}
 
-            {reservationStatus?.reservation ? (
+            {latestReservation ? (
               <div
                 style={{
                   background: "#f8fafc",
@@ -932,16 +943,18 @@ function LakeDetails() {
                     lineHeight: 1.8,
                   }}
                 >
-                  Date: {formatDate(reservationStatus.reservation.reservation_date)}
+                  Date: {formatDate(latestReservation.reservation_date)}
                   <br />
-                  Status: {reservationStatus.reservation.status}
+                  People: {latestReservation.people_count || 1}
                   <br />
-                  Created: {formatDateTime(reservationStatus.reservation.created_at)}
+                  Status: {latestReservation.status}
                   <br />
-                  Notes: {reservationStatus.reservation.notes || "No notes"}
+                  Created: {formatDateTime(latestReservation.created_at)}
+                  <br />
+                  Notes: {latestReservation.notes || "No notes"}
                 </div>
 
-                {reservationStatus.reservation.status !== "cancelled" && (
+                {latestReservation.status !== "cancelled" && (
                   <button
                     type="button"
                     onClick={cancelReservation}
@@ -961,7 +974,9 @@ function LakeDetails() {
                   </button>
                 )}
               </div>
-            ) : (
+            ) : null}
+
+            {canSubmitReservationRequest && (
               <form onSubmit={submitReservation}>
                 <div
                   style={{
@@ -1018,6 +1033,51 @@ function LakeDetails() {
                         marginBottom: "6px",
                       }}
                     >
+                      Number of people
+                    </div>
+                    <input
+                      type="number"
+                      min={1}
+                      max={Math.max(1, Number(lake.capacity || 1))}
+                      value={reservationPeopleCount}
+                      onChange={(event) => {
+                        const nextValue = Number(event.target.value || 1);
+                        setReservationPeopleCount(
+                          Math.min(
+                            Math.max(1, nextValue),
+                            Math.max(1, Number(lake.capacity || 1)),
+                          ),
+                        );
+                      }}
+                      disabled={savingReservation || !lake.is_reservable}
+                      style={{
+                        width: "100%",
+                        padding: "10px",
+                        borderRadius: 10,
+                        border: "1px solid #ddd",
+                        boxSizing: "border-box",
+                        background: "white",
+                      }}
+                    />
+                    <div
+                      style={{
+                        marginTop: 6,
+                        fontSize: 12,
+                        color: "#64748b",
+                      }}
+                    >
+                      Up to {Math.max(1, Number(lake.capacity || 1))} people can be included in one request.
+                    </div>
+                  </div>
+
+                  <div style={{ gridColumn: isMobile ? "auto" : "1 / -1" }}>
+                    <div
+                      style={{
+                        fontSize: "12px",
+                        color: "#555",
+                        marginBottom: "6px",
+                      }}
+                    >
                       Notes
                     </div>
                     <textarea
@@ -1041,11 +1101,45 @@ function LakeDetails() {
                   </div>
                 </div>
 
+                <div
+                  style={{
+                    marginTop: "14px",
+                    display: "flex",
+                    flexWrap: "wrap",
+                    gap: "12px",
+                    alignItems: "center",
+                  }}
+                >
+                  <div
+                    style={{
+                      background: "#eff6ff",
+                      color: "#1d4ed8",
+                      border: "1px solid #bfdbfe",
+                      borderRadius: "12px",
+                      padding: "10px 14px",
+                      fontWeight: 700,
+                    }}
+                  >
+                    Estimated total: {reservationEstimatedTotal.toFixed(2)}
+                  </div>
+
+                  <div
+                    style={{
+                      fontSize: "13px",
+                      color: "#64748b",
+                      fontWeight: 600,
+                    }}
+                  >
+                    The owner will review your request before approval.
+                  </div>
+                </div>
+
                 <button
                   type="submit"
                   disabled={
                     savingReservation ||
                     !lake.is_reservable ||
+                    !canSubmitReservationRequest ||
                     (reservationDate && blockedDateStrings.has(reservationDate))
                   }
                   style={{
@@ -1062,7 +1156,7 @@ function LakeDetails() {
                     fontWeight: 700,
                   }}
                 >
-                  {savingReservation ? "Sending..." : "Request reservation"}
+                  {savingReservation ? "Sending..." : "Send reservation request"}
                 </button>
               </form>
             )}

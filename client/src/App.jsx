@@ -213,7 +213,7 @@ function App() {
           path="/reservations"
           element={
             isAuthenticated ? (
-              <ReservationsPage />
+              <ReservationsPage currentUser={currentUser} />
             ) : (
               <Navigate to="/login" replace />
             )

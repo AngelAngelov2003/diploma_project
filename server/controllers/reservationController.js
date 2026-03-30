@@ -1,7 +1,23 @@
 const pool = require("../db");
 
+let reservationSchemaEnsured = false;
+
+const ensureReservationSchema = async () => {
+  if (reservationSchemaEnsured) {
+    return;
+  }
+
+  await pool.query(`
+    ALTER TABLE lake_reservations
+    ADD COLUMN IF NOT EXISTS people_count INTEGER NOT NULL DEFAULT 1
+  `);
+
+  reservationSchemaEnsured = true;
+};
+
 const getMyReservations = async (req, res) => {
   try {
+    await ensureReservationSchema();
     const q = await pool.query(
       `
         SELECT
@@ -10,6 +26,7 @@ const getMyReservations = async (req, res) => {
           r.user_id,
           r.reservation_date,
           r.notes,
+          r.people_count,
           r.status,
           r.created_at,
           r.updated_at,
@@ -31,6 +48,7 @@ const getMyReservations = async (req, res) => {
 
 const getIncomingReservations = async (req, res) => {
   try {
+    await ensureReservationSchema();
     const q = await pool.query(
       `
         SELECT
@@ -39,6 +57,7 @@ const getIncomingReservations = async (req, res) => {
           r.user_id,
           r.reservation_date,
           r.notes,
+          r.people_count,
           r.status,
           r.created_at,
           r.updated_at,
@@ -71,6 +90,7 @@ const getIncomingReservations = async (req, res) => {
 
 const getMyReservationStatus = async (req, res) => {
   try {
+    await ensureReservationSchema();
     const { waterBodyId } = req.params;
 
     const lakeQ = await pool.query(
@@ -92,7 +112,7 @@ const getMyReservationStatus = async (req, res) => {
 
     const reservationQ = await pool.query(
       `
-        SELECT id, water_body_id, user_id, reservation_date, notes, status, created_at, updated_at
+        SELECT id, water_body_id, user_id, reservation_date, notes, people_count, status, created_at, updated_at
         FROM lake_reservations
         WHERE water_body_id = $1 AND user_id = $2
         ORDER BY reservation_date DESC, created_at DESC
@@ -112,7 +132,8 @@ const getMyReservationStatus = async (req, res) => {
 
 const createReservation = async (req, res) => {
   try {
-    const { water_body_id, reservation_date, notes } = req.body;
+    await ensureReservationSchema();
+    const { water_body_id, reservation_date, notes, people_count } = req.body;
 
     if (!water_body_id || !reservation_date) {
       return res.status(400).json({ error: "water_body_id and reservation_date are required" });
@@ -132,6 +153,11 @@ const createReservation = async (req, res) => {
     }
 
     const lake = lakeQ.rows[0];
+    const normalizedPeopleCount = Number(people_count || 1);
+
+    if (!Number.isInteger(normalizedPeopleCount) || normalizedPeopleCount < 1) {
+      return res.status(400).json({ error: "People count must be at least 1" });
+    }
 
     if (!lake.is_private) {
       return res.status(400).json({ error: "Reservations are only allowed for private lakes" });
@@ -161,7 +187,7 @@ const createReservation = async (req, res) => {
 
     const approvedCountQ = await pool.query(
       `
-        SELECT COUNT(*)::int AS count
+        SELECT COALESCE(SUM(people_count), 0)::int AS count
         FROM lake_reservations
         WHERE water_body_id = $1 AND reservation_date = $2 AND status = 'approved'
       `,
@@ -169,8 +195,13 @@ const createReservation = async (req, res) => {
     );
 
     const approvedCount = Number(approvedCountQ.rows[0]?.count || 0);
+    const lakeCapacity = Math.max(1, Number(lake.capacity || 1));
 
-    if (approvedCount >= Number(lake.capacity || 1)) {
+    if (normalizedPeopleCount > lakeCapacity) {
+      return res.status(400).json({ error: `This lake accepts up to ${lakeCapacity} people per request` });
+    }
+
+    if (approvedCount + normalizedPeopleCount > lakeCapacity) {
       return res.status(400).json({ error: "No remaining capacity for this date" });
     }
 
@@ -181,18 +212,26 @@ const createReservation = async (req, res) => {
           user_id,
           reservation_date,
           notes,
+          people_count,
           status,
           updated_at
         )
-        VALUES ($1, $2, $3, $4, 'pending', NOW())
+        VALUES ($1, $2, $3, $4, $5, 'pending', NOW())
         ON CONFLICT (water_body_id, user_id, reservation_date) DO UPDATE
         SET
           notes = EXCLUDED.notes,
+          people_count = EXCLUDED.people_count,
           status = 'pending',
           updated_at = NOW()
         RETURNING *
       `,
-      [water_body_id, req.user, reservation_date, String(notes || "").trim() || null]
+      [
+        water_body_id,
+        req.user,
+        reservation_date,
+        String(notes || "").trim() || null,
+        normalizedPeopleCount,
+      ]
     );
 
     res.json(q.rows[0]);
@@ -203,6 +242,7 @@ const createReservation = async (req, res) => {
 
 const cancelReservation = async (req, res) => {
   try {
+    await ensureReservationSchema();
     const { reservationId } = req.params;
 
     const existing = await pool.query(
@@ -236,6 +276,7 @@ const cancelReservation = async (req, res) => {
 
 const updateReservationStatus = async (req, res) => {
   try {
+    await ensureReservationSchema();
     const { reservationId } = req.params;
     const { status } = req.body;
 
@@ -251,6 +292,7 @@ const updateReservationStatus = async (req, res) => {
           r.user_id,
           r.status,
           r.reservation_date,
+          r.people_count,
           w.owner_id,
           w.is_private,
           w.capacity
@@ -288,7 +330,7 @@ const updateReservationStatus = async (req, res) => {
     if (status === "approved") {
       const approvedCountQ = await pool.query(
         `
-          SELECT COUNT(*)::int AS count
+          SELECT COALESCE(SUM(people_count), 0)::int AS count
           FROM lake_reservations
           WHERE water_body_id = $1
             AND reservation_date = $2
@@ -299,8 +341,9 @@ const updateReservationStatus = async (req, res) => {
       );
 
       const approvedCount = Number(approvedCountQ.rows[0]?.count || 0);
+      const requestedPeopleCount = Number(reservation.people_count || 1);
 
-      if (approvedCount >= Number(reservation.capacity || 1)) {
+      if (approvedCount + requestedPeopleCount > Number(reservation.capacity || 1)) {
         return res.status(400).json({ error: "Capacity reached for this date" });
       }
     }
