@@ -171,9 +171,26 @@ function FishingMap() {
 
       setActiveLake(lake);
       setIsMobileSidebarOpen(false);
+      setShowRegionOverview(false);
+
+      setWaterBodies((prev) => {
+        const alreadyExists = prev.some((item) => String(item.id) === String(lake.id));
+        return alreadyExists ? prev : [lake, ...prev];
+      });
 
       const latitude = Number(lake.latitude);
       const longitude = Number(lake.longitude);
+
+      if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
+        const matchedRegion = findRegionFeatureByPoint(bulgariaRegions, {
+          latitude,
+          longitude,
+        });
+
+        setSelectedRegion(
+          matchedRegion ? getRegionNameFromFeature(matchedRegion) : null,
+        );
+      }
 
       if (
         mapInstance &&
@@ -738,7 +755,7 @@ function FishingMap() {
       <FishingMapCanvas
         activeLake={activeLake}
         focusLake={focusLake}
-        filteredLakes={visibleLakes}
+        filteredLakes={displayedLakes}
         mapUserLocation={mapUserLocation}
         selectedLakeDistance={selectedLakeDistance}
         handleZoomToMyLocation={handleZoomToMyLocation}

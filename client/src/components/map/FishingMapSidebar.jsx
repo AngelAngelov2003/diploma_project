@@ -310,15 +310,13 @@ function FishingMapSidebar({
         <div className="map-sidebar-list">
           {loadingWaterBodies && !searchTerm.trim() ? (
             <div className="map-empty-state">Loading locations...</div>
-          ) : waterBodies.length === 0 ? (
-            <div className="map-empty-state">
-              {searchTerm.trim()
-                ? "No locations found."
-                : "No water bodies visible in this area."}
-            </div>
           ) : filteredLakes.length === 0 ? (
             <div className="map-empty-state">
-              No locations match your filters.
+              {searchTerm.trim()
+                ? "No locations found anywhere for this search."
+                : waterBodies.length === 0
+                  ? "No water bodies visible in this area."
+                  : "No locations match your filters."}
             </div>
           ) : (
             filteredLakes.map((lake) => {

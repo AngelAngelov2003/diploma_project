@@ -31,7 +31,7 @@ const LakePopup = ({ lake, map }) => {
   const [forecast, setForecast] = useState(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [showLogForm, setShowLogForm] = useState(false);
+  const [activePanel, setActivePanel] = useState(null);
   const [species, setSpecies] = useState("");
   const [weight, setWeight] = useState("");
   const [image, setImage] = useState(null);
@@ -56,7 +56,7 @@ const LakePopup = ({ lake, map }) => {
   useEffect(() => {
     statusLoadedLakeRef.current = null;
     setForecast(null);
-    setShowLogForm(false);
+    setActivePanel(null);
     setMsg("");
     setSpecies("");
     setWeight("");
@@ -178,7 +178,6 @@ const LakePopup = ({ lake, map }) => {
   };
 
   const getForecast = async () => {
-    setShowLogForm(false);
     setMsg("");
 
     if (!lake?.id || !hasValidCoords) {
@@ -190,6 +189,7 @@ const LakePopup = ({ lake, map }) => {
       setLoading(true);
       const res = await api.get(`/forecast/${lakeLat}/${lakeLng}`);
       setForecast(res.data || null);
+      setActivePanel("forecast");
 
       if (map) {
         map.setView([lakeLat, lakeLng], map.getZoom(), { animate: true });
@@ -276,7 +276,7 @@ const LakePopup = ({ lake, map }) => {
 
       setTimeout(() => {
         resetForm();
-        setShowLogForm(false);
+        setActivePanel(null);
       }, 900);
     } catch (err) {
       notifyError(err, "Error saving catch");
@@ -293,23 +293,27 @@ const LakePopup = ({ lake, map }) => {
   };
 
   const renderForecastCard = () => {
-    if (!forecast || loading) return null;
+    if (activePanel !== "forecast" || !forecast || loading) return null;
 
     return (
-      <div className="lake-popup-forecast-card">
+      <div className="lake-popup-panel-card lake-popup-forecast-card">
         <button
           onClick={(e) => {
             e.stopPropagation();
             setForecast(null);
+            setActivePanel(null);
           }}
           className="lake-popup-inline-close"
         >
           <FaTimes />
         </button>
 
-        <div className="lake-popup-section-title">
-          <FaChartBar />
-          <span>Fishing success analysis</span>
+        <div className="lake-popup-section-heading">
+          <div className="lake-popup-section-title">
+            <FaChartBar />
+            <span>Fishing forecast</span>
+          </div>
+          <p>Live conditions and AI scoring for this water body.</p>
         </div>
 
         <div className="lake-popup-score-grid">
@@ -338,20 +342,39 @@ const LakePopup = ({ lake, map }) => {
           <span>Total index</span>
           <strong>{forecast.total_score ?? 0}%</strong>
         </div>
+
+        <div className="lake-popup-metric-grid">
+          <div className="lake-popup-metric-item">
+            <span>Temperature</span>
+            <strong>{forecast.temp ?? "—"}°C</strong>
+          </div>
+          <div className="lake-popup-metric-item">
+            <span>Wind</span>
+            <strong>{forecast.wind ?? "—"} m/s</strong>
+          </div>
+          <div className="lake-popup-metric-item">
+            <span>Pressure</span>
+            <strong>{forecast.pressure ?? "—"} hPa</strong>
+          </div>
+          <div className="lake-popup-metric-item">
+            <span>Humidity</span>
+            <strong>{forecast.humidity ?? "—"}%</strong>
+          </div>
+        </div>
       </div>
     );
   };
 
   const renderLogForm = () => {
-    if (!showLogForm) return null;
+    if (activePanel !== "log") return null;
 
     return (
-      <form onSubmit={handleLogCatch} className="lake-popup-form-card">
+      <form onSubmit={handleLogCatch} className="lake-popup-panel-card lake-popup-form-card">
         <button
           type="button"
           onClick={(e) => {
             e.stopPropagation();
-            setShowLogForm(false);
+            setActivePanel(null);
             resetForm();
           }}
           className="lake-popup-inline-close"
@@ -359,9 +382,12 @@ const LakePopup = ({ lake, map }) => {
           <FaTimes />
         </button>
 
-        <div className="lake-popup-section-title">
-          <FaMapMarkedAlt />
-          <span>Log catch</span>
+        <div className="lake-popup-section-heading">
+          <div className="lake-popup-section-title">
+            <FaMapMarkedAlt />
+            <span>Log catch</span>
+          </div>
+          <p>Record your result with species, weight, time, notes, and an optional photo.</p>
         </div>
 
         <div className="lake-popup-form-grid">
@@ -434,7 +460,11 @@ const LakePopup = ({ lake, map }) => {
               </button>
             </div>
           ) : (
-            <input type="file" accept="image/*" disabled={saving} onChange={handleImageChange} />
+            <label className="lake-popup-upload-box">
+              <input type="file" accept="image/*" disabled={saving} onChange={handleImageChange} />
+              <span>Choose photo</span>
+              <small>JPG, PNG, WEBP up to 5 MB</small>
+            </label>
           )}
 
           <div className="lake-popup-field-meta">Maximum image size: 5 MB</div>
@@ -478,7 +508,7 @@ const LakePopup = ({ lake, map }) => {
         </div>
 
         <div className="lake-popup-action-grid">
-          <button onClick={getForecast} disabled={loading || !hasValidCoords} className="lake-popup-action-button success">
+          <button onClick={getForecast} disabled={loading || !hasValidCoords} className={`lake-popup-action-button success ${activePanel === "forecast" ? "active" : ""}`}>
             <FaChartBar />
             <span>{loading ? "Loading..." : "Forecast"}</span>
           </button>
@@ -486,10 +516,10 @@ const LakePopup = ({ lake, map }) => {
           <button
             onClick={(e) => {
               e.stopPropagation();
-              setShowLogForm(true);
+              setActivePanel((current) => (current === "log" ? null : "log"));
               if (!catchTime) setCatchTime(toLocalDateTimeValue(new Date()));
             }}
-            className="lake-popup-action-button primary"
+            className={`lake-popup-action-button primary ${activePanel === "log" ? "active" : ""}`}
           >
             <FaCamera />
             <span>Log Catch</span>
@@ -514,12 +544,12 @@ const LakePopup = ({ lake, map }) => {
           </button>
         </div>
 
+        {renderForecastCard()}
+        {renderLogForm()}
+
         <button onClick={openDetails} className="lake-popup-details-button">
           View Details
         </button>
-
-        {renderForecastCard()}
-        {renderLogForm()}
       </div>
 
       <style>{`
@@ -598,6 +628,7 @@ const LakePopup = ({ lake, map }) => {
           justify-content: center;
           gap: 10px;
           box-shadow: 0 10px 22px rgba(15, 23, 42, 0.12);
+          transition: transform 0.18s ease, box-shadow 0.18s ease, opacity 0.18s ease;
         }
 
         .lake-popup-action-button.primary {
@@ -624,6 +655,15 @@ const LakePopup = ({ lake, map }) => {
           background: linear-gradient(135deg, #64748b 0%, #94a3b8 100%);
         }
 
+        .lake-popup-action-button:hover {
+          transform: translateY(-1px);
+          box-shadow: 0 14px 26px rgba(15, 23, 42, 0.16);
+        }
+
+        .lake-popup-action-button.active {
+          box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.6), 0 16px 28px rgba(15, 23, 42, 0.18);
+        }
+
         .lake-popup-action-button:disabled {
           opacity: 0.7;
           cursor: not-allowed;
@@ -642,11 +682,12 @@ const LakePopup = ({ lake, map }) => {
           box-shadow: 0 10px 22px rgba(15, 23, 42, 0.12);
         }
 
+        .lake-popup-panel-card,
         .lake-popup-forecast-card,
         .lake-popup-form-card {
           margin-top: 16px;
           background: white;
-          padding: 18px;
+          padding: 20px;
           border-radius: 20px;
           position: relative;
           border: 1px solid #e2e8f0;
@@ -669,6 +710,18 @@ const LakePopup = ({ lake, map }) => {
           justify-content: center;
         }
 
+        .lake-popup-section-heading {
+          margin-bottom: 18px;
+          padding-right: 40px;
+        }
+
+        .lake-popup-section-heading p {
+          margin: 8px 0 0;
+          font-size: 13px;
+          line-height: 1.6;
+          color: #64748b;
+        }
+
         .lake-popup-section-title {
           display: flex;
           align-items: center;
@@ -676,7 +729,6 @@ const LakePopup = ({ lake, map }) => {
           font-size: 17px;
           font-weight: 800;
           color: #0f172a;
-          margin-bottom: 16px;
         }
 
         .lake-popup-score-grid {
@@ -740,6 +792,33 @@ const LakePopup = ({ lake, map }) => {
           line-height: 1;
         }
 
+        .lake-popup-metric-grid {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 12px;
+          margin-top: 14px;
+        }
+
+        .lake-popup-metric-item {
+          padding: 13px 14px;
+          background: #f8fafc;
+          border: 1px solid #e2e8f0;
+          border-radius: 16px;
+        }
+
+        .lake-popup-metric-item span {
+          display: block;
+          margin-bottom: 6px;
+          font-size: 12px;
+          font-weight: 700;
+          color: #64748b;
+        }
+
+        .lake-popup-metric-item strong {
+          font-size: 16px;
+          color: #0f172a;
+        }
+
         .lake-popup-form-grid {
           display: grid;
           grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -763,7 +842,7 @@ const LakePopup = ({ lake, map }) => {
         .lake-popup-field input,
         .lake-popup-field textarea {
           width: 100%;
-          padding: 12px 13px;
+          padding: 13px 14px;
           border-radius: 14px;
           border: 1px solid #dbe5f0;
           background: #f8fafc;
@@ -771,6 +850,7 @@ const LakePopup = ({ lake, map }) => {
           font-size: 14px;
           color: #0f172a;
           outline: none;
+          transition: border-color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
         }
 
         .lake-popup-field textarea {
@@ -782,6 +862,7 @@ const LakePopup = ({ lake, map }) => {
         .lake-popup-field textarea:focus {
           border-color: #93c5fd;
           background: white;
+          box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
         }
 
         .lake-popup-field-meta {
@@ -796,6 +877,38 @@ const LakePopup = ({ lake, map }) => {
           display: inline-flex;
           align-items: center;
           gap: 8px;
+        }
+
+        .lake-popup-upload-box {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          gap: 6px;
+          width: 100%;
+          min-height: 124px;
+          padding: 18px;
+          text-align: center;
+          cursor: pointer;
+          background: linear-gradient(180deg, #f8fbff 0%, #f8fafc 100%);
+          border: 1px dashed #bfdbfe;
+          border-radius: 16px;
+          box-sizing: border-box;
+        }
+
+        .lake-popup-upload-box input {
+          display: none;
+        }
+
+        .lake-popup-upload-box span {
+          font-size: 14px;
+          font-weight: 800;
+          color: #1d4ed8;
+        }
+
+        .lake-popup-upload-box small {
+          font-size: 12px;
+          color: #64748b;
         }
 
         .lake-popup-image-preview-wrap {
@@ -868,7 +981,8 @@ const LakePopup = ({ lake, map }) => {
 
           .lake-popup-action-grid,
           .lake-popup-form-grid,
-          .lake-popup-score-grid {
+          .lake-popup-score-grid,
+          .lake-popup-metric-grid {
             grid-template-columns: 1fr;
           }
         }

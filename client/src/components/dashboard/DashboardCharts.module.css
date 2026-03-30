@@ -1,86 +1,147 @@
-.skeletonGrid,
+ .skeletonGrid,
 .chartGrid {
-  margin-top: 12px;
+  margin-top: 16px;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: 16px;
   min-width: 0;
 }
+
 .skeletonCard,
 .chartCard {
-  border: 1px solid #eee;
-  border-radius: 12px;
-  padding: 10px;
-  background: white;
+  border: 1px solid #dbe5f0;
+  border-radius: 18px;
+  padding: 16px;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
   min-width: 0;
   overflow: hidden;
+  box-shadow: 0 10px 26px rgba(15, 23, 42, 0.06);
 }
+
 .skeletonTitle,
 .chartTitle {
-  font-size: 13px;
-  font-weight: 700;
-  margin-bottom: 8px;
+  font-size: 18px;
+  font-weight: 800;
+  color: #0f172a;
 }
+
+.chartHeader {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+
+.chartSubtitle {
+  font-size: 13px;
+  color: #64748b;
+}
+
 .skeletonBar {
-  border-radius: 10px;
-  background: linear-gradient(90deg, #f2f2f2 25%, #e9e9e9 37%, #f2f2f2 63%);
+  border-radius: 14px;
+  background: linear-gradient(90deg, #f2f6fb 25%, #e8eef6 37%, #f2f6fb 63%);
   background-size: 400% 100%;
   animation: dash-skeleton 1.2s ease-in-out infinite;
 }
+
 .toolbar {
-  margin-top: 14px;
+  margin-top: 18px;
   display: flex;
-  gap: 10px;
+  gap: 12px;
   align-items: center;
   flex-wrap: wrap;
 }
+
 .toggleButton {
   color: white;
   border: none;
-  padding: 10px 14px;
-  border-radius: 10px;
-  cursor: pointer;
+  padding: 12px 18px;
+  border-radius: 14px;
+  font-weight: 700;
+  box-shadow: 0 10px 22px rgba(37, 99, 235, 0.2);
 }
+
 .countText {
   margin-left: auto;
-  font-size: 12px;
-  color: #666;
+  font-size: 14px;
+  color: #475569;
+  font-weight: 600;
 }
+
 .panel {
-  margin-top: 10px;
+  margin-top: 12px;
   background: white;
-  border: 1px solid #e6e6e6;
-  border-radius: 14px;
-  padding: 12px;
+  border: 1px solid #dbe5f0;
+  border-radius: 20px;
+  padding: 16px;
   min-width: 0;
   overflow: hidden;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.05);
 }
+
 .checkboxRow {
   display: flex;
-  gap: 10px;
+  gap: 12px;
   flex-wrap: wrap;
   align-items: center;
 }
+
 .checkboxLabel {
-  display: flex;
+  display: inline-flex;
   gap: 8px;
   align-items: center;
-  font-size: 13px;
-  color: #333;
+  font-size: 14px;
+  color: #334155;
+  font-weight: 600;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 999px;
+  padding: 8px 12px;
 }
-.emptyState {
-  padding: 14px 2px;
-  color: #666;
-}
+
+.emptyState,
 .noData {
-  padding: 10px 0;
-  color: #666;
+  padding: 18px 4px;
+  color: #64748b;
+  font-weight: 600;
 }
+
+.tooltip {
+  background: rgba(15, 23, 42, 0.96);
+  color: white;
+  padding: 10px 12px;
+  border-radius: 12px;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.2);
+}
+
+.tooltipLabel {
+  font-size: 12px;
+  opacity: 0.8;
+  margin-bottom: 4px;
+}
+
+.tooltipValue {
+  font-size: 14px;
+  font-weight: 800;
+}
+
 @keyframes dash-skeleton {
   0% {
     background-position: 100% 0;
   }
   100% {
     background-position: 0 0;
+  }
+}
+
+@media (max-width: 768px) {
+  .skeletonGrid,
+  .chartGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .countText {
+    margin-left: 0;
+    width: 100%;
   }
 }

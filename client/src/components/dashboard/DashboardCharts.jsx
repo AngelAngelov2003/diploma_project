@@ -23,12 +23,56 @@ function ChartsLoadingSkeleton() {
     <div className={styles.skeletonGrid}>
       <div className={styles.skeletonCard}>
         <div className={styles.skeletonTitle}>Charts loading…</div>
-        <div className={styles.skeletonBar} style={{ height: 220 }} />
+        <div className={styles.skeletonBar} style={{ height: 260 }} />
       </div>
       <div className={styles.skeletonCard}>
         <div className={styles.skeletonTitle}>Charts loading…</div>
-        <div className={styles.skeletonBar} style={{ height: 220 }} />
+        <div className={styles.skeletonBar} style={{ height: 260 }} />
       </div>
+    </div>
+  );
+}
+
+const truncateLabel = (value, limit = 14) => {
+  const label = String(value || "");
+  return label.length > limit ? `${label.slice(0, limit - 1)}…` : label;
+};
+
+const formatDateLabel = (value) => {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+};
+
+function CustomTooltip({ active, payload, label, valueSuffix = "", labelFormatter }) {
+  if (!active || !payload?.length) {
+    return null;
+  }
+
+  const point = payload[0];
+
+  return (
+    <div className={styles.tooltip}>
+      <div className={styles.tooltipLabel}>
+        {labelFormatter ? labelFormatter(label) : label}
+      </div>
+      <div className={styles.tooltipValue}>
+        {point.value}
+        {valueSuffix}
+      </div>
+    </div>
+  );
+}
+
+function ChartCard({ title, subtitle, children }) {
+  return (
+    <div className={styles.chartCard}>
+      <div className={styles.chartHeader}>
+        <div className={styles.chartTitle}>{title}</div>
+        {subtitle ? <div className={styles.chartSubtitle}>{subtitle}</div> : null}
+      </div>
+      {children}
     </div>
   );
 }
@@ -48,12 +92,16 @@ export default function DashboardCharts({
   setShowChartAvgWeight,
   countText,
 }) {
-  const anyChartSelected = showChartSpecies || showChartLakes || showChartTrend || showChartAvgWeight;
+  const anyChartSelected =
+    showChartSpecies || showChartLakes || showChartTrend || showChartAvgWeight;
 
   const chartSpeciesTop = useMemo(() => buildTopSpecies(logs, 10), [logs]);
   const chartLakesTop = useMemo(() => buildTopLakes(logs, 10), [logs]);
   const chartTrendByDay = useMemo(() => buildTrendByDay(logs), [logs]);
-  const chartAvgWeightBySpecies = useMemo(() => buildAvgWeightBySpecies(logs, 10), [logs]);
+  const chartAvgWeightBySpecies = useMemo(
+    () => buildAvgWeightBySpecies(logs, 10),
+    [logs],
+  );
 
   const disableLoadCharts = loading && !showCharts;
 
@@ -66,7 +114,9 @@ export default function DashboardCharts({
           disabled={disableLoadCharts}
           className={styles.toggleButton}
           style={{
-            background: showCharts ? "#6c757d" : "#007bff",
+            background: showCharts
+              ? "linear-gradient(135deg, #64748b 0%, #475569 100%)"
+              : "linear-gradient(135deg, #2563eb 0%, #0ea5e9 100%)",
             opacity: disableLoadCharts ? 0.65 : 1,
             cursor: disableLoadCharts ? "not-allowed" : "pointer",
           }}
@@ -82,17 +132,29 @@ export default function DashboardCharts({
         <div className={styles.panel}>
           <div className={styles.checkboxRow}>
             <label className={styles.checkboxLabel}>
-              <input type="checkbox" checked={showChartSpecies} onChange={(e) => setShowChartSpecies(e.target.checked)} />
+              <input
+                type="checkbox"
+                checked={showChartSpecies}
+                onChange={(e) => setShowChartSpecies(e.target.checked)}
+              />
               Top species
             </label>
 
             <label className={styles.checkboxLabel}>
-              <input type="checkbox" checked={showChartLakes} onChange={(e) => setShowChartLakes(e.target.checked)} />
+              <input
+                type="checkbox"
+                checked={showChartLakes}
+                onChange={(e) => setShowChartLakes(e.target.checked)}
+              />
               Top lakes
             </label>
 
             <label className={styles.checkboxLabel}>
-              <input type="checkbox" checked={showChartTrend} onChange={(e) => setShowChartTrend(e.target.checked)} />
+              <input
+                type="checkbox"
+                checked={showChartTrend}
+                onChange={(e) => setShowChartTrend(e.target.checked)}
+              />
               Catches over time
             </label>
 
@@ -113,81 +175,163 @@ export default function DashboardCharts({
           ) : (
             <div className={styles.chartGrid}>
               {showChartSpecies && (
-                <div className={styles.chartCard}>
-                  <div className={styles.chartTitle}>Top species (count)</div>
+                <ChartCard
+                  title="Top species"
+                  subtitle="Most frequently logged species"
+                >
                   {chartSpeciesTop.length === 0 ? (
                     <div className={styles.noData}>No data.</div>
                   ) : (
-                    <ResponsiveContainer width="100%" height={220}>
-                      <BarChart data={chartSpeciesTop} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="name" tick={{ fontSize: 12 }} interval={0} angle={-10} height={55} />
-                        <YAxis allowDecimals={false} />
-                        <Tooltip />
-                        <Bar dataKey="value" />
+                    <ResponsiveContainer width="100%" height={260}>
+                      <BarChart
+                        data={chartSpeciesTop}
+                        margin={{ top: 8, right: 8, left: -18, bottom: 10 }}
+                        barSize={34}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                        <XAxis
+                          dataKey="name"
+                          tick={{ fontSize: 12, fill: "#64748b" }}
+                          tickLine={false}
+                          axisLine={false}
+                          interval={0}
+                          height={46}
+                          tickFormatter={(value) => truncateLabel(value)}
+                        />
+                        <YAxis
+                          allowDecimals={false}
+                          tick={{ fontSize: 12, fill: "#64748b" }}
+                          tickLine={false}
+                          axisLine={false}
+                        />
+                        <Tooltip content={<CustomTooltip valueSuffix=" catches" />} />
+                        <Bar dataKey="value" fill="#2563eb" radius={[10, 10, 0, 0]} />
                       </BarChart>
                     </ResponsiveContainer>
                   )}
-                </div>
+                </ChartCard>
               )}
 
               {showChartLakes && (
-                <div className={styles.chartCard}>
-                  <div className={styles.chartTitle}>Top lakes (count)</div>
+                <ChartCard title="Top lakes" subtitle="Lakes with the most catches">
                   {chartLakesTop.length === 0 ? (
                     <div className={styles.noData}>No data.</div>
                   ) : (
-                    <ResponsiveContainer width="100%" height={220}>
-                      <BarChart data={chartLakesTop} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="name" tick={{ fontSize: 12 }} interval={0} angle={-10} height={55} />
-                        <YAxis allowDecimals={false} />
-                        <Tooltip />
-                        <Bar dataKey="value" />
+                    <ResponsiveContainer width="100%" height={260}>
+                      <BarChart
+                        data={chartLakesTop}
+                        margin={{ top: 8, right: 8, left: -18, bottom: 10 }}
+                        barSize={34}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                        <XAxis
+                          dataKey="name"
+                          tick={{ fontSize: 12, fill: "#64748b" }}
+                          tickLine={false}
+                          axisLine={false}
+                          interval={0}
+                          height={46}
+                          tickFormatter={(value) => truncateLabel(value)}
+                        />
+                        <YAxis
+                          allowDecimals={false}
+                          tick={{ fontSize: 12, fill: "#64748b" }}
+                          tickLine={false}
+                          axisLine={false}
+                        />
+                        <Tooltip content={<CustomTooltip valueSuffix=" catches" />} />
+                        <Bar dataKey="value" fill="#0ea5e9" radius={[10, 10, 0, 0]} />
                       </BarChart>
                     </ResponsiveContainer>
                   )}
-                </div>
+                </ChartCard>
               )}
 
               {showChartTrend && (
-                <div className={styles.chartCard}>
-                  <div className={styles.chartTitle}>Catches over time</div>
+                <ChartCard
+                  title="Catches over time"
+                  subtitle="How your fishing activity changes by day"
+                >
                   {chartTrendByDay.length === 0 ? (
                     <div className={styles.noData}>No data.</div>
                   ) : (
-                    <ResponsiveContainer width="100%" height={220}>
-                      <LineChart data={chartTrendByDay} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="date" tick={{ fontSize: 12 }} interval="preserveStartEnd" />
-                        <YAxis allowDecimals={false} />
-                        <Tooltip />
-                        <Line type="monotone" dataKey="value" dot={false} />
+                    <ResponsiveContainer width="100%" height={260}>
+                      <LineChart
+                        data={chartTrendByDay}
+                        margin={{ top: 8, right: 16, left: -18, bottom: 10 }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                        <XAxis
+                          dataKey="date"
+                          tick={{ fontSize: 12, fill: "#64748b" }}
+                          tickLine={false}
+                          axisLine={false}
+                          tickFormatter={formatDateLabel}
+                          minTickGap={24}
+                        />
+                        <YAxis
+                          allowDecimals={false}
+                          tick={{ fontSize: 12, fill: "#64748b" }}
+                          tickLine={false}
+                          axisLine={false}
+                        />
+                        <Tooltip
+                          content={
+                            <CustomTooltip
+                              valueSuffix=" catches"
+                              labelFormatter={formatDateLabel}
+                            />
+                          }
+                        />
+                        <Line
+                          type="monotone"
+                          dataKey="value"
+                          stroke="#22c55e"
+                          strokeWidth={3}
+                          dot={{ r: 4, strokeWidth: 2, fill: "#ffffff" }}
+                          activeDot={{ r: 6 }}
+                        />
                       </LineChart>
                     </ResponsiveContainer>
                   )}
-                </div>
+                </ChartCard>
               )}
 
               {showChartAvgWeight && (
-                <div className={styles.chartCard}>
-                  <div style={{ fontSize: "13px", fontWeight: 700, marginBottom: "8px" }}>
-                    Avg weight by species (kg)
-                  </div>
+                <ChartCard
+                  title="Average weight by species"
+                  subtitle="Average catch weight in kilograms"
+                >
                   {chartAvgWeightBySpecies.length === 0 ? (
-                    <div style={{ padding: "10px 0", color: "#666" }}>No weights available.</div>
+                    <div className={styles.noData}>No weights available.</div>
                   ) : (
-                    <ResponsiveContainer width="100%" height={220}>
-                      <BarChart data={chartAvgWeightBySpecies} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="name" tick={{ fontSize: 12 }} interval={0} angle={-10} height={55} />
-                        <YAxis />
-                        <Tooltip />
-                        <Bar dataKey="value" />
+                    <ResponsiveContainer width="100%" height={260}>
+                      <BarChart
+                        data={chartAvgWeightBySpecies}
+                        margin={{ top: 8, right: 8, left: -18, bottom: 10 }}
+                        barSize={34}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                        <XAxis
+                          dataKey="name"
+                          tick={{ fontSize: 12, fill: "#64748b" }}
+                          tickLine={false}
+                          axisLine={false}
+                          interval={0}
+                          height={46}
+                          tickFormatter={(value) => truncateLabel(value)}
+                        />
+                        <YAxis
+                          tick={{ fontSize: 12, fill: "#64748b" }}
+                          tickLine={false}
+                          axisLine={false}
+                        />
+                        <Tooltip content={<CustomTooltip valueSuffix=" kg" />} />
+                        <Bar dataKey="value" fill="#8b5cf6" radius={[10, 10, 0, 0]} />
                       </BarChart>
                     </ResponsiveContainer>
                   )}
-                </div>
+                </ChartCard>
               )}
             </div>
           )}

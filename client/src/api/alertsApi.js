@@ -24,3 +24,13 @@ export const deleteAlert = async (waterBodyId) => {
   const { data } = await api.delete(`/alerts/${waterBodyId}`);
   return data;
 };
+
+export const createFavorite = async (waterBodyId) => {
+  const { data } = await api.post("/favorites", { water_body_id: waterBodyId });
+  return data;
+};
+
+export const deleteFavorite = async (waterBodyId) => {
+  const { data } = await api.delete(`/favorites/${waterBodyId}`);
+  return data;
+};

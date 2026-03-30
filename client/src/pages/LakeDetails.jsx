@@ -23,6 +23,8 @@ import { notifyError, notifySuccess } from "../ui/toast";
 import { createLakeIcon } from "../features/fishing-map/fishingMap.utils";
 import {
   createAlert,
+  createFavorite,
+  deleteFavorite,
   getAlertStatus,
   updateAlert,
 } from "../api/alertsApi";
@@ -68,6 +70,15 @@ const DEFAULT_REVIEWS_SUMMARY = {
   average_rating: null,
 };
 
+const formatAverageRating = (value) => {
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue) || numericValue <= 0) {
+    return "No rating yet";
+  }
+
+  return numericValue.toFixed(2);
+};
+
 const cardStyle = {
   background: "white",
   border: "1px solid #e5e7eb",
@@ -100,6 +111,92 @@ const formatDate = (value) => {
   return date.toLocaleDateString();
 };
 
+const DEFAULT_PAGE_SIZES = {
+  species: 3,
+  catches: 3,
+  photos: 10,
+  reviews: 4,
+};
+
+const getTotalPages = (items, pageSize) => {
+  const safeSize = Math.max(1, Number(pageSize) || 1);
+  return Math.max(1, Math.ceil((Array.isArray(items) ? items.length : 0) / safeSize));
+};
+
+const paginateItems = (items, page, pageSize) => {
+  const safeItems = Array.isArray(items) ? items : [];
+  const totalPages = getTotalPages(safeItems, pageSize);
+  const safePage = Math.min(Math.max(1, Number(page) || 1), totalPages);
+  const startIndex = (safePage - 1) * pageSize;
+
+  return {
+    items: safeItems.slice(startIndex, startIndex + pageSize),
+    totalPages,
+    safePage,
+  };
+};
+
+function PaginationControls({ page, totalPages, onChange, itemLabel }) {
+  if (totalPages <= 1) {
+    return null;
+  }
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        gap: "12px",
+        flexWrap: "wrap",
+        marginTop: "14px",
+      }}
+    >
+      <div style={{ fontSize: "13px", color: "#64748b", fontWeight: 700 }}>
+        Page {page} of {totalPages}
+        {itemLabel ? ` · ${itemLabel}` : ""}
+      </div>
+
+      <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+        <button
+          type="button"
+          onClick={() => onChange(page - 1)}
+          disabled={page <= 1}
+          style={{
+            border: "1px solid #d1d5db",
+            background: "white",
+            color: "#334155",
+            borderRadius: 10,
+            padding: "8px 12px",
+            cursor: page <= 1 ? "not-allowed" : "pointer",
+            fontWeight: 700,
+          }}
+        >
+          Previous
+        </button>
+
+        <button
+          type="button"
+          onClick={() => onChange(page + 1)}
+          disabled={page >= totalPages}
+          style={{
+            border: "none",
+            background: "#0d6efd",
+            color: "white",
+            borderRadius: 10,
+            padding: "8px 12px",
+            cursor: page >= totalPages ? "not-allowed" : "pointer",
+            fontWeight: 700,
+            opacity: page >= totalPages ? 0.6 : 1,
+          }}
+        >
+          Next
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function LakeDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -114,6 +211,10 @@ function LakeDetails() {
   const [reviewRating, setReviewRating] = useState(5);
   const [reviewComment, setReviewComment] = useState("");
   const [savingReview, setSavingReview] = useState(false);
+  const [speciesPage, setSpeciesPage] = useState(1);
+  const [catchesPage, setCatchesPage] = useState(1);
+  const [photosPage, setPhotosPage] = useState(1);
+  const [reviewsPage, setReviewsPage] = useState(1);
 
   const [alertState, setAlertState] = useState(DEFAULT_ALERT_STATE);
   const [savingAlertState, setSavingAlertState] = useState(false);
@@ -235,6 +336,49 @@ function LakeDetails() {
     [blockedDates],
   );
 
+  const paginatedSpecies = useMemo(
+    () => paginateItems(speciesSummary, speciesPage, DEFAULT_PAGE_SIZES.species),
+    [speciesSummary, speciesPage],
+  );
+
+  const paginatedCatches = useMemo(
+    () => paginateItems(catches, catchesPage, DEFAULT_PAGE_SIZES.catches),
+    [catches, catchesPage],
+  );
+
+  const paginatedPhotos = useMemo(
+    () => paginateItems(photos, photosPage, DEFAULT_PAGE_SIZES.photos),
+    [photos, photosPage],
+  );
+
+  const paginatedReviews = useMemo(
+    () => paginateItems(reviews, reviewsPage, DEFAULT_PAGE_SIZES.reviews),
+    [reviews, reviewsPage],
+  );
+
+  useEffect(() => {
+    setSpeciesPage((prev) => Math.min(prev, paginatedSpecies.totalPages));
+  }, [paginatedSpecies.totalPages]);
+
+  useEffect(() => {
+    setCatchesPage((prev) => Math.min(prev, paginatedCatches.totalPages));
+  }, [paginatedCatches.totalPages]);
+
+  useEffect(() => {
+    setPhotosPage((prev) => Math.min(prev, paginatedPhotos.totalPages));
+  }, [paginatedPhotos.totalPages]);
+
+  useEffect(() => {
+    setReviewsPage((prev) => Math.min(prev, paginatedReviews.totalPages));
+  }, [paginatedReviews.totalPages]);
+
+  useEffect(() => {
+    setSpeciesPage(1);
+    setCatchesPage(1);
+    setPhotosPage(1);
+    setReviewsPage(1);
+  }, [id]);
+
   const submitReview = async (event) => {
     event.preventDefault();
 
@@ -308,13 +452,15 @@ function LakeDetails() {
           notification_frequency: payload.notification_frequency,
           min_score: payload.min_score,
         });
-      } else {
+      } else if (alertState.enabled || alertState.favorite) {
         await updateAlert(id, {
           is_active: false,
           is_favorite: payload.is_favorite,
           notification_frequency: payload.notification_frequency,
           min_score: payload.min_score,
         });
+      } else if (payload.is_favorite) {
+        await createFavorite(id);
       }
 
       setAlertState(nextState);
@@ -324,6 +470,41 @@ function LakeDetails() {
       }
     } catch (error) {
       notifyError(error, "Failed to update lake settings");
+    } finally {
+      setSavingAlertState(false);
+    }
+  };
+
+  const toggleFavoriteState = async () => {
+    if (savingAlertState) {
+      return;
+    }
+
+    try {
+      setSavingAlertState(true);
+
+      if (alertState.favorite) {
+        if (alertState.enabled) {
+          await updateAlert(id, { is_favorite: false });
+        } else {
+          await deleteFavorite(id);
+        }
+
+        setAlertState((prev) => ({ ...prev, favorite: false }));
+        notifySuccess("Removed from favorites");
+        return;
+      }
+
+      if (alertState.enabled) {
+        await updateAlert(id, { is_favorite: true });
+      } else {
+        await createFavorite(id);
+      }
+
+      setAlertState((prev) => ({ ...prev, favorite: true }));
+      notifySuccess("Added to favorites");
+    } catch (error) {
+      notifyError(error, "Failed to update favorite state");
     } finally {
       setSavingAlertState(false);
     }
@@ -611,7 +792,7 @@ function LakeDetails() {
                 fontWeight: 700,
               }}
             >
-              Rating: {reviewsSummary.average_rating ?? "N/A"} / 5
+              Rating: {formatAverageRating(reviewsSummary.average_rating)} / 5
             </div>
           </div>
         </div>
@@ -917,14 +1098,7 @@ function LakeDetails() {
               <button
                 type="button"
                 disabled={savingAlertState}
-                onClick={() =>
-                  saveAlertSettings(
-                    { ...alertState, favorite: !alertState.favorite },
-                    alertState.favorite
-                      ? "Removed from favorites"
-                      : "Added to favorites",
-                  )
-                }
+                onClick={toggleFavoriteState}
                 style={{
                   width: "100%",
                   background: alertState.favorite ? "#f59e0b" : "#e5e7eb",
@@ -1155,7 +1329,7 @@ function LakeDetails() {
                         color: "#0f172a",
                       }}
                     >
-                      {forecast.desc || "N/A"}
+                      {forecast.desc || "Not available"}
                     </div>
                   </div>
 
@@ -1367,42 +1541,51 @@ function LakeDetails() {
             {speciesSummary.length === 0 ? (
               <div style={{ color: "#64748b" }}>No species data yet.</div>
             ) : (
-              <div style={{ display: "grid", gap: "10px" }}>
-                {speciesSummary.map((item) => (
-                  <div
-                    key={item.species}
-                    style={{
-                      border: "1px solid #e5e7eb",
-                      borderRadius: "12px",
-                      padding: "12px 14px",
-                      background: "#f8fafc",
-                    }}
-                  >
+              <>
+                <div style={{ display: "grid", gap: "10px" }}>
+                  {paginatedSpecies.items.map((item) => (
                     <div
+                      key={item.species}
                       style={{
-                        fontWeight: 800,
-                        color: "#0f172a",
-                        marginBottom: "6px",
+                        border: "1px solid #e5e7eb",
+                        borderRadius: "12px",
+                        padding: "12px 14px",
+                        background: "#f8fafc",
                       }}
                     >
-                      {item.species}
+                      <div
+                        style={{
+                          fontWeight: 800,
+                          color: "#0f172a",
+                          marginBottom: "6px",
+                        }}
+                      >
+                        {item.species}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: "13px",
+                          color: "#475569",
+                          lineHeight: 1.7,
+                        }}
+                      >
+                        Catches: {item.catches_count}
+                        <br />
+                        Average weight: {item.avg_weight_kg ?? "-"} kg
+                        <br />
+                        Max weight: {item.max_weight_kg ?? "-"} kg
+                      </div>
                     </div>
-                    <div
-                      style={{
-                        fontSize: "13px",
-                        color: "#475569",
-                        lineHeight: 1.7,
-                      }}
-                    >
-                      Catches: {item.catches_count}
-                      <br />
-                      Average weight: {item.avg_weight_kg ?? "-"} kg
-                      <br />
-                      Max weight: {item.max_weight_kg ?? "-"} kg
-                    </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+
+                <PaginationControls
+                  page={paginatedSpecies.safePage}
+                  totalPages={paginatedSpecies.totalPages}
+                  onChange={setSpeciesPage}
+                  itemLabel={`${speciesSummary.length} species`}
+                />
+              </>
             )}
           </div>
 
@@ -1417,92 +1600,101 @@ function LakeDetails() {
                 No catches logged for this lake yet.
               </div>
             ) : (
-              <div style={{ display: "grid", gap: "12px" }}>
-                {catches.map((item) => (
-                  <div
-                    key={item.id}
-                    style={{
-                      border: "1px solid #e5e7eb",
-                      borderRadius: "14px",
-                      padding: "14px",
-                      background: "#fff",
-                    }}
-                  >
+              <>
+                <div style={{ display: "grid", gap: "12px" }}>
+                  {paginatedCatches.items.map((item) => (
                     <div
+                      key={item.id}
                       style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        gap: "14px",
-                        alignItems: "start",
-                        flexWrap: "wrap",
+                        border: "1px solid #e5e7eb",
+                        borderRadius: "14px",
+                        padding: "14px",
+                        background: "#fff",
                       }}
                     >
-                      <div>
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          gap: "14px",
+                          alignItems: "start",
+                          flexWrap: "wrap",
+                        }}
+                      >
+                        <div>
+                          <div
+                            style={{
+                              fontSize: "16px",
+                              fontWeight: 800,
+                              color: "#0f172a",
+                            }}
+                          >
+                            {item.species || "Unknown species"}
+                          </div>
+                          <div
+                            style={{
+                              fontSize: "13px",
+                              color: "#64748b",
+                              marginTop: "4px",
+                            }}
+                          >
+                            By {item.full_name || "Unknown angler"} ·{" "}
+                            {formatDateTime(item.catch_time || item.created_at)}
+                          </div>
+                        </div>
+
                         <div
                           style={{
-                            fontSize: "16px",
+                            background: "#eff6ff",
+                            color: "#1d4ed8",
+                            borderRadius: "999px",
+                            padding: "6px 10px",
+                            fontSize: "12px",
                             fontWeight: 800,
-                            color: "#0f172a",
                           }}
                         >
-                          {item.species || "Unknown species"}
+                          {item.weight_kg ?? "-"} kg
                         </div>
+                      </div>
+
+                      {item.notes && (
                         <div
                           style={{
-                            fontSize: "13px",
-                            color: "#64748b",
-                            marginTop: "4px",
+                            marginTop: "10px",
+                            fontSize: "14px",
+                            color: "#334155",
+                            lineHeight: 1.6,
                           }}
                         >
-                          By {item.full_name || "Unknown angler"} ·{" "}
-                          {formatDateTime(item.catch_time || item.created_at)}
+                          {item.notes}
                         </div>
-                      </div>
+                      )}
 
-                      <div
-                        style={{
-                          background: "#eff6ff",
-                          color: "#1d4ed8",
-                          borderRadius: "999px",
-                          padding: "6px 10px",
-                          fontSize: "12px",
-                          fontWeight: 800,
-                        }}
-                      >
-                        {item.weight_kg ?? "-"} kg
-                      </div>
+                      {item.image_url && (
+                        <img
+                          src={`http://localhost:5000/uploads/${item.image_url}`}
+                          alt={item.species || "Catch"}
+                          style={{
+                            width: "100%",
+                            maxHeight: "280px",
+                            objectFit: "cover",
+                            borderRadius: "12px",
+                            marginTop: "12px",
+                            border: "1px solid #e5e7eb",
+                          }}
+                        />
+                      )}
                     </div>
+                  ))}
+                </div>
 
-                    {item.notes && (
-                      <div
-                        style={{
-                          marginTop: "10px",
-                          fontSize: "14px",
-                          color: "#334155",
-                          lineHeight: 1.6,
-                        }}
-                      >
-                        {item.notes}
-                      </div>
-                    )}
-
-                    {item.image_url && (
-                      <img
-                        src={`http://localhost:5000/uploads/${item.image_url}`}
-                        alt={item.species || "Catch"}
-                        style={{
-                          width: "100%",
-                          maxHeight: "280px",
-                          objectFit: "cover",
-                          borderRadius: "12px",
-                          marginTop: "12px",
-                          border: "1px solid #e5e7eb",
-                        }}
-                      />
-                    )}
-                  </div>
-                ))}
-              </div>
+                <PaginationControls
+                  page={paginatedCatches.safePage}
+                  totalPages={paginatedCatches.totalPages}
+                  onChange={setCatchesPage}
+                  itemLabel={`${catches.length} catches`}
+                />
+              </>
             )}
           </div>
         </div>
@@ -1518,51 +1710,60 @@ function LakeDetails() {
               No photos uploaded for this lake yet.
             </div>
           ) : (
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
-                gap: "14px",
-              }}
-            >
-              {photos.map((photo) => (
-                <div
-                  key={photo.id}
-                  style={{
-                    border: "1px solid #e5e7eb",
-                    borderRadius: "14px",
-                    overflow: "hidden",
-                    background: "#fff",
-                  }}
-                >
-                  <img
-                    src={`http://localhost:5000/uploads/${photo.image_url}`}
-                    alt={photo.species || "Lake photo"}
+            <>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
+                  gap: "14px",
+                }}
+              >
+                {paginatedPhotos.items.map((photo) => (
+                  <div
+                    key={photo.id}
                     style={{
-                      width: "100%",
-                      height: "180px",
-                      objectFit: "cover",
-                      display: "block",
+                      border: "1px solid #e5e7eb",
+                      borderRadius: "14px",
+                      overflow: "hidden",
+                      background: "#fff",
                     }}
-                  />
-                  <div style={{ padding: "12px" }}>
-                    <div
+                  >
+                    <img
+                      src={`http://localhost:5000/uploads/${photo.image_url}`}
+                      alt={photo.species || "Lake photo"}
                       style={{
-                        fontWeight: 800,
-                        color: "#0f172a",
-                        marginBottom: "4px",
+                        width: "100%",
+                        height: "180px",
+                        objectFit: "cover",
+                        display: "block",
                       }}
-                    >
-                      {photo.species || "Catch photo"}
-                    </div>
-                    <div style={{ fontSize: "12px", color: "#64748b" }}>
-                      {photo.weight_kg ?? "-"} kg ·{" "}
-                      {formatDateTime(photo.catch_time || photo.created_at)}
+                    />
+                    <div style={{ padding: "12px" }}>
+                      <div
+                        style={{
+                          fontWeight: 800,
+                          color: "#0f172a",
+                          marginBottom: "4px",
+                        }}
+                      >
+                        {photo.species || "Catch photo"}
+                      </div>
+                      <div style={{ fontSize: "12px", color: "#64748b" }}>
+                        {photo.weight_kg ?? "-"} kg ·{" "}
+                        {formatDateTime(photo.catch_time || photo.created_at)}
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+
+              <PaginationControls
+                page={paginatedPhotos.safePage}
+                totalPages={paginatedPhotos.totalPages}
+                onChange={setPhotosPage}
+                itemLabel={`${photos.length} photos`}
+              />
+            </>
           )}
         </div>
 
@@ -1577,6 +1778,7 @@ function LakeDetails() {
               display: "grid",
               gridTemplateColumns: isMobile ? "1fr" : "0.9fr 1.1fr",
               gap: "20px",
+              alignItems: "start",
             }}
           >
             <div
@@ -1585,6 +1787,8 @@ function LakeDetails() {
                 border: "1px solid #e2e8f0",
                 borderRadius: "14px",
                 padding: "16px",
+                minWidth: 0,
+                overflow: "hidden",
               }}
             >
               <div
@@ -1605,7 +1809,7 @@ function LakeDetails() {
                   marginBottom: "8px",
                 }}
               >
-                {reviewsSummary.average_rating ?? "N/A"} / 5
+                {formatAverageRating(reviewsSummary.average_rating)} / 5
               </div>
 
               <div
@@ -1618,6 +1822,7 @@ function LakeDetails() {
                 {reviewsSummary.reviews_count ?? 0} review
                 {Number(reviewsSummary.reviews_count) === 1 ? "" : "s"}
               </div>
+
 
               <form onSubmit={submitReview}>
                 <label
@@ -1641,6 +1846,7 @@ function LakeDetails() {
                     borderRadius: "10px",
                     border: "1px solid #d1d5db",
                     marginBottom: "12px",
+                    boxSizing: "border-box",
                   }}
                 >
                   <option value={5}>5 - Excellent</option>
@@ -1671,11 +1877,14 @@ function LakeDetails() {
                   placeholder="Share your experience with this lake..."
                   style={{
                     width: "100%",
+                    maxWidth: "100%",
+                    display: "block",
                     padding: "10px",
                     borderRadius: "10px",
                     border: "1px solid #d1d5db",
                     resize: "vertical",
                     marginBottom: "8px",
+                    boxSizing: "border-box",
                   }}
                 />
 
@@ -1721,76 +1930,85 @@ function LakeDetails() {
                       fontWeight: 700,
                     }}
                   >
-                    Delete my review
+                    Remove my review
                   </button>
                 </div>
               </form>
             </div>
 
-            <div>
+            <div style={{ minWidth: 0 }}>
               {reviews.length === 0 ? (
                 <div style={{ color: "#64748b" }}>No reviews yet.</div>
               ) : (
-                <div style={{ display: "grid", gap: "12px" }}>
-                  {reviews.map((review) => (
-                    <div
-                      key={review.id}
-                      style={{
-                        border: "1px solid #e5e7eb",
-                        borderRadius: "14px",
-                        padding: "14px",
-                        background: "#fff",
-                      }}
-                    >
+                <>
+                  <div style={{ display: "grid", gap: "12px" }}>
+                    {paginatedReviews.items.map((review) => (
                       <div
+                        key={review.id}
                         style={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                          gap: "10px",
-                          flexWrap: "wrap",
-                          marginBottom: "8px",
+                          border: "1px solid #e5e7eb",
+                          borderRadius: "14px",
+                          padding: "14px",
+                          background: "#fff",
                         }}
                       >
-                        <div style={{ fontWeight: 800, color: "#0f172a" }}>
-                          {review.full_name || "Anonymous"}
+                        <div
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            gap: "10px",
+                            flexWrap: "wrap",
+                            marginBottom: "8px",
+                          }}
+                        >
+                          <div style={{ fontWeight: 800, color: "#0f172a" }}>
+                            {review.full_name || "Anonymous"}
+                          </div>
+
+                          <div
+                            style={{
+                              background: "#fef3c7",
+                              color: "#92400e",
+                              borderRadius: "999px",
+                              padding: "5px 10px",
+                              fontSize: "12px",
+                              fontWeight: 800,
+                            }}
+                          >
+                            {review.rating} / 5
+                          </div>
                         </div>
 
                         <div
                           style={{
-                            background: "#fef3c7",
-                            color: "#92400e",
-                            borderRadius: "999px",
-                            padding: "5px 10px",
                             fontSize: "12px",
-                            fontWeight: 800,
+                            color: "#64748b",
+                            marginBottom: "8px",
                           }}
                         >
-                          {review.rating} / 5
+                          {formatDateTime(review.created_at)}
+                        </div>
+
+                        <div
+                          style={{
+                            fontSize: "14px",
+                            color: "#334155",
+                            lineHeight: 1.6,
+                          }}
+                        >
+                          {review.comment || "No comment provided."}
                         </div>
                       </div>
+                    ))}
+                  </div>
 
-                      <div
-                        style={{
-                          fontSize: "12px",
-                          color: "#64748b",
-                          marginBottom: "8px",
-                        }}
-                      >
-                        {formatDateTime(review.created_at)}
-                      </div>
-
-                      <div
-                        style={{
-                          fontSize: "14px",
-                          color: "#334155",
-                          lineHeight: 1.6,
-                        }}
-                      >
-                        {review.comment || "No comment provided."}
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                  <PaginationControls
+                    page={paginatedReviews.safePage}
+                    totalPages={paginatedReviews.totalPages}
+                    onChange={setReviewsPage}
+                    itemLabel={`${reviews.length} reviews`}
+                  />
+                </>
               )}
             </div>
           </div>
