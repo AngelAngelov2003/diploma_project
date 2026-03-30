@@ -5,10 +5,6 @@ export const getOwnerLakes = async () => {
   return data;
 };
 
-export const getClaimableLakes = async () => {
-  const { data } = await api.get("/owner/claimable-lakes");
-  return data;
-};
 
 export const getMyClaimRequests = async () => {
   const { data } = await api.get("/owner/my-claim-requests");

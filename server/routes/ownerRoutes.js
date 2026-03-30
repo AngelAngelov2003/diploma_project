@@ -8,11 +8,6 @@ const router = express.Router();
 
 router.get("/owner/lakes", authorize, requireOwnerOrAdmin, ownerController.getOwnerLakes);
 router.get(
-  "/owner/claimable-lakes",
-  authorize,
-  ownerController.getClaimableLakes
-);
-router.get(
   "/owner/my-claim-requests",
   authorize,
   ownerController.getMyClaimRequests

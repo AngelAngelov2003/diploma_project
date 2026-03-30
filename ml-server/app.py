@@ -10,12 +10,23 @@ app = Flask(__name__)
 
 models_cache = {}
 
+
+def clamp_score(value):
+    try:
+        numeric = float(value)
+    except Exception:
+        return 50
+
+    return int(max(0, min(100, round(numeric))))
+
+
 def get_moon_phase(date_obj):
     try:
         moon = ephem.Moon(date_obj)
         return moon.phase
-    except:
+    except Exception:
         return 0
+
 
 def calculate_moon_score(moon_phase):
     if moon_phase >= 90 or moon_phase <= 10:
@@ -24,6 +35,7 @@ def calculate_moon_score(moon_phase):
         return 20
     else:
         return 50
+
 
 def calculate_weather_score(temp, pressure, wind):
     score = 50
@@ -39,7 +51,8 @@ def calculate_weather_score(temp, pressure, wind):
         score += 15
     elif wind > 30:
         score -= 25
-    return max(0, min(100, score))
+    return clamp_score(score)
+
 
 def calculate_trend_score(current_pressure, prev_pressure):
     diff = current_pressure - prev_pressure
@@ -51,20 +64,21 @@ def calculate_trend_score(current_pressure, prev_pressure):
         return 30
     return 50
 
+
 def calculate_total_score(row):
     w_score = calculate_weather_score(
         row["temperature_2m_max"],
         row["surface_pressure_mean"],
-        row["wind_speed_10m_max"]
+        row["wind_speed_10m_max"],
     )
     m_score = calculate_moon_score(row.get("moon_phase", 50))
     p_trend_score = calculate_trend_score(
-        row["surface_pressure_mean"],
-        row.get("prev_pressure", row["surface_pressure_mean"])
+        row["surface_pressure_mean"], row.get("prev_pressure", row["surface_pressure_mean"])
     )
     return (w_score * 0.4) + (m_score * 0.3) + (p_trend_score * 0.3)
 
-def get_or_train_model(lat, lng, force_refresh=True):
+
+def get_or_train_model(lat, lng, force_refresh=False):
     zone_lat = round(float(lat), 1)
     zone_lng = round(float(lng), 1)
     location_key = f"{zone_lat}_{zone_lng}"
@@ -80,23 +94,36 @@ def get_or_train_model(lat, lng, force_refresh=True):
             f"&daily=temperature_2m_max,surface_pressure_mean,wind_speed_10m_max"
             f"&timezone=auto"
         )
-        res = requests.get(url).json()
-        df = pd.DataFrame(res["daily"])
+        res = requests.get(url, timeout=20)
+        res.raise_for_status()
+        archive_json = res.json()
+
+        daily = archive_json.get("daily") or {}
+        if not daily:
+            return None
+
+        df = pd.DataFrame(daily)
+        if df.empty:
+            return None
+
         df["score"] = df.apply(calculate_total_score, axis=1)
 
         try:
-            catch_res = requests.get("http://localhost:5000/ml/training-data").json()
-            if catch_res and len(catch_res) > 0:
-                df_real = pd.DataFrame(catch_res)
+            catch_res = requests.get("http://localhost:5000/ml/training-data", timeout=10)
+            catch_res.raise_for_status()
+            catch_payload = catch_res.json()
 
-                if "lat" in df_real.columns and "lng" in df_real.columns:
+            if catch_payload and len(catch_payload) > 0:
+                df_real = pd.DataFrame(catch_payload)
+
+                if {"lat", "lng", "temp", "pressure", "wind_speed"}.issubset(df_real.columns):
                     df_real["lat_f"] = df_real["lat"].astype(float)
                     df_real["lng_f"] = df_real["lng"].astype(float)
 
-                    TOLERANCE = 0.2
+                    tolerance = 0.2
                     regional_logs = df_real[
-                        (abs(df_real["lat_f"] - zone_lat) <= TOLERANCE) &
-                        (abs(df_real["lng_f"] - zone_lng) <= TOLERANCE)
+                        (abs(df_real["lat_f"] - zone_lat) <= tolerance)
+                        & (abs(df_real["lng_f"] - zone_lng) <= tolerance)
                     ]
 
                     if not regional_logs.empty:
@@ -112,45 +139,44 @@ def get_or_train_model(lat, lng, force_refresh=True):
                         v3["wind_speed"] += 10
 
                         df_boosted_base = pd.concat(
-                            [regional_logs, v1, v2, v3],
-                            ignore_index=True
+                            [regional_logs, v1, v2, v3], ignore_index=True
                         )
                         df_final_boost = pd.concat(
-                            [df_boosted_base] * 4000,
-                            ignore_index=True
+                            [df_boosted_base] * 400, ignore_index=True
                         )
 
-                        df_real_mapped = pd.DataFrame({
-                            "temperature_2m_max": df_final_boost["temp"],
-                            "surface_pressure_mean": df_final_boost["pressure"],
-                            "wind_speed_10m_max": df_final_boost["wind_speed"],
-                            "score": 100
-                        })
+                        df_real_mapped = pd.DataFrame(
+                            {
+                                "temperature_2m_max": df_final_boost["temp"],
+                                "surface_pressure_mean": df_final_boost["pressure"],
+                                "wind_speed_10m_max": df_final_boost["wind_speed"],
+                                "score": 100,
+                            }
+                        )
 
                         df = pd.concat([df, df_real_mapped], ignore_index=True)
-        except:
+        except Exception:
             pass
 
-        X = df[
-            ["temperature_2m_max", "surface_pressure_mean", "wind_speed_10m_max"]
-        ]
+        X = df[["temperature_2m_max", "surface_pressure_mean", "wind_speed_10m_max"]]
         y = df["score"]
 
         model = RandomForestRegressor(
-            n_estimators=100,
+            n_estimators=120,
             random_state=42,
-            min_samples_leaf=1
+            min_samples_leaf=1,
         )
         model.fit(X.fillna(0), y.fillna(0))
 
         models_cache[location_key] = model
         return model
-    except:
+    except Exception:
         return None
+
 
 @app.route("/predict", methods=["POST"])
 def predict():
-    data = request.json
+    data = request.json or {}
     try:
         lat = data.get("lat")
         lng = data.get("lng")
@@ -162,7 +188,8 @@ def predict():
         moon_phase = get_moon_phase(datetime.now())
         moon_score = calculate_moon_score(moon_phase)
 
-        model = get_or_train_model(lat, lng, force_refresh=True)
+        heuristic_score = clamp_score((weather_score * 0.7) + (moon_score * 0.3))
+        model = get_or_train_model(lat, lng, force_refresh=False)
 
         if model:
             input_df = pd.DataFrame(
@@ -170,27 +197,31 @@ def predict():
                 columns=[
                     "temperature_2m_max",
                     "surface_pressure_mean",
-                    "wind_speed_10m_max"
-                ]
+                    "wind_speed_10m_max",
+                ],
             )
             ai_score = model.predict(input_df)[0]
+            total_score = clamp_score((float(ai_score) * 0.8) + (heuristic_score * 0.2))
         else:
-            ai_score = 50
+            total_score = heuristic_score
 
-        return jsonify({
-            "total_score": int(round(ai_score)),
-            "breakdown": {
-                "weather_score": weather_score,
-                "moon_score": moon_score,
-                "moon_phase": round(moon_phase)
+        return jsonify(
+            {
+                "total_score": total_score,
+                "breakdown": {
+                    "weather_score": weather_score,
+                    "moon_score": moon_score,
+                    "moon_phase": round(moon_phase),
+                },
             }
-        })
+        )
     except Exception as e:
         return jsonify({"error": str(e)}), 400
 
+
 @app.route("/reset-model", methods=["POST"])
 def reset_model():
-    data = request.json
+    data = request.json or {}
     lat = data.get("lat")
     lng = data.get("lng")
 
@@ -203,6 +234,7 @@ def reset_model():
         return jsonify({"message": f"Cache cleared for {location_key}"}), 200
 
     return jsonify({"message": "No cache found for this location"}), 200
+
 
 if __name__ == "__main__":
     app.run(port=5001, debug=True)

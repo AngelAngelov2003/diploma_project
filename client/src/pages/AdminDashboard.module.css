@@ -31,3 +31,11 @@
 .input { composes: input from "../styles/ui.module.css"; padding: 10px 12px; border-color: #d1d5db; font-size: 14px; }
 .textarea { composes: input from "../styles/ui.module.css"; padding: 10px 12px; border-color: #d1d5db; font-size: 14px; resize: vertical; }
 .muted { composes: mutedText from "../styles/ui.module.css"; font-size: 14px; }
+
+.helperText {
+  margin-top: 6px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: #64748b;
+}
+

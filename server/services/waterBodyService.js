@@ -68,9 +68,12 @@ const searchWaterBodies = async (query) => {
         longitude
       FROM water_bodies_map_mv
       WHERE
-        name ILIKE $1
-        OR description ILIKE $1
-        OR type ILIKE $1
+        (
+          name ILIKE $1
+          OR description ILIKE $1
+          OR type ILIKE $1
+        )
+        AND is_private = TRUE
       ORDER BY
         CASE
           WHEN LOWER(TRIM(name)) = LOWER(TRIM($2)) THEN 0

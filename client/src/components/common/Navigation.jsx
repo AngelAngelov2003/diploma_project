@@ -14,6 +14,7 @@ import {
   FaChartPie,
   FaSignInAlt,
   FaUserPlus,
+  FaFileSignature,
 } from "react-icons/fa";
 
 const Navigation = ({ isAuthenticated, onLogout, currentUser }) => {
@@ -32,6 +33,7 @@ const Navigation = ({ isAuthenticated, onLogout, currentUser }) => {
   }, []);
 
   const isAdmin = currentUser?.role === "admin";
+  const isOwner = currentUser?.role === "owner" || isAdmin;
 
   const linkClassName = ({ isActive }) =>
     `main-nav-link ${isActive ? "active" : ""}`;
@@ -67,10 +69,17 @@ const Navigation = ({ isAuthenticated, onLogout, currentUser }) => {
                 <span>Reservations</span>
               </NavLink>
 
-              <NavLink to="/owner" className={linkClassName}>
-                <FaTools />
-                <span>Owner Panel</span>
+              <NavLink to="/become-owner" className={linkClassName}>
+                <FaFileSignature />
+                <span>Become Owner</span>
               </NavLink>
+
+              {isOwner && (
+                <NavLink to="/owner" className={linkClassName}>
+                  <FaTools />
+                  <span>Owner Panel</span>
+                </NavLink>
+              )}
 
               {isAdmin && (
                 <NavLink to="/admin" className={linkClassName}>
@@ -141,13 +150,26 @@ const Navigation = ({ isAuthenticated, onLogout, currentUser }) => {
                     <div
                       onClick={() => {
                         setShowMenu(false);
-                        navigate("/owner");
+                        navigate("/become-owner");
                       }}
                       className="main-user-dropdown-item"
                     >
-                      <FaTools />
-                      <span>Owner Panel</span>
+                      <FaFileSignature />
+                      <span>Become Owner</span>
                     </div>
+
+                    {isOwner && (
+                      <div
+                        onClick={() => {
+                          setShowMenu(false);
+                          navigate("/owner");
+                        }}
+                        className="main-user-dropdown-item"
+                      >
+                        <FaTools />
+                        <span>Owner Panel</span>
+                      </div>
+                    )}
 
                     {isAdmin && (
                       <div

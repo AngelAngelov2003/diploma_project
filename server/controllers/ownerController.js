@@ -1,4 +1,7 @@
 const pool = require("../db");
+const {
+  refreshWaterBodyMaterializedViews,
+} = require("../services/materializedViewService");
 
 const getOwnerLakes = async (req, res) => {
   try {
@@ -21,39 +24,12 @@ const getOwnerLakes = async (req, res) => {
         WHERE owner_id = $1
         ORDER BY name ASC
       `,
-      [req.user]
+      [req.user],
     );
 
     res.json(q.rows);
   } catch (err) {
     res.status(500).json({ error: "Failed to load owner lakes" });
-  }
-};
-
-const getClaimableLakes = async (req, res) => {
-  try {
-    const q = await pool.query(`
-      SELECT
-        w.id,
-        w.name,
-        w.description,
-        w.type,
-        w.is_private,
-        w.owner_id,
-        w.price_per_day,
-        w.capacity,
-        w.is_reservable,
-        w.availability_notes,
-        w.created_at,
-        w.updated_at
-      FROM water_bodies w
-      WHERE w.is_private = TRUE AND w.owner_id IS NULL
-      ORDER BY w.name ASC
-    `);
-
-    res.json(q.rows);
-  } catch (err) {
-    res.status(500).json({ error: "Failed to load claimable lakes" });
   }
 };
 
@@ -90,7 +66,7 @@ const getMyClaimRequests = async (req, res) => {
           END,
           r.created_at DESC
       `,
-      [req.user]
+      [req.user],
     );
 
     res.json(q.rows);
@@ -101,15 +77,24 @@ const getMyClaimRequests = async (req, res) => {
 
 const createClaimRequest = async (req, res) => {
   try {
-    const { water_body_id, full_name, email, phone, company_name, message } = req.body;
+    const { water_body_id, full_name, email, phone, company_name, message } =
+      req.body;
 
     const waterBodyId = String(water_body_id || "").trim();
     const nextFullName = String(full_name || "").trim();
-    const nextEmail = String(email || "").trim().toLowerCase();
+    const nextEmail = String(email || "")
+      .trim()
+      .toLowerCase();
     const nextPhone = String(phone || "").trim() || null;
     const nextCompanyName = String(company_name || "").trim() || null;
     const nextMessage = String(message || "").trim() || null;
     const proofDocumentUrl = req.file ? req.file.filename : null;
+
+    if (lake.owner_id) {
+      return res.status(400).json({
+        message: "This lake already has an owner",
+      });
+    }
 
     if (!waterBodyId) {
       return res.status(400).json({ error: "water_body_id is required" });
@@ -129,11 +114,11 @@ const createClaimRequest = async (req, res) => {
 
     const lakeQ = await pool.query(
       `
-        SELECT id, name, is_private, owner_id
+        SELECT id, name, is_private, is_reservable, owner_id
         FROM water_bodies
         WHERE id = $1
       `,
-      [waterBodyId]
+      [waterBodyId],
     );
 
     if (!lakeQ.rows.length) {
@@ -142,8 +127,10 @@ const createClaimRequest = async (req, res) => {
 
     const lake = lakeQ.rows[0];
 
-    if (!lake.is_private) {
-      return res.status(400).json({ error: "Only private lakes can be requested" });
+    if (!lake.is_private || !lake.is_reservable) {
+      return res.status(400).json({
+        error: "Only private, reservable lakes can be requested",
+      });
     }
 
     if (lake.owner_id) {
@@ -157,11 +144,13 @@ const createClaimRequest = async (req, res) => {
         WHERE water_body_id = $1 AND user_id = $2 AND status = 'pending'
         LIMIT 1
       `,
-      [waterBodyId, req.user]
+      [waterBodyId, req.user],
     );
 
     if (existingPendingQ.rows.length) {
-      return res.status(400).json({ error: "You already have a pending request for this lake" });
+      return res
+        .status(400)
+        .json({ error: "You already have a pending request for this lake" });
     }
 
     const q = await pool.query(
@@ -191,7 +180,7 @@ const createClaimRequest = async (req, res) => {
         nextCompanyName,
         nextMessage,
         proofDocumentUrl,
-      ]
+      ],
     );
 
     res.json(q.rows[0]);
@@ -220,39 +209,61 @@ const updateOwnerLake = async (req, res) => {
         FROM water_bodies
         WHERE id = $1 AND owner_id = $2
       `,
-      [waterBodyId, req.user]
+      [waterBodyId, req.user],
     );
 
     if (!existing.rows.length) {
-      return res.status(404).json({ error: "Lake not found or not owned by you" });
+      return res
+        .status(404)
+        .json({ error: "Lake not found or not owned by you" });
     }
 
     const current = existing.rows[0];
 
     const nextName = String(name ?? current.name ?? "").trim();
-    const nextDescription = String(description ?? current.description ?? "").trim() || null;
+    const nextDescription =
+      String(description ?? current.description ?? "").trim() || null;
     const nextType = String(type ?? current.type ?? "").trim() || null;
-    const nextIsPrivate =
-      typeof is_private === "boolean" ? is_private : Boolean(current.is_private);
+    let nextIsPrivate =
+      typeof is_private === "boolean"
+        ? is_private
+        : Boolean(current.is_private);
     const nextPricePerDay =
-      price_per_day !== undefined ? Number(price_per_day) : Number(current.price_per_day || 0);
+      price_per_day !== undefined
+        ? Number(price_per_day)
+        : Number(current.price_per_day || 0);
     const nextCapacity =
       capacity !== undefined ? Number(capacity) : Number(current.capacity || 1);
-    const nextIsReservable =
-      typeof is_reservable === "boolean" ? is_reservable : Boolean(current.is_reservable);
+    let nextIsReservable =
+      typeof is_reservable === "boolean"
+        ? is_reservable
+        : Boolean(current.is_reservable);
     const nextAvailabilityNotes =
-      String(availability_notes ?? current.availability_notes ?? "").trim() || null;
+      String(availability_notes ?? current.availability_notes ?? "").trim() ||
+      null;
+
+    if (nextIsReservable) {
+      nextIsPrivate = true;
+    }
+
+    if (!nextIsPrivate) {
+      nextIsReservable = false;
+    }
 
     if (!nextName) {
       return res.status(400).json({ error: "Lake name is required" });
     }
 
     if (!Number.isFinite(nextPricePerDay) || nextPricePerDay < 0) {
-      return res.status(400).json({ error: "price_per_day must be 0 or greater" });
+      return res
+        .status(400)
+        .json({ error: "price_per_day must be 0 or greater" });
     }
 
     if (!Number.isInteger(nextCapacity) || nextCapacity < 1) {
-      return res.status(400).json({ error: "capacity must be an integer greater than 0" });
+      return res
+        .status(400)
+        .json({ error: "capacity must be an integer greater than 0" });
     }
 
     const q = await pool.query(
@@ -282,8 +293,10 @@ const updateOwnerLake = async (req, res) => {
         nextCapacity,
         nextIsReservable,
         nextAvailabilityNotes,
-      ]
+      ],
     );
+
+    await refreshWaterBodyMaterializedViews();
 
     res.json(q.rows[0]);
   } catch (err) {
@@ -301,11 +314,13 @@ const getOwnerBlockedDates = async (req, res) => {
         FROM water_bodies
         WHERE id = $1 AND owner_id = $2
       `,
-      [waterBodyId, req.user]
+      [waterBodyId, req.user],
     );
 
     if (!ownerQ.rows.length) {
-      return res.status(404).json({ error: "Lake not found or not owned by you" });
+      return res
+        .status(404)
+        .json({ error: "Lake not found or not owned by you" });
     }
 
     const q = await pool.query(
@@ -315,7 +330,7 @@ const getOwnerBlockedDates = async (req, res) => {
         WHERE water_body_id = $1
         ORDER BY blocked_date ASC
       `,
-      [waterBodyId]
+      [waterBodyId],
     );
 
     res.json(q.rows);
@@ -339,11 +354,13 @@ const createOwnerBlockedDate = async (req, res) => {
         FROM water_bodies
         WHERE id = $1 AND owner_id = $2
       `,
-      [waterBodyId, req.user]
+      [waterBodyId, req.user],
     );
 
     if (!ownerQ.rows.length) {
-      return res.status(404).json({ error: "Lake not found or not owned by you" });
+      return res
+        .status(404)
+        .json({ error: "Lake not found or not owned by you" });
     }
 
     const q = await pool.query(
@@ -354,7 +371,7 @@ const createOwnerBlockedDate = async (req, res) => {
         SET reason = EXCLUDED.reason
         RETURNING *
       `,
-      [waterBodyId, blocked_date, String(reason || "").trim() || null]
+      [waterBodyId, blocked_date, String(reason || "").trim() || null],
     );
 
     res.json(q.rows[0]);
@@ -373,11 +390,13 @@ const deleteOwnerBlockedDate = async (req, res) => {
         FROM water_bodies
         WHERE id = $1 AND owner_id = $2
       `,
-      [waterBodyId, req.user]
+      [waterBodyId, req.user],
     );
 
     if (!ownerQ.rows.length) {
-      return res.status(404).json({ error: "Lake not found or not owned by you" });
+      return res
+        .status(404)
+        .json({ error: "Lake not found or not owned by you" });
     }
 
     await pool.query(
@@ -385,7 +404,7 @@ const deleteOwnerBlockedDate = async (req, res) => {
         DELETE FROM lake_blocked_dates
         WHERE id = $1 AND water_body_id = $2
       `,
-      [blockedDateId, waterBodyId]
+      [blockedDateId, waterBodyId],
     );
 
     res.json({ ok: true });
@@ -396,7 +415,6 @@ const deleteOwnerBlockedDate = async (req, res) => {
 
 module.exports = {
   getOwnerLakes,
-  getClaimableLakes,
   getMyClaimRequests,
   createClaimRequest,
   updateOwnerLake,

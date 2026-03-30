@@ -26,29 +26,6 @@ const getLakesOwnedByUser = async (userId) => {
   return q.rows;
 };
 
-const getClaimableLakes = async () => {
-  const q = await pool.query(`
-    SELECT
-      w.id,
-      w.name,
-      w.description,
-      w.type,
-      w.is_private,
-      w.owner_id,
-      w.price_per_day,
-      w.capacity,
-      w.is_reservable,
-      w.availability_notes,
-      w.created_at,
-      w.updated_at
-    FROM water_bodies w
-    WHERE w.is_private = TRUE AND w.owner_id IS NULL
-    ORDER BY w.name ASC
-  `);
-
-  return q.rows;
-};
-
 const getClaimRequestsForUser = async (userId) => {
   const q = await pool.query(
     `
@@ -89,6 +66,5 @@ const getClaimRequestsForUser = async (userId) => {
 
 module.exports = {
   getLakesOwnedByUser,
-  getClaimableLakes,
   getClaimRequestsForUser,
 };

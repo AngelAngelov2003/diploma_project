@@ -55,6 +55,39 @@ const paginateItems = (items, currentPage, pageSize = PAGE_SIZE) => {
   };
 };
 
+const getLakeMode = (lake) => {
+  if (lake?.is_private && lake?.is_reservable) {
+    return "private_reservable";
+  }
+
+  if (lake?.is_private) {
+    return "private_not_reservable";
+  }
+
+  return "public";
+};
+
+const applyLakeMode = (lake, mode) => {
+  const nextLake = { ...lake };
+
+  if (mode === "private_reservable") {
+    nextLake.is_private = true;
+    nextLake.is_reservable = true;
+    return nextLake;
+  }
+
+  if (mode === "private_not_reservable") {
+    nextLake.is_private = true;
+    nextLake.is_reservable = false;
+    return nextLake;
+  }
+
+  nextLake.is_private = false;
+  nextLake.is_reservable = false;
+  nextLake.owner_id = null;
+  return nextLake;
+};
+
 const getUploadUrl = (proofDocumentUrl) => {
   if (!proofDocumentUrl) {
     return "";
@@ -323,7 +356,28 @@ export default function AdminDashboard() {
 
   const updateLakeLocal = (lakeId, field, value) => {
     setWaterBodies((prev) =>
-      prev.map((lake) => (lake.id === lakeId ? { ...lake, [field]: value } : lake)),
+      prev.map((lake) => {
+        if (lake.id !== lakeId) {
+          return lake;
+        }
+
+        if (field === "lake_mode") {
+          return applyLakeMode(lake, value);
+        }
+
+        const nextLake = { ...lake, [field]: value };
+
+        if (field === "is_reservable" && value === true) {
+          nextLake.is_private = true;
+        }
+
+        if (field === "is_private" && value === false) {
+          nextLake.is_reservable = false;
+          nextLake.owner_id = null;
+        }
+
+        return nextLake;
+      }),
     );
   };
 
@@ -339,24 +393,30 @@ export default function AdminDashboard() {
     );
   };
 
-  const saveLake = async (lake) => {
+  const buildLakePayload = (lake) => ({
+    name: String(lake.name || "").trim(),
+    description: String(lake.description || "").trim(),
+    type: String(lake.type || "").trim(),
+    is_private: Boolean(lake.is_private),
+    owner_id: lake.owner_id || null,
+    price_per_day: Number(lake.price_per_day || 0),
+    capacity: Number(lake.capacity || 1),
+    is_reservable: Boolean(lake.is_reservable),
+    availability_notes: String(lake.availability_notes || "").trim(),
+  });
+
+  const saveLake = async (lake, options = {}) => {
+    const { successMessage = "Water body updated", showSuccessToast = true } = options;
+
     try {
       setSavingWaterBodyId(lake.id);
 
-      const payload = {
-        name: String(lake.name || "").trim(),
-        description: String(lake.description || "").trim(),
-        type: String(lake.type || "").trim(),
-        is_private: Boolean(lake.is_private),
-        owner_id: lake.owner_id || null,
-        price_per_day: Number(lake.price_per_day || 0),
-        capacity: Number(lake.capacity || 1),
-        is_reservable: Boolean(lake.is_reservable),
-        availability_notes: String(lake.availability_notes || "").trim(),
-      };
+      await updateAdminWaterBody(lake.id, buildLakePayload(lake));
 
-      await updateAdminWaterBody(lake.id, payload);
-      notifySuccess("Water body updated");
+      if (showSuccessToast && successMessage) {
+        notifySuccess(successMessage);
+      }
+
       await loadWaterBodies();
       await loadOverview();
     } catch (error) {
@@ -767,38 +827,36 @@ export default function AdminDashboard() {
 
                         <div>
                           <div className={ui.fieldLabel}>
-                            Private
+                            Lake mode
                           </div>
                           <select
-                            value={lake.is_private ? "true" : "false"}
-                            onChange={(e) =>
-                              updateLakeLocal(lake.id, "is_private", e.target.value === "true")
-                            }
+                            value={getLakeMode(lake)}
+                            onChange={async (e) => {
+                              const nextLake = applyLakeMode(lake, e.target.value);
+                              setWaterBodies((prev) =>
+                                prev.map((item) => (item.id === lake.id ? nextLake : item)),
+                              );
+                              await saveLake(nextLake, {
+                                successMessage: "Lake mode updated",
+                                showSuccessToast: true,
+                              });
+                            }}
                             className={styles.input}
+                            disabled={savingWaterBodyId === lake.id}
                           >
-                            <option value="false">Public</option>
-                            <option value="true">Private</option>
+                            <option value="public">Public</option>
+                            <option value="private_not_reservable">
+                              Private, not reservable
+                            </option>
+                            <option value="private_reservable">
+                              Private, reservable
+                            </option>
                           </select>
-                        </div>
-
-                        <div>
-                          <div className={ui.fieldLabel}>
-                            Reservable
+                          <div className={styles.helperText}>
+                            Public lakes are open in the atlas and cannot have bookings or an owner.
+                            Private lakes are owner-controlled, and only the reservable mode supports
+                            reservations and ownership requests.
                           </div>
-                          <select
-                            value={lake.is_reservable ? "true" : "false"}
-                            onChange={(e) =>
-                              updateLakeLocal(
-                                lake.id,
-                                "is_reservable",
-                                e.target.value === "true",
-                              )
-                            }
-                            className={styles.input}
-                          >
-                            <option value="false">Disabled</option>
-                            <option value="true">Enabled</option>
-                          </select>
                         </div>
 
                         <div>

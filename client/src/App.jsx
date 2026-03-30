@@ -15,16 +15,67 @@ import LakeDetails from "./pages/LakeDetails";
 import MyCatches from "./pages/MyCatches";
 import ReservationsPage from "./pages/ReservationsPage";
 import OwnerPanel from "./pages/OwnerPanel";
+import BecomeOwner from "./pages/BecomeOwner";
 import AdminDashboard from "./pages/AdminDashboard";
 import Profile from "./pages/Profile";
 import { getCurrentUser } from "./api/authApi";
+import { AUTH_EXPIRED_EVENT } from "./api/client";
+import { notifyInfo } from "./ui/toast";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+
+const shouldResetToMapOnReload = () => {
+  if (typeof window === "undefined") {
+    return false;
+  }
+
+  const navigationEntries =
+    typeof window.performance?.getEntriesByType === "function"
+      ? window.performance.getEntriesByType("navigation")
+      : [];
+
+  return navigationEntries?.[0]?.type === "reload";
+};
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
+
+  useEffect(() => {
+    if (!shouldResetToMapOnReload()) {
+      return;
+    }
+
+    if (window.location.pathname !== "/") {
+      window.history.replaceState({}, "", "/");
+    }
+  }, []);
+
+  useEffect(() => {
+    const handleAuthExpired = () => {
+      setCurrentUser(null);
+      setIsAuthenticated(false);
+      setAuthChecked(true);
+    };
+
+    window.addEventListener(AUTH_EXPIRED_EVENT, handleAuthExpired);
+
+    return () => {
+      window.removeEventListener(AUTH_EXPIRED_EVENT, handleAuthExpired);
+    };
+  }, []);
+
+  useEffect(() => {
+    const expiredMessage = sessionStorage.getItem("auth_expired_message");
+
+    if (!expiredMessage) {
+      return;
+    }
+
+    sessionStorage.removeItem("auth_expired_message");
+    notifyInfo(expiredMessage);
+  }, []);
 
   useEffect(() => {
     const initializeAuth = async () => {
@@ -170,9 +221,24 @@ function App() {
         />
 
         <Route
+          path="/become-owner"
+          element={
+            isAuthenticated ? <BecomeOwner /> : <Navigate to="/login" replace />
+          }
+        />
+
+        <Route
           path="/owner"
           element={
-            isAuthenticated ? <OwnerPanel /> : <Navigate to="/login" replace />
+            isAuthenticated ? (
+              currentUser?.role === "owner" || currentUser?.role === "admin" ? (
+                <OwnerPanel />
+              ) : (
+                <Navigate to="/become-owner" replace />
+              )
+            ) : (
+              <Navigate to="/login" replace />
+            )
           }
         />
 

@@ -1,4 +1,5 @@
 const pool = require("../db");
+const { refreshWaterBodyMaterializedViews } = require("../services/materializedViewService");
 
 const getAdminAnalytics = async (req, res) => {
   try {
@@ -245,7 +246,7 @@ const updateWaterBody = async (req, res) => {
     const nextName = String(name ?? current.name ?? "").trim();
     const nextDescription = String(description ?? current.description ?? "").trim() || null;
     const nextType = String(type ?? current.type ?? "").trim() || null;
-    const nextIsPrivate =
+    let nextIsPrivate =
       typeof is_private === "boolean" ? is_private : Boolean(current.is_private);
     const nextOwnerId =
       owner_id === "" || owner_id === undefined ? current.owner_id : owner_id || null;
@@ -253,10 +254,19 @@ const updateWaterBody = async (req, res) => {
       price_per_day !== undefined ? Number(price_per_day) : Number(current.price_per_day || 0);
     const nextCapacity =
       capacity !== undefined ? Number(capacity) : Number(current.capacity || 1);
-    const nextIsReservable =
+    let nextIsReservable =
       typeof is_reservable === "boolean" ? is_reservable : Boolean(current.is_reservable);
     const nextAvailabilityNotes =
       String(availability_notes ?? current.availability_notes ?? "").trim() || null;
+
+
+    if (nextIsReservable) {
+      nextIsPrivate = true;
+    }
+
+    if (!nextIsPrivate) {
+      nextIsReservable = false;
+    }
 
     if (!nextName) {
       return res.status(400).json({ error: "name is required" });
@@ -268,6 +278,12 @@ const updateWaterBody = async (req, res) => {
 
     if (!Number.isInteger(nextCapacity) || nextCapacity < 1) {
       return res.status(400).json({ error: "capacity must be an integer greater than 0" });
+    }
+
+    if (nextOwnerId && !nextIsPrivate) {
+      return res.status(400).json({
+        error: "A public lake cannot have an owner assigned. Set it to private first.",
+      });
     }
 
     if (nextOwnerId) {
@@ -327,6 +343,8 @@ const updateWaterBody = async (req, res) => {
       ]
     );
 
+    await refreshWaterBodyMaterializedViews();
+
     res.json(q.rows[0]);
   } catch (err) {
     res.status(500).json({ error: "Failed to update water body" });
@@ -344,6 +362,7 @@ const deleteWaterBody = async (req, res) => {
     }
 
     await pool.query(`DELETE FROM water_bodies WHERE id = $1`, [waterBodyId]);
+    await refreshWaterBodyMaterializedViews();
 
     res.json({ ok: true });
   } catch (err) {
@@ -452,7 +471,7 @@ const updateOwnerClaimRequest = async (req, res) => {
 
     const existingQ = await client.query(
       `
-        SELECT r.*, w.owner_id, w.is_private
+        SELECT r.*, w.owner_id, w.is_private, w.is_reservable
         FROM lake_owner_claim_requests r
         JOIN water_bodies w ON w.id = r.water_body_id
         WHERE r.id = $1::uuid
@@ -468,9 +487,11 @@ const updateOwnerClaimRequest = async (req, res) => {
 
     const request = existingQ.rows[0];
 
-    if (!request.is_private) {
+    if (!request.is_private || !request.is_reservable) {
       await client.query("ROLLBACK");
-      return res.status(400).json({ error: "The selected lake is not private" });
+      return res.status(400).json({
+        error: "The selected lake must be both private and reservable",
+      });
     }
 
     if (nextStatus === "approved") {
@@ -560,6 +581,7 @@ const updateOwnerClaimRequest = async (req, res) => {
     }
 
     await client.query("COMMIT");
+    await refreshWaterBodyMaterializedViews();
     res.json(updateQ.rows[0]);
   } catch (err) {
     await client.query("ROLLBACK");

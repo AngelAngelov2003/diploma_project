@@ -1,0 +1,171 @@
+.page {
+  composes: page from "../styles/ui.module.css";
+}
+.shell {
+  composes: shell shellNarrow from "../styles/ui.module.css";
+}
+.hero {
+  composes: hero heroDark from "../styles/ui.module.css";
+}
+.heroTitle {
+  composes: heroTitle from "../styles/ui.module.css";
+}
+.heroText {
+  composes: heroText from "../styles/ui.module.css";
+}
+.stack {
+  composes: stack from "../styles/ui.module.css";
+}
+.card {
+  composes: card from "../styles/ui.module.css";
+}
+.loading {
+  composes: loading from "../styles/ui.module.css";
+}
+.input {
+  composes: input from "../styles/ui.module.css";
+}
+.formGrid {
+  composes: formGrid from "../styles/ui.module.css";
+}
+.fieldLabel {
+  composes: fieldLabel from "../styles/ui.module.css";
+}
+.sectionTitle {
+  composes: sectionTitle from "../styles/ui.module.css";
+}
+.helperText {
+  composes: metaText from "../styles/ui.module.css";
+  margin-top: 8px;
+}
+.emptyText {
+  composes: emptyState from "../styles/ui.module.css";
+}
+.formStack {
+  display: grid;
+  gap: 16px;
+}
+.resultsList {
+  margin-top: 10px;
+  display: grid;
+  gap: 8px;
+}
+.resultButton {
+  text-align: left;
+  border: 1px solid #dbe5f0;
+  border-radius: 12px;
+  padding: 12px;
+  background: #f8fafc;
+  cursor: pointer;
+  display: grid;
+  gap: 4px;
+}
+.resultButton:hover {
+  border-color: #93c5fd;
+  background: #eff6ff;
+}
+.resultButtonActive {
+  border-color: #2563eb;
+  background: #dbeafe;
+}
+
+.resultButtonDisabled {
+  border-color: #e5e7eb;
+  background: #f8fafc;
+}
+.resultHint {
+  font-size: 12px;
+  color: #b45309;
+}
+.resultTitle {
+  font-weight: 800;
+  color: #0f172a;
+}
+.resultMeta {
+  font-size: 12px;
+  color: #64748b;
+}
+.selectedLakeBox {
+  margin-top: 12px;
+  padding: 14px;
+  border-radius: 14px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+}
+.selectedLakeTitle {
+  font-size: 12px;
+  font-weight: 700;
+  color: #1d4ed8;
+  text-transform: uppercase;
+}
+.selectedLakeName {
+  margin-top: 6px;
+  font-size: 18px;
+  font-weight: 800;
+  color: #0f172a;
+}
+.textarea {
+  width: 100%;
+  border-radius: 12px;
+  border: 1px solid #d1d5db;
+  padding: 12px;
+  box-sizing: border-box;
+  resize: vertical;
+  min-height: 110px;
+}
+.actionRow {
+  display: flex;
+  justify-content: flex-end;
+}
+.submitButton {
+  border: none;
+  border-radius: 12px;
+  padding: 12px 18px;
+  background: #2563eb;
+  color: white;
+  font-weight: 800;
+  cursor: pointer;
+}
+.submitButton:disabled {
+  opacity: 0.75;
+  cursor: not-allowed;
+}
+.requestList {
+  display: grid;
+  gap: 12px;
+}
+.requestCard {
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  padding: 14px;
+  display: grid;
+  gap: 8px;
+}
+.requestHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+.requestTitle {
+  font-size: 17px;
+  font-weight: 800;
+  color: #0f172a;
+}
+.requestMeta {
+  font-size: 13px;
+  color: #64748b;
+}
+.requestNote {
+  font-size: 13px;
+  color: #334155;
+}
+.statusBadge {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+}

@@ -25,3 +25,109 @@
 .loading {
   composes: loading from "../styles/ui.module.css";
 }
+.sectionTitle {
+  composes: sectionTitle from "../styles/ui.module.css";
+}
+.formGrid {
+  composes: formGrid from "../styles/ui.module.css";
+}
+.fieldLabel {
+  composes: fieldLabel from "../styles/ui.module.css";
+}
+.metaText {
+  composes: metaText from "../styles/ui.module.css";
+}
+.emptyState {
+  composes: emptyState from "../styles/ui.module.css";
+}
+.sectionHeaderRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+  margin-bottom: 16px;
+}
+.checkboxLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  color: #334155;
+}
+.formStack {
+  display: grid;
+  gap: 14px;
+  margin-top: 14px;
+}
+.textarea {
+  width: 100%;
+  border-radius: 12px;
+  border: 1px solid #d1d5db;
+  padding: 12px;
+  box-sizing: border-box;
+  resize: vertical;
+}
+.actionRow {
+  margin-top: 16px;
+  display: flex;
+  justify-content: flex-end;
+}
+.actionRowLeft {
+  margin-top: 12px;
+  display: flex;
+  justify-content: flex-start;
+}
+.primaryButton,
+.secondaryButton,
+.dangerButton {
+  border: none;
+  border-radius: 12px;
+  padding: 10px 14px;
+  color: white;
+  font-weight: 800;
+  cursor: pointer;
+}
+.primaryButton {
+  background: #2563eb;
+}
+.secondaryButton {
+  background: #0f766e;
+}
+.dangerButton {
+  background: #dc2626;
+}
+.primaryButton:disabled,
+.secondaryButton:disabled,
+.dangerButton:disabled {
+  opacity: 0.75;
+  cursor: not-allowed;
+}
+.blockedDatesSection {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid #e5e7eb;
+}
+.subsectionTitle {
+  margin: 0 0 12px 0;
+  color: #0f172a;
+  font-size: 16px;
+}
+.blockedList {
+  margin-top: 14px;
+  display: grid;
+  gap: 10px;
+}
+.blockedItem {
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 12px;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.blockedDate {
+  font-weight: 800;
+  color: #0f172a;
+}
