@@ -257,6 +257,92 @@ export const getBoundsForGeoJsonFeature = (feature) => {
   return bounds.isValid() ? bounds : null;
 };
 
+
+
+export const getLakeGeometry = (lake) => {
+  const boundary = lake?.boundary;
+
+  if (!boundary) {
+    return null;
+  }
+
+  if (typeof boundary === "string") {
+    try {
+      return JSON.parse(boundary);
+    } catch {
+      return null;
+    }
+  }
+
+  if (boundary?.type && Array.isArray(boundary?.coordinates)) {
+    return boundary;
+  }
+
+  return null;
+};
+
+export const focusLakeOnMap = (map, lake, options = {}) => {
+  if (!map || !lake) {
+    return;
+  }
+
+  const {
+    maxZoom = 16,
+    markerZoom = 15,
+    paddingTopLeft = [48, 48],
+    paddingBottomRight = [48, 48],
+    animate = true,
+    duration = 1,
+    centerOffset = null,
+  } = options;
+
+  const geometry = getLakeGeometry(lake);
+
+  if (geometry) {
+    try {
+      const bounds = L.geoJSON(geometry).getBounds();
+
+      if (bounds.isValid()) {
+        map.flyToBounds(bounds, {
+          paddingTopLeft,
+          paddingBottomRight,
+          maxZoom,
+          animate,
+          duration,
+        });
+        return;
+      }
+    } catch {
+      // fall through to point focus
+    }
+  }
+
+  const latitude = Number(lake.latitude ?? lake.display_lat ?? lake.lat);
+  const longitude = Number(lake.longitude ?? lake.display_lng ?? lake.lng);
+
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+    return;
+  }
+
+  const target = L.latLng(latitude, longitude);
+  let center = target;
+
+  if (Array.isArray(centerOffset) && centerOffset.length === 2) {
+    const offsetX = Number(centerOffset[0]) || 0;
+    const offsetY = Number(centerOffset[1]) || 0;
+    const projected = map.project(target, markerZoom);
+    center = map.unproject(
+      L.point(projected.x + offsetX, projected.y + offsetY),
+      markerZoom,
+    );
+  }
+
+  map.flyTo(center, markerZoom, {
+    animate,
+    duration,
+  });
+};
+
 export const createLakeIcon = (isSelected = false) =>
   L.divIcon({
     className: "custom-lake-marker-wrapper",

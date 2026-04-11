@@ -204,6 +204,33 @@ function FishingMapCanvas({
     return truncate(getDisplayDescription(activeLake.description), 110);
   }, [activeLake]);
 
+  const handleClusterClick = useCallback(
+    (event) => {
+      const cluster = event?.layer;
+      if (!cluster || !mapInstance) return;
+
+      const currentZoom = mapInstance.getZoom();
+      const clusterBounds = cluster.getBounds?.();
+
+      if (clusterBounds?.isValid?.()) {
+        mapInstance.fitBounds(clusterBounds, {
+          padding: [72, 72],
+          maxZoom: Math.max(currentZoom + 2, 15),
+          animate: true,
+        });
+        return;
+      }
+
+      const clusterLatLng = cluster.getLatLng?.();
+      if (clusterLatLng) {
+        mapInstance.flyTo(clusterLatLng, Math.max(currentZoom + 2, 15), {
+          duration: 0.9,
+        });
+      }
+    },
+    [mapInstance],
+  );
+
   const getRegionName = useCallback((feature) => {
     return (
       feature?.properties?.shapeName ||
@@ -348,7 +375,17 @@ function FishingMapCanvas({
         }}
       >
         <MemoZoomTracker onZoomChange={setZoom} />
-        <MapRecenter activeLake={activeLake} />
+        <MapRecenter
+          activeLake={activeLake}
+          options={{
+            maxZoom: 16,
+            markerZoom: 15,
+            paddingTopLeft: [56, 56],
+            paddingBottomRight: [420, 96],
+            centerOffset: [220, 0],
+            duration: 1.1,
+          }}
+        />
 
         <TileLayer
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -403,7 +440,11 @@ function FishingMapCanvas({
             animateAddingMarkers={false}
             disableClusteringAtZoom={16}
             maxClusterRadius={40}
+            zoomToBoundsOnClick={false}
             iconCreateFunction={createClusterCustomIcon}
+            eventHandlers={{
+              clusterclick: handleClusterClick,
+            }}
           >
             {clusterMarkerLakes.map((lake) => (
               <Marker

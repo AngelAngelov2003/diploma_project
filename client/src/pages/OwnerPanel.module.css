@@ -40,20 +40,6 @@
 .emptyState {
   composes: emptyState from "../styles/ui.module.css";
 }
-.sectionHeaderRow {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  align-items: flex-start;
-  margin-bottom: 16px;
-}
-.checkboxLabel {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-weight: 700;
-  color: #334155;
-}
 .formStack {
   display: grid;
   gap: 14px;
@@ -67,16 +53,49 @@
   box-sizing: border-box;
   resize: vertical;
 }
-.actionRow {
-  margin-top: 16px;
-  display: flex;
-  justify-content: flex-end;
+.statsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 14px;
+  margin-bottom: 16px;
 }
-.actionRowLeft {
-  margin-top: 12px;
-  display: flex;
-  justify-content: flex-start;
+.statCard {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  padding: 18px;
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.05);
 }
+.statLabel {
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 700;
+}
+.statValue {
+  margin-top: 8px;
+  color: #0f172a;
+  font-size: 28px;
+  font-weight: 800;
+}
+.toolbar {
+  display: grid;
+  grid-template-columns: minmax(280px, 1.5fr) minmax(240px, 1fr);
+  gap: 16px;
+  align-items: end;
+}
+.searchWrap {
+  min-width: 0;
+}
+.filterGroup {
+  min-width: 0;
+}
+.toggleRow {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.filterButton,
+.filterButtonActive,
 .primaryButton,
 .secondaryButton,
 .dangerButton {
@@ -87,6 +106,11 @@
   font-weight: 800;
   cursor: pointer;
 }
+.filterButton {
+  background: #cbd5e1;
+  color: #0f172a;
+}
+.filterButtonActive,
 .primaryButton {
   background: #2563eb;
 }
@@ -96,11 +120,94 @@
 .dangerButton {
   background: #dc2626;
 }
+.filterButton:disabled,
+.filterButtonActive:disabled,
 .primaryButton:disabled,
 .secondaryButton:disabled,
 .dangerButton:disabled {
   opacity: 0.75;
   cursor: not-allowed;
+}
+.sectionHeaderRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.titleRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.modeBadge,
+.successBadge,
+.warningBadge,
+.mutedBadge {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+}
+.modeBadge {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+.successBadge {
+  background: #dcfce7;
+  color: #166534;
+}
+.warningBadge {
+  background: #fef3c7;
+  color: #92400e;
+}
+.mutedBadge {
+  background: #e5e7eb;
+  color: #334155;
+}
+.headerActions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.modeBox {
+  margin-top: 14px;
+  padding: 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  background: #f8fafc;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.modeTitle {
+  font-size: 15px;
+  font-weight: 800;
+  color: #0f172a;
+  margin-bottom: 4px;
+}
+.checkboxLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  color: #334155;
+}
+.actionRow {
+  margin-top: 16px;
+  display: flex;
+  justify-content: flex-end;
+}
+.actionRowLeft {
+  margin-top: 12px;
+  display: flex;
+  justify-content: flex-start;
 }
 .blockedDatesSection {
   margin-top: 24px;
@@ -130,4 +237,9 @@
 .blockedDate {
   font-weight: 800;
   color: #0f172a;
+}
+@media (max-width: 860px) {
+  .toolbar {
+    grid-template-columns: 1fr;
+  }
 }

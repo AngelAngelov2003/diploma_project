@@ -34,3 +34,9 @@ export const deleteFavorite = async (waterBodyId) => {
   const { data } = await api.delete(`/favorites/${waterBodyId}`);
   return data;
 };
+
+
+export const getMyFavorites = async () => {
+  const { data } = await api.get("/favorites/my");
+  return data;
+};

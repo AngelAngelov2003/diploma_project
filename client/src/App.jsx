@@ -6,11 +6,15 @@ import {
   Navigate,
 } from "react-router-dom";
 import Navigation from "./components/common/Navigation";
+import ProtectedRoute from "./components/routes/ProtectedRoute";
+import RoleRoute from "./components/routes/RoleRoute";
 import FishingMap from "./features/fishing-map/FishingMap";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Dashboard from "./pages/Dashboard";
 import MyAlerts from "./pages/MyAlerts";
+import FavoritesPage from "./pages/FavoritesPage";
+import SavedLakesPage from "./pages/SavedLakesPage";
 import LakeDetails from "./pages/LakeDetails";
 import MyCatches from "./pages/MyCatches";
 import ReservationsPage from "./pages/ReservationsPage";
@@ -108,7 +112,9 @@ function App() {
     const loadCurrentUser = async () => {
       const token = localStorage.getItem("token");
 
-      if (!token || !isAuthenticated || currentUser) return;
+      if (!token || !isAuthenticated || currentUser) {
+        return;
+      }
 
       try {
         const user = await getCurrentUser();
@@ -143,13 +149,6 @@ function App() {
 
       <Routes>
         <Route
-          path="/"
-          element={
-            isAuthenticated ? <FishingMap /> : <Navigate to="/login" replace />
-          }
-        />
-
-        <Route
           path="/login"
           element={
             !isAuthenticated ? (
@@ -177,92 +176,44 @@ function App() {
           }
         />
 
-        <Route
-          path="/profile"
-          element={
-            isAuthenticated ? (
-              <Profile setCurrentUser={setCurrentUser} />
-            ) : (
-              <Navigate to="/login" replace />
-            )
-          }
-        />
+        <Route element={<ProtectedRoute isAuthenticated={isAuthenticated} />}>
+          <Route path="/" element={<FishingMap />} />
+          <Route path="/profile" element={<Profile setCurrentUser={setCurrentUser} />} />
+          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/catches" element={<MyCatches />} />
+          <Route path="/saved-lakes" element={<SavedLakesPage />} />
+          <Route path="/alerts" element={<MyAlerts />} />
+          <Route path="/favorites" element={<FavoritesPage />} />
+          <Route path="/reservations" element={<ReservationsPage currentUser={currentUser} />} />
+          <Route path="/become-owner" element={<BecomeOwner />} />
+          <Route path="/lakes/:id" element={<LakeDetails />} />
+        </Route>
 
         <Route
-          path="/dashboard"
           element={
-            isAuthenticated ? <Dashboard /> : <Navigate to="/login" replace />
+            <RoleRoute
+              isAuthenticated={isAuthenticated}
+              currentUser={currentUser}
+              allowedRoles={["owner", "admin"]}
+              redirectTo="/become-owner"
+            />
           }
-        />
+        >
+          <Route path="/owner" element={<OwnerPanel />} />
+        </Route>
 
         <Route
-          path="/catches"
           element={
-            isAuthenticated ? <MyCatches /> : <Navigate to="/login" replace />
+            <RoleRoute
+              isAuthenticated={isAuthenticated}
+              currentUser={currentUser}
+              allowedRoles={["admin"]}
+              redirectTo="/"
+            />
           }
-        />
-
-        <Route
-          path="/alerts"
-          element={
-            isAuthenticated ? <MyAlerts /> : <Navigate to="/login" replace />
-          }
-        />
-
-        <Route
-          path="/reservations"
-          element={
-            isAuthenticated ? (
-              <ReservationsPage currentUser={currentUser} />
-            ) : (
-              <Navigate to="/login" replace />
-            )
-          }
-        />
-
-        <Route
-          path="/become-owner"
-          element={
-            isAuthenticated ? <BecomeOwner /> : <Navigate to="/login" replace />
-          }
-        />
-
-        <Route
-          path="/owner"
-          element={
-            isAuthenticated ? (
-              currentUser?.role === "owner" || currentUser?.role === "admin" ? (
-                <OwnerPanel />
-              ) : (
-                <Navigate to="/become-owner" replace />
-              )
-            ) : (
-              <Navigate to="/login" replace />
-            )
-          }
-        />
-
-        <Route
-          path="/admin"
-          element={
-            isAuthenticated ? (
-              currentUser?.role === "admin" ? (
-                <AdminDashboard />
-              ) : (
-                <Navigate to="/" replace />
-              )
-            ) : (
-              <Navigate to="/login" replace />
-            )
-          }
-        />
-
-        <Route
-          path="/lakes/:id"
-          element={
-            isAuthenticated ? <LakeDetails /> : <Navigate to="/login" replace />
-          }
-        />
+        >
+          <Route path="/admin" element={<AdminDashboard />} />
+        </Route>
 
         <Route
           path="*"
@@ -270,21 +221,7 @@ function App() {
         />
       </Routes>
 
-      <ToastContainer
-        position="bottom-center"
-        style={{ bottom: "20px" }}
-        autoClose={2500}
-        hideProgressBar={false}
-        newestOnTop
-        closeOnClick
-        pauseOnHover
-        draggable
-        toastStyle={{
-          borderRadius: "12px",
-          padding: "12px 16px",
-          minHeight: "56px",
-        }}
-      />
+      <ToastContainer position="bottom-center" autoClose={3000} />
     </Router>
   );
 }

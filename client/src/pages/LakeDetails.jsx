@@ -1,6 +1,6 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { MapContainer, TileLayer, Marker, Polygon } from "react-leaflet";
+import { GeoJSON, MapContainer, TileLayer, Marker } from "react-leaflet";
 import {
   FaArrowLeft,
   FaCalendarAlt,
@@ -20,7 +20,7 @@ import {
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { notifyError, notifySuccess } from "../ui/toast";
-import { createLakeIcon } from "../features/fishing-map/fishingMap.utils";
+import { createLakeIcon, focusLakeOnMap, getLakeGeometry } from "../features/fishing-map/fishingMap.utils";
 import {
   createAlert,
   createFavorite,
@@ -45,6 +45,7 @@ import {
   getWaterBodyReviewsSummary,
   getWaterBodySpeciesSummary,
 } from "../api/lakeDetailsApi";
+import { formatCurrency } from "../utils/formatCurrency";
 
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
@@ -230,6 +231,7 @@ function LakeDetails() {
 
   const [loading, setLoading] = useState(true);
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 1000);
+  const lakeMapRef = useRef(null);
 
   const loadReviews = async () => {
     try {
@@ -317,8 +319,26 @@ function LakeDetails() {
     return () => window.removeEventListener("resize", onResize);
   }, []);
 
-
   const selectedLakeMapIcon = useMemo(() => createLakeIcon(true), []);
+  const lakeGeometry = useMemo(() => getLakeGeometry(lake), [lake]);
+
+  useEffect(() => {
+    if (!lakeMapRef.current || !lake) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      focusLakeOnMap(lakeMapRef.current, lake, {
+        maxZoom: 16,
+        markerZoom: 15,
+        paddingTopLeft: [36, 36],
+        paddingBottomRight: [36, 36],
+        duration: 0.9,
+      });
+    }, 80);
+
+    return () => window.clearTimeout(timer);
+  }, [lake, lakeGeometry]);
 
   const mapCenter = useMemo(() => {
     if (
@@ -739,7 +759,7 @@ function LakeDetails() {
                 }}
               >
                 <FaMoneyBillWave style={{ marginRight: 8 }} />
-                {Number(lake.price_per_day || 0).toFixed(2)} per day
+                {formatCurrency(lake.price_per_day)} per day
               </div>
             )}
 
@@ -1120,7 +1140,7 @@ function LakeDetails() {
                       fontWeight: 700,
                     }}
                   >
-                    Estimated total: {reservationEstimatedTotal.toFixed(2)}
+                    Estimated total: {formatCurrency(reservationEstimatedTotal)}
                   </div>
 
                   <div
@@ -1350,6 +1370,9 @@ function LakeDetails() {
                 center={mapCenter}
                 zoom={13}
                 style={{ height: "100%", width: "100%" }}
+                whenReady={(event) => {
+                  lakeMapRef.current = event.target;
+                }}
               >
                 <TileLayer
                   url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -1365,18 +1388,15 @@ function LakeDetails() {
                     />
                   )}
 
-                {lake.boundary?.coordinates?.[0] && (
-                  <Polygon
-                    positions={lake.boundary.coordinates[0].map((coord) => [
-                      coord[1],
-                      coord[0],
-                    ])}
-                    pathOptions={{
+                {lakeGeometry && (
+                  <GeoJSON
+                    data={lakeGeometry}
+                    style={() => ({
                       color: "#2563eb",
                       fillColor: "#60a5fa",
                       fillOpacity: 0.18,
                       weight: 2,
-                    }}
+                    })}
                   />
                 )}
               </MapContainer>

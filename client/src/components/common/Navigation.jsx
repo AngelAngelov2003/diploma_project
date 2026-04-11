@@ -4,8 +4,8 @@ import {
   FaFish,
   FaUserCircle,
   FaSignOutAlt,
-  FaBell,
   FaList,
+  FaStar,
   FaCalendarAlt,
   FaTools,
   FaUserShield,
@@ -62,6 +62,11 @@ const Navigation = ({ isAuthenticated, onLogout, currentUser }) => {
               <NavLink to="/catches" className={linkClassName}>
                 <FaList />
                 <span>My Catches</span>
+              </NavLink>
+
+              <NavLink to="/saved-lakes" className={linkClassName}>
+                <FaStar />
+                <span>Saved Lakes</span>
               </NavLink>
 
               <NavLink to="/reservations" className={linkClassName}>
@@ -128,12 +133,12 @@ const Navigation = ({ isAuthenticated, onLogout, currentUser }) => {
                     <div
                       onClick={() => {
                         setShowMenu(false);
-                        navigate("/alerts");
+                        navigate("/saved-lakes");
                       }}
                       className="main-user-dropdown-item"
                     >
-                      <FaBell />
-                      <span>Alerts</span>
+                      <FaStar />
+                      <span>Saved Lakes</span>
                     </div>
 
                     <div

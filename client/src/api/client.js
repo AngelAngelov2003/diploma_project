@@ -19,6 +19,9 @@ const isAuthFailure = (status, message) => {
   );
 };
 
+const isAuthRoute = (url = "") =>
+  /\/auth\/(login|register)\/?$/i.test(String(url));
+
 const handleExpiredSession = (message) => {
   localStorage.removeItem("token");
 
@@ -30,7 +33,7 @@ const handleExpiredSession = (message) => {
 
   sessionStorage.setItem(
     "auth_expired_message",
-    message || "Your session expired. Please sign in again.",
+    message || "Your session expired. Please sign in again."
   );
 
   window.dispatchEvent(
@@ -38,7 +41,7 @@ const handleExpiredSession = (message) => {
       detail: {
         message: message || "Your session expired. Please sign in again.",
       },
-    }),
+    })
   );
 
   window.location.replace("/login");
@@ -54,28 +57,26 @@ api.interceptors.request.use(
 
     return config;
   },
-  (error) => Promise.reject(error),
+  (error) => Promise.reject(error)
 );
 
 api.interceptors.response.use(
   (response) => response,
   (error) => {
     const status = error.response?.status;
-    const serverData = error.response?.data;
-    const message =
-      (typeof serverData === "string" && serverData) ||
-      serverData?.error ||
-      error.message ||
-      "Your session expired. Please sign in again.";
+    const message = error.response?.data?.message;
+    const requestUrl = error.config?.url || "";
+
+    if (isAuthRoute(requestUrl)) {
+      return Promise.reject(error);
+    }
 
     if (isAuthFailure(status, message)) {
-      error.__skipToast = true;
-      error.__authHandled = true;
       handleExpiredSession(message);
     }
 
     return Promise.reject(error);
-  },
+  }
 );
 
 export { AUTH_EXPIRED_EVENT };

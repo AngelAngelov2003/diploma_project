@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { addBlockedDate, deleteBlockedDate, getBlockedDates, getOwnerLakes, updateOwnerLake } from "../api/ownerApi";
 import { notifyError, notifySuccess } from "../ui/toast";
+import { formatCurrency } from "../utils/formatCurrency";
 import styles from "./OwnerPanel.module.css";
 
 const normalizeLakePayload = (lake) => ({
@@ -141,6 +142,11 @@ export default function OwnerPanel() {
     return <div className={styles.loading}>Loading owner panel...</div>;
   }
 
+const totalEstimatedRevenue = lakes.reduce(
+  (sum, lake) => sum + Number(lake.price_per_day || 0),
+  0,
+);
+
   return (
     <div className={styles.page}>
       <div className={styles.shell}>
@@ -151,6 +157,11 @@ export default function OwnerPanel() {
             details, and control blocked reservation dates.
           </div>
         </div>
+
+        <div className={styles.card}>
+            <h3 className={styles.sectionTitle}>Owner summary</h3>
+            <div className={styles.metaText}>Estimated daily revenue across your reservable lakes: {formatCurrency(totalEstimatedRevenue)}</div>
+          </div>
 
         {!lakes.length ? (
           <div className={styles.card}>
@@ -167,7 +178,7 @@ export default function OwnerPanel() {
                   <div>
                     <h3 className={styles.sectionTitle}>{lake.name}</h3>
                     <div className={styles.metaText}>
-                      {lake.type || "No type"} · {lake.is_private ? "Private" : "Public"}
+                      {lake.type || "No type"} · {lake.is_private ? "Private" : "Public"} · {formatCurrency(lake.price_per_day || 0)} per day
                     </div>
                   </div>
                 </div>
@@ -194,7 +205,7 @@ export default function OwnerPanel() {
                   </div>
 
                   <div>
-                    <div className={styles.fieldLabel}>Price per day</div>
+                    <div className={styles.fieldLabel}>Price per day (€)</div>
                     <input
                       className={styles.input}
                       type="number"

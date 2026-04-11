@@ -24,6 +24,7 @@ import {
   updateAdminWaterBody,
 } from "../api/adminApi";
 import styles from "./AdminDashboard.module.css";
+import { formatCurrency } from "../utils/formatCurrency";
 import ui from "../styles/ui.module.css";
 import ActionButton from "../components/ui/ActionButton";
 import Card from "../components/ui/Card";
@@ -36,7 +37,7 @@ import StatusBadge from "../components/ui/StatusBadge";
 import TabButton from "../components/ui/TabButton";
 import { formatDateTime } from "../utils/date";
 
-const PAGE_SIZE = 5;
+const PAGE_SIZE = 3;
 
 const paginateItems = (items, currentPage, pageSize = PAGE_SIZE) => {
   const totalItems = items.length;
@@ -446,7 +447,6 @@ export default function AdminDashboard() {
 
       const payload = {
         full_name: String(user.full_name || "").trim(),
-        email: String(user.email || "").trim(),
         role: String(user.role || "user").trim(),
         is_active: Boolean(user.is_active),
       };
@@ -798,7 +798,7 @@ export default function AdminDashboard() {
 
                         <div>
                           <div className={ui.fieldLabel}>
-                            Price per day
+                            Price per day (€)
                           </div>
                           <input
                             type="number"
@@ -810,6 +810,7 @@ export default function AdminDashboard() {
                             }
                             className={styles.input}
                           />
+                          <div className={ui.helperText}>Shown to users as {formatCurrency(lake.price_per_day || 0)} per day</div>
                         </div>
 
                         <div>
@@ -1025,9 +1026,15 @@ export default function AdminDashboard() {
                           <input
                             type="email"
                             value={user.email || ""}
-                            onChange={(e) => updateUserLocal(user.id, "email", e.target.value)}
                             className={styles.input}
+                            disabled
+                            readOnly
+                            title="Email addresses cannot be changed from the admin panel."
+                            style={{ background: "#f8fafc", color: "#475569", cursor: "not-allowed" }}
                           />
+                          <div className={ui.metaText} style={{ marginTop: 6 }}>
+                            Email is locked and cannot be edited by admins.
+                          </div>
                         </div>
 
                         <div>

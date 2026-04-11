@@ -165,47 +165,32 @@ function FishingMap() {
     }, ROUTE_OPEN_RELEASE_DELAY_MS);
   }, []);
 
-  const focusLake = useCallback(
-    (lake) => {
-      if (!lake) return;
+  const focusLake = useCallback((lake) => {
+    if (!lake) return;
 
-      setActiveLake(lake);
-      setIsMobileSidebarOpen(false);
-      setShowRegionOverview(false);
+    setActiveLake(lake);
+    setIsMobileSidebarOpen(false);
+    setShowRegionOverview(false);
 
-      setWaterBodies((prev) => {
-        const alreadyExists = prev.some((item) => String(item.id) === String(lake.id));
-        return alreadyExists ? prev : [lake, ...prev];
+    setWaterBodies((prev) => {
+      const alreadyExists = prev.some((item) => String(item.id) === String(lake.id));
+      return alreadyExists ? prev : [lake, ...prev];
+    });
+
+    const latitude = Number(lake.latitude);
+    const longitude = Number(lake.longitude);
+
+    if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
+      const matchedRegion = findRegionFeatureByPoint(bulgariaRegions, {
+        latitude,
+        longitude,
       });
 
-      const latitude = Number(lake.latitude);
-      const longitude = Number(lake.longitude);
-
-      if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
-        const matchedRegion = findRegionFeatureByPoint(bulgariaRegions, {
-          latitude,
-          longitude,
-        });
-
-        setSelectedRegion(
-          matchedRegion ? getRegionNameFromFeature(matchedRegion) : null,
-        );
-      }
-
-      if (
-        mapInstance &&
-        Number.isFinite(latitude) &&
-        Number.isFinite(longitude)
-      ) {
-        mapInstance.flyTo(
-          [latitude, longitude],
-          Math.max(mapInstance.getZoom(), 11),
-          { duration: 1.2 },
-        );
-      }
-    },
-    [mapInstance],
-  );
+      setSelectedRegion(
+        matchedRegion ? getRegionNameFromFeature(matchedRegion) : null,
+      );
+    }
+  }, []);
 
   const dedupeById = useCallback((items) => {
     const seen = new Set();

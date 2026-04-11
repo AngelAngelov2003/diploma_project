@@ -6,10 +6,15 @@ import { notifyError, notifySuccess } from "../ui/toast";
 
 const getErrorMessage = (error, fallbackMessage) => {
   const serverError = error?.response?.data?.error;
+  const responseMessage = error?.response?.data?.message;
   const responseData = error?.response?.data;
 
   if (typeof serverError === "string" && serverError.trim()) {
     return serverError;
+  }
+
+  if (typeof responseMessage === "string" && responseMessage.trim()) {
+    return responseMessage;
   }
 
   if (typeof responseData === "string" && responseData.trim()) {
@@ -30,6 +35,8 @@ function Login({ setAuth, setCurrentUser }) {
   const handleLogin = async (event) => {
     event.preventDefault();
 
+    if (submitting) return;
+
     setMessage("");
     setSubmitting(true);
 
@@ -49,8 +56,8 @@ function Login({ setAuth, setCurrentUser }) {
       }, 700);
     } catch (error) {
       const errorMessage = getErrorMessage(error, "Invalid credentials");
-      notifyError(error, "Invalid credentials");
       setMessage(errorMessage);
+      notifyError(errorMessage);
     } finally {
       setSubmitting(false);
     }
@@ -76,6 +83,7 @@ function Login({ setAuth, setCurrentUser }) {
             color: message.toLowerCase().includes("successful")
               ? "green"
               : "red",
+            marginBottom: "12px",
           }}
         >
           {message}

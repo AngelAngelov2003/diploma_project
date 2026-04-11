@@ -62,10 +62,38 @@
 .noteBlock {
   composes: noteBlock from "../styles/ui.module.css";
 }
-
 .sectionHeader {
   composes: sectionHeader from "../styles/ui.module.css";
 }
 .filterRow {
   composes: filterRow from "../styles/ui.module.css";
+}
+.summaryGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+  margin-bottom: 18px;
+}
+.summaryCard {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  padding: 18px;
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.05);
+}
+.summaryLabel {
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 700;
+}
+.summaryValue {
+  margin-top: 8px;
+  color: #0f172a;
+  font-size: 28px;
+  font-weight: 800;
+}
+.summaryNote {
+  margin-top: 6px;
+  color: #64748b;
+  font-size: 13px;
 }
