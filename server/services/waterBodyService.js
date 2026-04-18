@@ -202,18 +202,8 @@ const getWaterBodiesInBounds = async ({
         NULL AS boundary,
       `;
 
-  const descriptionSelectSql = useMarkerView
-    ? `
-        CASE
-          WHEN $5::numeric >= 9 THEN description
-          ELSE NULL
-        END AS description,
-      `
-    : `
-        CASE
-          WHEN $5::numeric >= 9 THEN description
-          ELSE NULL
-        END AS description,
+  const descriptionSelectSql = `
+        description,
       `;
 
   const geomOrderSql = sourceHasGeom

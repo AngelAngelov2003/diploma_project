@@ -1313,3 +1313,12 @@
     top: 14px;
   }
 }
+
+
+.lake-list-card-description button {
+  font-family: inherit;
+}
+
+.lake-list-card-description > div {
+  min-width: 0;
+}

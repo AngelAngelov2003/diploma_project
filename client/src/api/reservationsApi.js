@@ -31,3 +31,7 @@ export const updateReservationStatus = async (reservationId, status) => {
   });
   return data;
 };
+export const estimateReservation = async (payload) => {
+  const { data } = await api.post("/reservations/estimate", payload);
+  return data;
+};

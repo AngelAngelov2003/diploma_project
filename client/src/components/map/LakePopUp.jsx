@@ -13,16 +13,21 @@ import {
 } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
 import api from "../../api/client";
+import { getWaterBodyById } from "../../api/waterBodiesApi";
 import { notifyError, notifySuccess } from "../../ui/toast";
+import {
+  getDisplayDescription,
+  truncate,
+} from "../../features/fishing-map/fishingMap.utils";
 
 const MAX_NOTES_LENGTH = 500;
 const MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024;
 
 const toLocalDateTimeValue = (date) => {
   const pad = (n) => String(n).padStart(2, "0");
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(
-    date.getHours()
-  )}:${pad(date.getMinutes())}`;
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(
+    date.getDate(),
+  )}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 };
 
 const LakePopup = ({ lake, map }) => {
@@ -32,6 +37,7 @@ const LakePopup = ({ lake, map }) => {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [activePanel, setActivePanel] = useState(null);
+  const [descriptionExpanded, setDescriptionExpanded] = useState(false);
   const [species, setSpecies] = useState("");
   const [weight, setWeight] = useState("");
   const [image, setImage] = useState(null);
@@ -42,12 +48,21 @@ const LakePopup = ({ lake, map }) => {
   const [alertEnabled, setAlertEnabled] = useState(false);
   const [favoriteEnabled, setFavoriteEnabled] = useState(false);
   const [alertLoading, setAlertLoading] = useState(false);
+  const [resolvedDescription, setResolvedDescription] = useState(
+    typeof lake?.description === "string" ? lake.description : "",
+  );
 
   const statusLoadedLakeRef = useRef(null);
+  const descriptionLoadedLakeRef = useRef(null);
 
   const lakeLat = Number(lake?.latitude);
   const lakeLng = Number(lake?.longitude);
   const hasValidCoords = Number.isFinite(lakeLat) && Number.isFinite(lakeLng);
+
+  const popupDescription = getDisplayDescription(resolvedDescription || lake?.description);
+  const popupDescriptionPreview = truncate(popupDescription, 140);
+  const popupDescriptionCanExpand =
+    popupDescriptionPreview !== popupDescription;
 
   useEffect(() => {
     if (!catchTime) setCatchTime(toLocalDateTimeValue(new Date()));
@@ -55,15 +70,65 @@ const LakePopup = ({ lake, map }) => {
 
   useEffect(() => {
     statusLoadedLakeRef.current = null;
+    descriptionLoadedLakeRef.current = null;
+    setResolvedDescription(typeof lake?.description === "string" ? lake.description : "");
     setForecast(null);
     setActivePanel(null);
+    setDescriptionExpanded(false);
     setMsg("");
     setSpecies("");
     setWeight("");
     setImage(null);
     setCatchTime(toLocalDateTimeValue(new Date()));
     setNotes("");
-  }, [lake?.id]);
+  }, [lake?.id, lake?.description]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const shouldFetchDescription = !String(lake?.description || "").trim();
+
+    if (!lake?.id || !shouldFetchDescription) {
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    if (descriptionLoadedLakeRef.current === String(lake.id)) {
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    descriptionLoadedLakeRef.current = String(lake.id);
+
+    const run = async () => {
+      try {
+        const details = await getWaterBodyById(lake.id);
+
+        if (cancelled) {
+          return;
+        }
+
+        const nextDescription =
+          typeof details?.description === "string" ? details.description : "";
+
+        if (nextDescription.trim()) {
+          setResolvedDescription(nextDescription);
+        }
+      } catch {
+        if (!cancelled) {
+          setResolvedDescription("");
+        }
+      }
+    };
+
+    run();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [lake?.id, lake?.description]);
 
   useEffect(() => {
     let cancelled = false;
@@ -148,7 +213,10 @@ const LakePopup = ({ lake, map }) => {
         notifySuccess("Alert enabled");
       }
     } catch (err) {
-      notifyError(err, alertEnabled ? "Failed to disable alert" : "Failed to enable alert");
+      notifyError(
+        err,
+        alertEnabled ? "Failed to disable alert" : "Failed to enable alert",
+      );
     } finally {
       setAlertLoading(false);
     }
@@ -171,7 +239,12 @@ const LakePopup = ({ lake, map }) => {
         notifySuccess("Added to favorites");
       }
     } catch (err) {
-      notifyError(err, favoriteEnabled ? "Failed to remove favorite" : "Failed to add favorite");
+      notifyError(
+        err,
+        favoriteEnabled
+          ? "Failed to remove favorite"
+          : "Failed to add favorite",
+      );
     } finally {
       setAlertLoading(false);
     }
@@ -298,6 +371,7 @@ const LakePopup = ({ lake, map }) => {
     return (
       <div className="lake-popup-panel-card lake-popup-forecast-card">
         <button
+          type="button"
           onClick={(e) => {
             e.stopPropagation();
             setForecast(null);
@@ -323,7 +397,9 @@ const LakePopup = ({ lake, map }) => {
             </div>
             <div>
               <div className="lake-popup-score-label">Weather score</div>
-              <div className="lake-popup-score-value">{forecast.breakdown?.weather_score ?? 0}/100</div>
+              <div className="lake-popup-score-value">
+                {forecast.breakdown?.weather_score ?? 0}/100
+              </div>
             </div>
           </div>
 
@@ -333,7 +409,9 @@ const LakePopup = ({ lake, map }) => {
             </div>
             <div>
               <div className="lake-popup-score-label">Moon score</div>
-              <div className="lake-popup-score-value">{forecast.breakdown?.moon_score ?? 0}/100</div>
+              <div className="lake-popup-score-value">
+                {forecast.breakdown?.moon_score ?? 0}/100
+              </div>
             </div>
           </div>
         </div>
@@ -369,7 +447,10 @@ const LakePopup = ({ lake, map }) => {
     if (activePanel !== "log") return null;
 
     return (
-      <form onSubmit={handleLogCatch} className="lake-popup-panel-card lake-popup-form-card">
+      <form
+        onSubmit={handleLogCatch}
+        className="lake-popup-panel-card lake-popup-form-card"
+      >
         <button
           type="button"
           onClick={(e) => {
@@ -387,7 +468,10 @@ const LakePopup = ({ lake, map }) => {
             <FaMapMarkedAlt />
             <span>Log catch</span>
           </div>
-          <p>Record your result with species, weight, time, notes, and an optional photo.</p>
+          <p>
+            Record your result with species, weight, time, notes, and an
+            optional photo.
+          </p>
         </div>
 
         <div className="lake-popup-form-grid">
@@ -411,7 +495,9 @@ const LakePopup = ({ lake, map }) => {
               inputMode="decimal"
               placeholder="Weight (kg)"
               value={weight}
-              onChange={(e) => setWeight(e.target.value.replace(/[^0-9.]/g, ""))}
+              onChange={(e) =>
+                setWeight(e.target.value.replace(/[^0-9.]/g, ""))
+              }
               required
               disabled={saving}
             />
@@ -432,13 +518,17 @@ const LakePopup = ({ lake, map }) => {
           <label>Notes</label>
           <textarea
             value={notes}
-            onChange={(e) => setNotes(e.target.value.slice(0, MAX_NOTES_LENGTH))}
+            onChange={(e) =>
+              setNotes(e.target.value.slice(0, MAX_NOTES_LENGTH))
+            }
             rows={4}
             disabled={saving}
             maxLength={MAX_NOTES_LENGTH}
             placeholder="Bait, method, spot, extra info..."
           />
-          <div className="lake-popup-field-meta">{notes.length}/{MAX_NOTES_LENGTH}</div>
+          <div className="lake-popup-field-meta">
+            {notes.length}/{MAX_NOTES_LENGTH}
+          </div>
         </div>
 
         <div className="lake-popup-field">
@@ -449,7 +539,11 @@ const LakePopup = ({ lake, map }) => {
 
           {imagePreviewUrl ? (
             <div className="lake-popup-image-preview-wrap">
-              <img src={imagePreviewUrl} alt="Preview" className="lake-popup-image-preview" />
+              <img
+                src={imagePreviewUrl}
+                alt="Preview"
+                className="lake-popup-image-preview"
+              />
               <button
                 type="button"
                 onClick={() => setImage(null)}
@@ -461,21 +555,36 @@ const LakePopup = ({ lake, map }) => {
             </div>
           ) : (
             <label className="lake-popup-upload-box">
-              <input type="file" accept="image/*" disabled={saving} onChange={handleImageChange} />
+              <input
+                type="file"
+                accept="image/*"
+                disabled={saving}
+                onChange={handleImageChange}
+              />
               <span>Choose photo</span>
               <small>JPG, PNG, WEBP up to 5 MB</small>
             </label>
           )}
 
-          <div className="lake-popup-field-meta">Maximum image size: 5 MB</div>
+          <div className="lake-popup-field-meta">
+            Maximum image size: 5 MB
+          </div>
         </div>
 
-        <button type="submit" disabled={saving} className="lake-popup-primary-submit">
+        <button
+          type="submit"
+          disabled={saving}
+          className="lake-popup-primary-submit"
+        >
           {saving ? "Saving..." : "Save catch"}
         </button>
 
         {msg && (
-          <div className={`lake-popup-message ${msg.includes("Error") ? "error" : "success"}`}>
+          <div
+            className={`lake-popup-message ${
+              msg.includes("Error") ? "error" : "success"
+            }`}
+          >
             {msg}
           </div>
         )}
@@ -489,13 +598,42 @@ const LakePopup = ({ lake, map }) => {
         <div className="lake-popup-header">
           <div className="lake-popup-badge">Lake overview</div>
           <h3>{lake?.name}</h3>
-          <p>{lake?.description || "No description available."}</p>
+          <div
+            style={{
+              color: "#64748b",
+              lineHeight: 1.6,
+              whiteSpace: descriptionExpanded ? "normal" : "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+            }}
+          >
+            {descriptionExpanded ? popupDescription : popupDescriptionPreview}
+          </div>
+          {popupDescriptionCanExpand ? (
+            <button
+              type="button"
+              onClick={() => setDescriptionExpanded((value) => !value)}
+              style={{
+                marginTop: 8,
+                border: "none",
+                background: "transparent",
+                color: "#2563eb",
+                padding: 0,
+                cursor: "pointer",
+                fontWeight: 800,
+              }}
+            >
+              {descriptionExpanded ? "Show less" : "Show more"}
+            </button>
+          ) : null}
         </div>
 
         <div className="lake-popup-quick-stats">
           <div className="lake-popup-quick-stat">
             <FaMapMarkedAlt />
-            <span>{hasValidCoords ? "Map point available" : "Map point unavailable"}</span>
+            <span>
+              {hasValidCoords ? "Map point available" : "Map point unavailable"}
+            </span>
           </div>
           <div className="lake-popup-quick-stat">
             <FaWeightHanging />
@@ -508,36 +646,58 @@ const LakePopup = ({ lake, map }) => {
         </div>
 
         <div className="lake-popup-action-grid">
-          <button onClick={getForecast} disabled={loading || !hasValidCoords} className={`lake-popup-action-button success ${activePanel === "forecast" ? "active" : ""}`}>
+          <button
+            type="button"
+            onClick={getForecast}
+            disabled={loading || !hasValidCoords}
+            className={`lake-popup-action-button success ${
+              activePanel === "forecast" ? "active" : ""
+            }`}
+          >
             <FaChartBar />
             <span>{loading ? "Loading..." : "Forecast"}</span>
           </button>
 
           <button
+            type="button"
             onClick={(e) => {
               e.stopPropagation();
               setActivePanel((current) => (current === "log" ? null : "log"));
               if (!catchTime) setCatchTime(toLocalDateTimeValue(new Date()));
             }}
-            className={`lake-popup-action-button primary ${activePanel === "log" ? "active" : ""}`}
+            className={`lake-popup-action-button primary ${
+              activePanel === "log" ? "active" : ""
+            }`}
           >
             <FaCamera />
             <span>Log Catch</span>
           </button>
 
           <button
+            type="button"
             onClick={toggleAlert}
             disabled={alertLoading}
-            className={`lake-popup-action-button ${alertEnabled ? "dark" : "warning"}`}
+            className={`lake-popup-action-button ${
+              alertEnabled ? "dark" : "warning"
+            }`}
           >
             <FaBell />
-            <span>{alertLoading ? "Please wait..." : alertEnabled ? "Disable Alert" : "Enable Alert"}</span>
+            <span>
+              {alertLoading
+                ? "Please wait..."
+                : alertEnabled
+                  ? "Disable Alert"
+                  : "Enable Alert"}
+            </span>
           </button>
 
           <button
+            type="button"
             onClick={toggleFavorite}
             disabled={alertLoading}
-            className={`lake-popup-action-button ${favoriteEnabled ? "gold" : "muted"}`}
+            className={`lake-popup-action-button ${
+              favoriteEnabled ? "gold" : "muted"
+            }`}
           >
             <FaStar />
             <span>{favoriteEnabled ? "Unfavorite" : "Favorite"}</span>
@@ -547,7 +707,11 @@ const LakePopup = ({ lake, map }) => {
         {renderForecastCard()}
         {renderLogForm()}
 
-        <button onClick={openDetails} className="lake-popup-details-button">
+        <button
+          type="button"
+          onClick={openDetails}
+          className="lake-popup-details-button"
+        >
           View Details
         </button>
       </div>
@@ -628,7 +792,8 @@ const LakePopup = ({ lake, map }) => {
           justify-content: center;
           gap: 10px;
           box-shadow: 0 10px 22px rgba(15, 23, 42, 0.12);
-          transition: transform 0.18s ease, box-shadow 0.18s ease, opacity 0.18s ease;
+          transition: transform 0.18s ease, box-shadow 0.18s ease,
+            opacity 0.18s ease;
         }
 
         .lake-popup-action-button.primary {
@@ -661,7 +826,8 @@ const LakePopup = ({ lake, map }) => {
         }
 
         .lake-popup-action-button.active {
-          box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.6), 0 16px 28px rgba(15, 23, 42, 0.18);
+          box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.6),
+            0 16px 28px rgba(15, 23, 42, 0.18);
         }
 
         .lake-popup-action-button:disabled {
@@ -850,7 +1016,8 @@ const LakePopup = ({ lake, map }) => {
           font-size: 14px;
           color: #0f172a;
           outline: none;
-          transition: border-color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
+          transition: border-color 0.18s ease, background 0.18s ease,
+            box-shadow 0.18s ease;
         }
 
         .lake-popup-field textarea {

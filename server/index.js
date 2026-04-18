@@ -18,6 +18,7 @@ const {
   ensureUserNotificationPreferencesTable,
   ensureLakeOwnerClaimRequestsTable,
   ensureSubscriptionDeliveriesTable,
+  ensureReservationDomainTables,
 } = require("./setup/ensureTables");
 
 const {
@@ -65,6 +66,7 @@ const startServer = async () => {
   await ensureUserNotificationPreferencesTable();
   await ensureLakeOwnerClaimRequestsTable();
   await ensureSubscriptionDeliveriesTable();
+  await ensureReservationDomainTables();
 
   startDailyCron();
   startWeeklyCron();

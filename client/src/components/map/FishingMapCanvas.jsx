@@ -611,7 +611,7 @@ function FishingMapCanvas({
                 </div>
               }
             >
-              <LakePopup lake={activeLake} map={mapInstance} />
+              <LakePopup key={`${activeLake.id}-${activeLake.description || ""}`} lake={activeLake} map={mapInstance} />
             </Suspense>
           </div>
         </div>

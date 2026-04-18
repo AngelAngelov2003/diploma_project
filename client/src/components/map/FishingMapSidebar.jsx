@@ -11,12 +11,10 @@ import {
 import {
   formatDistance,
   formatWaterBodyType,
-  getDisplayDescription,
   hasRenderableGeometry,
   MAX_DISTANCE_KM,
   MIN_DISTANCE_KM,
   shouldShowMarker,
-  truncate,
 } from "../../features/fishing-map/fishingMap.utils";
 
 function FishingMapSidebar({
@@ -130,7 +128,7 @@ function FishingMapSidebar({
             <FaSearch className="map-search-icon" />
             <input
               type="text"
-              placeholder="Search all lakes, types, descriptions..."
+              placeholder="Search lakes and water types..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
@@ -139,6 +137,7 @@ function FishingMapSidebar({
             )}
             {searchTerm && !loadingWaterBodies && (
               <button
+                type="button"
                 onClick={() => setSearchTerm("")}
                 className="map-search-clear"
               >
@@ -165,6 +164,7 @@ function FishingMapSidebar({
         <div className="map-sidebar-section">
           <div className="map-controls-grid">
             <button
+              type="button"
               onClick={handleUseMyLocation}
               disabled={locationLoading}
               className="map-control-button primary"
@@ -189,6 +189,7 @@ function FishingMapSidebar({
             </select>
 
             <button
+              type="button"
               onClick={clearDistanceFilter}
               className="map-control-button secondary"
               disabled={
@@ -325,6 +326,7 @@ function FishingMapSidebar({
 
               return (
                 <button
+                  type="button"
                   key={lake.id}
                   onClick={() => focusLake(lake)}
                   className={`lake-list-card ${selected ? "selected" : ""}`}
@@ -337,9 +339,6 @@ function FishingMapSidebar({
                     <div className="lake-list-card-main">
                       <div className="lake-list-card-title">
                         {highlightText(lake.name, searchTerm)}
-                      </div>
-                      <div className="lake-list-card-description">
-                        {truncate(getDisplayDescription(lake.description), 88)}
                       </div>
                     </div>
 

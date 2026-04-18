@@ -49,3 +49,12 @@ export const getWaterBodyBlockedDates = async (id) => {
   const { data } = await api.get(`/water-bodies/${id}/blocked-dates`);
   return data;
 };
+export const getWaterBodyBookingOptions = async (id) => {
+  const { data } = await api.get(`/water-bodies/${id}/booking-options`);
+  return data;
+};
+
+export const getWaterBodyAvailability = async (id, params) => {
+  const { data } = await api.get(`/water-bodies/${id}/availability`, { params });
+  return data;
+};

@@ -182,18 +182,37 @@ const getWaterBodyPhotos = async (req, res) => {
 
     const q = await pool.query(
       `
-        SELECT
-          id,
-          image_url,
-          species,
-          weight_kg,
-          catch_time,
-          created_at
-        FROM catch_logs
-        WHERE water_body_id = $1
-          AND image_url IS NOT NULL
-          AND TRIM(image_url) <> ''
-        ORDER BY COALESCE(catch_time, created_at) DESC
+        SELECT *
+        FROM (
+          SELECT
+            id,
+            image_url,
+            NULL::text AS species,
+            NULL::numeric AS weight_kg,
+            NULL::timestamp AS catch_time,
+            created_at,
+            caption,
+            'owner_gallery'::text AS photo_source
+          FROM lake_gallery_photos
+          WHERE water_body_id = $1
+
+          UNION ALL
+
+          SELECT
+            id,
+            image_url,
+            species,
+            weight_kg,
+            catch_time,
+            created_at,
+            NULL::text AS caption,
+            'catch_log'::text AS photo_source
+          FROM catch_logs
+          WHERE water_body_id = $1
+            AND image_url IS NOT NULL
+            AND TRIM(image_url) <> ''
+        ) photo_rows
+        ORDER BY created_at DESC NULLS LAST
         LIMIT 24
       `,
       [waterBodyId]
@@ -307,6 +326,49 @@ const deleteMyReview = async (req, res) => {
   }
 };
 
+
+const getBookingOptions = async (req, res) => {
+  try {
+    const { waterBodyId } = req.params;
+
+    const lakeQ = await pool.query(`
+      SELECT
+        id,
+        is_private,
+        is_reservable,
+        price_per_day,
+        capacity,
+        allows_night_fishing,
+        night_fishing_price,
+        has_housing,
+        availability_notes
+      FROM water_bodies
+      WHERE id = $1
+      LIMIT 1
+    `, [waterBodyId]);
+
+    if (!lakeQ.rows.length) {
+      return res.status(404).json({ error: "Water body not found" });
+    }
+
+    const [sectorsQ, roomsQ, spotsQ] = await Promise.all([
+      pool.query(`SELECT id, name, spots_count, price_per_day, night_fishing_allowed, is_active, sort_order FROM lake_sectors WHERE water_body_id = $1 AND is_active = TRUE ORDER BY sort_order ASC, name ASC`, [waterBodyId]),
+      pool.query(`SELECT id, name, capacity, price_per_night, is_active, sort_order FROM lake_rooms WHERE water_body_id = $1 AND is_active = TRUE ORDER BY sort_order ASC, name ASC`, [waterBodyId]),
+      pool.query(`SELECT id, spot_number, is_active FROM lake_spots WHERE water_body_id = $1 AND is_active = TRUE ORDER BY spot_number ASC`, [waterBodyId]),
+    ]);
+
+    res.json({
+      lake: lakeQ.rows[0],
+      sectors: sectorsQ.rows,
+      rooms: roomsQ.rows,
+      spots: spotsQ.rows,
+    });
+  } catch (err) {
+    console.error("getBookingOptions error:", err);
+    res.status(500).json({ error: "Failed to load booking options" });
+  }
+};
+
 const getBlockedDates = async (req, res) => {
   try {
     const { waterBodyId } = req.params;
@@ -338,6 +400,7 @@ module.exports = {
   getWaterBodyCatches,
   getSpeciesSummary,
   getWaterBodyPhotos,
+  getBookingOptions,
   getReviews,
   getReviewsSummary,
   upsertReview,

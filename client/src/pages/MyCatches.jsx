@@ -128,8 +128,17 @@ export default function MyCatches() {
   const [sortBy, setSortBy] = useState("newest");
   const [pageSize, setPageSize] = useState(8);
   const [page, setPage] = useState(1);
+  const [isMobile, setIsMobile] = useState(() =>
+    typeof window !== "undefined" ? window.innerWidth <= 768 : false,
+  );
 
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth <= 768);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
 
   useEffect(() => {
     let timer;
@@ -352,18 +361,18 @@ export default function MyCatches() {
   return (
     <div
       style={{
-        padding: "20px",
+        padding: isMobile ? "12px" : "20px",
         background: "#f8fafc",
         minHeight: "calc(100vh - 60px)",
       }}
     >
-      <div style={{ maxWidth: "1200px", margin: "0 auto" }}>
+      <div style={{ maxWidth: "1200px", margin: "0 auto", width: "100%" }}>
         <div
           style={{
             background: "linear-gradient(135deg, #0d6efd 0%, #0aa2ff 100%)",
             color: "white",
-            borderRadius: "18px",
-            padding: "22px",
+            borderRadius: isMobile ? "18px" : "18px",
+            padding: isMobile ? "18px" : "22px",
             marginBottom: "18px",
             boxShadow: "0 12px 28px rgba(13,110,253,0.18)",
           }}
@@ -382,7 +391,7 @@ export default function MyCatches() {
             </div>
           </div>
 
-          <h1 style={{ margin: "0 0 8px 0", fontSize: "28px" }}>My Catches</h1>
+          <h1 style={{ margin: "0 0 8px 0", fontSize: isMobile ? "24px" : "28px", lineHeight: 1.15 }}>My Catches</h1>
 
           <div
             style={{

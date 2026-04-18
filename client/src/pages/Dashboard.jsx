@@ -215,8 +215,17 @@ export default function Dashboard() {
   const [showChartAvgWeight, setShowChartAvgWeight] = useState(true);
 
   const [showSkeleton, setShowSkeleton] = useState(false);
+  const [isMobile, setIsMobile] = useState(() =>
+    typeof window !== "undefined" ? window.innerWidth <= 768 : false,
+  );
 
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth <= 768);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
 
   useEffect(() => {
     let timer;
@@ -426,18 +435,18 @@ export default function Dashboard() {
   return (
     <div
       style={{
-        padding: "20px",
+        padding: isMobile ? "12px" : "20px",
         background: "#f8fafc",
         minHeight: "calc(100vh - 60px)",
       }}
     >
-      <div style={{ maxWidth: "1200px", margin: "0 auto" }}>
+      <div style={{ maxWidth: "1200px", margin: "0 auto", width: "100%" }}>
         <div
           style={{
             background: "linear-gradient(135deg, #0f172a 0%, #1d4ed8 100%)",
             color: "white",
-            borderRadius: "20px",
-            padding: "24px",
+            borderRadius: isMobile ? "18px" : "20px",
+            padding: isMobile ? "18px" : "24px",
             marginBottom: "18px",
             boxShadow: "0 18px 40px rgba(15,23,42,0.22)",
           }}
@@ -460,19 +469,19 @@ export default function Dashboard() {
             style={{
               display: "flex",
               justifyContent: "space-between",
-              gap: "18px",
+              gap: isMobile ? "16px" : "18px",
               alignItems: "flex-start",
               flexWrap: "wrap",
             }}
           >
-            <div style={{ flex: "1 1 520px" }}>
-              <h1 style={{ margin: "0 0 10px 0", fontSize: "30px" }}>
+            <div style={{ flex: "1 1 520px", minWidth: 0 }}>
+              <h1 style={{ margin: "0 0 10px 0", fontSize: isMobile ? "24px" : "30px", lineHeight: 1.15 }}>
                 Fishing Dashboard
               </h1>
 
               <div
                 style={{
-                  fontSize: "15px",
+                  fontSize: isMobile ? "14px" : "15px",
                   opacity: 0.96,
                   maxWidth: "760px",
                   lineHeight: 1.7,
@@ -525,8 +534,8 @@ export default function Dashboard() {
                 border: "none",
                 background: "white",
                 color: "#0f172a",
-                borderRadius: "12px",
-                padding: "12px 16px",
+                borderRadius: "14px",
+                padding: isMobile ? "12px 14px" : "12px 16px",
                 cursor: "pointer",
                 fontWeight: 800,
                 display: "flex",
@@ -570,7 +579,7 @@ export default function Dashboard() {
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+            gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(auto-fit, minmax(220px, 1fr))",
             gap: "14px",
             marginBottom: "18px",
           }}
@@ -618,7 +627,7 @@ export default function Dashboard() {
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
+            gridTemplateColumns: isMobile ? "1fr" : "repeat(auto-fit, minmax(300px, 1fr))",
             gap: "14px",
             marginBottom: "18px",
           }}
@@ -680,7 +689,7 @@ export default function Dashboard() {
                 <div
                   style={{
                     display: "grid",
-                    gridTemplateColumns: "1fr 1fr",
+                    gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr",
                     gap: "10px",
                   }}
                 >

@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useLocation } from "react-router-dom";
 import { notifyError, notifySuccess } from "../ui/toast";
 import {
   cancelReservation,
@@ -84,6 +85,7 @@ const SummaryCard = ({ label, value, note }) => (
 );
 
 export default function ReservationsPage({ currentUser }) {
+  const location = useLocation();
   const [myReservations, setMyReservations] = useState([]);
   const [incomingReservations, setIncomingReservations] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -100,6 +102,7 @@ export default function ReservationsPage({ currentUser }) {
   const incomingSectionRef = useRef(null);
   const normalizedRole = String(currentUser?.role || "").trim().toLowerCase();
   const canManageIncomingReservations = normalizedRole === "owner" || normalizedRole === "admin";
+  const reservationSubmitted = Boolean(location.state?.reservationSubmitted);
 
   const scrollToSectionTop = (ref) => {
     setTimeout(() => {
@@ -209,6 +212,12 @@ export default function ReservationsPage({ currentUser }) {
           </div>
         </div>
 
+        {reservationSubmitted ? (
+          <div className={styles.card} style={{ marginBottom: "16px" }}>
+            Your reservation request was sent successfully. You can track its status here.
+          </div>
+        ) : null}
+
         <div className={styles.summaryGrid}>
           <SummaryCard label="My reservations" value={myStats.total} note={`${myStats.pending} pending · ${myStats.approved} approved`} />
           <SummaryCard label="My cancelled" value={myStats.cancelled} note="Cancelled bookings stay visible for history" />
@@ -247,9 +256,13 @@ export default function ReservationsPage({ currentUser }) {
                       <div className={styles.splitRow}>
                         <div>
                           <div className={styles.itemTitle}>{item.lake_name}</div>
-                          <div className={`${styles.metaText} ${styles.metaBlock}`}>Date: {formatDate(item.reservation_date)}</div>
+                          <div className={`${styles.metaText} ${styles.metaBlock}`}>Stay: {formatDate(item.arrival_date || item.start_date)} → {formatDate(item.departure_date || item.end_date)}</div>
                           <div className={`${styles.metaText} ${styles.metaBlockCompact}`}>Created: {formatDateTime(item.created_at)}</div>
-                          <div className={`${styles.metaText} ${styles.metaBlockCompact}`}>People: {item.people_count || 1}</div>
+                          <div className={`${styles.metaText} ${styles.metaBlockCompact}`}>Spots: {item.requested_spots || item.people_count || 1}</div>
+                          <div className={`${styles.metaText} ${styles.metaBlockCompact}`}>Fishing days: {(item.fishing_dates || []).length || 0}</div>
+                          <div className={`${styles.metaText} ${styles.metaBlockCompact}`}>Night fishing: {(item.night_fishing_dates || []).length || 0}</div>
+                          <div className={`${styles.metaText} ${styles.metaBlockCompact}`}>Rooms: {(item.room_names || []).length ? item.room_names.join(", ") : "None"}</div>
+                          <div className={`${styles.metaText} ${styles.metaBlockCompact}`}>Total: €{Number(item.total_amount || 0).toFixed(2)}</div>
                           <div className={`${styles.noteText} ${styles.noteBlock}`}>Notes: {item.notes || "No notes"}</div>
                         </div>
                         <div className={styles.actionColumn}>
@@ -298,9 +311,13 @@ export default function ReservationsPage({ currentUser }) {
                           <div>
                             <div className={styles.itemTitle}>{item.lake_name}</div>
                             <div className={`${styles.metaText} ${styles.metaBlock}`}>User: {item.full_name || "Unknown"} {item.email ? `(${item.email})` : ""}</div>
-                            <div className={`${styles.metaText} ${styles.metaBlockCompact}`}>Date: {formatDate(item.reservation_date)}</div>
+                            <div className={`${styles.metaText} ${styles.metaBlockCompact}`}>Stay: {formatDate(item.arrival_date || item.start_date)} → {formatDate(item.departure_date || item.end_date)}</div>
                             <div className={`${styles.metaText} ${styles.metaBlockCompact}`}>Created: {formatDateTime(item.created_at)}</div>
-                            <div className={`${styles.metaText} ${styles.metaBlockCompact}`}>People: {item.people_count || 1}</div>
+                            <div className={`${styles.metaText} ${styles.metaBlockCompact}`}>Spots: {item.requested_spots || item.people_count || 1}</div>
+                            <div className={`${styles.metaText} ${styles.metaBlockCompact}`}>Fishing days: {(item.fishing_dates || []).length || 0}</div>
+                            <div className={`${styles.metaText} ${styles.metaBlockCompact}`}>Night fishing: {(item.night_fishing_dates || []).length || 0}</div>
+                            <div className={`${styles.metaText} ${styles.metaBlockCompact}`}>Rooms: {(item.room_names || []).length ? item.room_names.join(", ") : "None"}</div>
+                            <div className={`${styles.metaText} ${styles.metaBlockCompact}`}>Total: €{Number(item.total_amount || 0).toFixed(2)}</div>
                             <div className={`${styles.noteText} ${styles.noteBlock}`}>Notes: {item.notes || "No notes"}</div>
                           </div>
                           <div className={styles.actionColumn}>

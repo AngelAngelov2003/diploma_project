@@ -14,6 +14,7 @@ router.get("/water-bodies/:waterBodyId/forecast", waterBodyController.getWaterBo
 router.get("/water-bodies/:waterBodyId/catches", waterBodyController.getWaterBodyCatches);
 router.get("/water-bodies/:waterBodyId/species-summary", waterBodyController.getSpeciesSummary);
 router.get("/water-bodies/:waterBodyId/photos", waterBodyController.getWaterBodyPhotos);
+router.get("/water-bodies/:waterBodyId/booking-options", waterBodyController.getBookingOptions);
 
 router.get("/water-bodies/:waterBodyId/reviews", waterBodyController.getReviews);
 router.get("/water-bodies/:waterBodyId/reviews-summary", waterBodyController.getReviewsSummary);
