@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { FaUserShield } from "react-icons/fa";
 import { notifyError, notifySuccess } from "../ui/toast";
 import { getProfile } from "../api/profileApi";
 import { getMyClaimRequests, submitClaimRequest } from "../api/ownerApi";
@@ -190,11 +191,11 @@ export default function BecomeOwner() {
     <div className={styles.page}>
       <div className={styles.shell}>
         <div className={styles.hero}>
-          <h2 className={styles.heroTitle}>Become an Owner</h2>
-          <div className={styles.heroText}>
-            Submit proof that you own or manage a private reservable fishing lake. Your request stays available at all
-            times, and an administrator will review it before owner access is enabled.
+          <div className={styles.heroEyebrow}>
+            <FaUserShield />
+            <span>Become an Owner</span>
           </div>
+          <h2 className={styles.heroTitle}>Become an Owner</h2>
         </div>
 
         <div className={styles.stack}>

@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { FaCalendarCheck } from "react-icons/fa";
 import { useLocation } from "react-router-dom";
 import { notifyError, notifySuccess } from "../ui/toast";
 import {
@@ -75,14 +76,6 @@ const INCOMING_STATUS_FILTERS = [
   { key: "approved", label: "Approved" },
   { key: "rejected", label: "Rejected" },
 ];
-
-const SummaryCard = ({ label, value, note }) => (
-  <div className={styles.summaryCard}>
-    <div className={styles.summaryLabel}>{label}</div>
-    <div className={styles.summaryValue}>{value}</div>
-    <div className={styles.summaryNote}>{note}</div>
-  </div>
-);
 
 export default function ReservationsPage({ currentUser }) {
   const location = useLocation();
@@ -181,19 +174,6 @@ export default function ReservationsPage({ currentUser }) {
     [incomingReservations, incomingStatusFilter, incomingSearch],
   );
 
-  const myStats = useMemo(() => ({
-    total: myReservations.length,
-    pending: getStatusCount(myReservations, "pending"),
-    approved: getStatusCount(myReservations, "approved"),
-    cancelled: getStatusCount(myReservations, "cancelled"),
-  }), [myReservations]);
-
-  const incomingStats = useMemo(() => ({
-    total: incomingReservations.length,
-    pending: getStatusCount(incomingReservations, "pending"),
-    approved: getStatusCount(incomingReservations, "approved"),
-    rejected: getStatusCount(incomingReservations, "rejected"),
-  }), [incomingReservations]);
 
   const paginatedMyReservations = useMemo(() => paginateItems(filteredMyReservations, myPage), [filteredMyReservations, myPage]);
   const paginatedIncomingReservations = useMemo(() => paginateItems(filteredIncomingReservations, incomingPage), [filteredIncomingReservations, incomingPage]);
@@ -206,10 +186,15 @@ export default function ReservationsPage({ currentUser }) {
     <div className={styles.page}>
       <div className={styles.shell}>
         <div className={styles.hero}>
-          <h2 className={styles.heroTitle}>Reservations</h2>
-          <div className={styles.heroText}>
-            Track your own bookings and, if you are an owner or admin, review incoming requests from one place.
-          </div>
+          <div className={styles.heroHeader}>
+            <div className={styles.heroIntro}>
+              <div className={styles.heroEyebrow}>
+                <FaCalendarCheck />
+                <span>Booking center</span>
+              </div>
+              <h2 className={styles.heroTitle}>Reservations</h2>
+            </div>
+            </div>
         </div>
 
         {reservationSubmitted ? (
@@ -217,17 +202,6 @@ export default function ReservationsPage({ currentUser }) {
             Your reservation request was sent successfully. You can track its status here.
           </div>
         ) : null}
-
-        <div className={styles.summaryGrid}>
-          <SummaryCard label="My reservations" value={myStats.total} note={`${myStats.pending} pending · ${myStats.approved} approved`} />
-          <SummaryCard label="My cancelled" value={myStats.cancelled} note="Cancelled bookings stay visible for history" />
-          {canManageIncomingReservations ? (
-            <>
-              <SummaryCard label="Incoming requests" value={incomingStats.total} note={`${incomingStats.pending} need action`} />
-              <SummaryCard label="Incoming approved" value={incomingStats.approved} note={`${incomingStats.rejected} rejected`} />
-            </>
-          ) : null}
-        </div>
 
         <div className={styles.stack}>
           <div ref={mySectionRef} className={styles.card}>
@@ -257,12 +231,14 @@ export default function ReservationsPage({ currentUser }) {
                         <div>
                           <div className={styles.itemTitle}>{item.lake_name}</div>
                           <div className={`${styles.metaText} ${styles.metaBlock}`}>Stay: {formatDate(item.arrival_date || item.start_date)} → {formatDate(item.departure_date || item.end_date)}</div>
-                          <div className={`${styles.metaText} ${styles.metaBlockCompact}`}>Created: {formatDateTime(item.created_at)}</div>
-                          <div className={`${styles.metaText} ${styles.metaBlockCompact}`}>Spots: {item.requested_spots || item.people_count || 1}</div>
-                          <div className={`${styles.metaText} ${styles.metaBlockCompact}`}>Fishing days: {(item.fishing_dates || []).length || 0}</div>
-                          <div className={`${styles.metaText} ${styles.metaBlockCompact}`}>Night fishing: {(item.night_fishing_dates || []).length || 0}</div>
-                          <div className={`${styles.metaText} ${styles.metaBlockCompact}`}>Rooms: {(item.room_names || []).length ? item.room_names.join(", ") : "None"}</div>
-                          <div className={`${styles.metaText} ${styles.metaBlockCompact}`}>Total: €{Number(item.total_amount || 0).toFixed(2)}</div>
+                          <div className={styles.metaGrid}>
+                            <div className={`${styles.metaText} ${styles.metaChip}`}>Created: {formatDateTime(item.created_at)}</div>
+                            <div className={`${styles.metaText} ${styles.metaChip}`}>Spots: {item.requested_spots || item.people_count || 1}</div>
+                            <div className={`${styles.metaText} ${styles.metaChip}`}>Fishing days: {(item.fishing_dates || []).length || 0}</div>
+                            <div className={`${styles.metaText} ${styles.metaChip}`}>Night fishing: {(item.night_fishing_dates || []).length || 0}</div>
+                            <div className={`${styles.metaText} ${styles.metaChip}`}>Rooms: {(item.room_names || []).length ? item.room_names.join(", ") : "None"}</div>
+                            <div className={`${styles.metaText} ${styles.metaChip}`}>Total: €{Number(item.total_amount || 0).toFixed(2)}</div>
+                          </div>
                           <div className={`${styles.noteText} ${styles.noteBlock}`}>Notes: {item.notes || "No notes"}</div>
                         </div>
                         <div className={styles.actionColumn}>
@@ -312,12 +288,14 @@ export default function ReservationsPage({ currentUser }) {
                             <div className={styles.itemTitle}>{item.lake_name}</div>
                             <div className={`${styles.metaText} ${styles.metaBlock}`}>User: {item.full_name || "Unknown"} {item.email ? `(${item.email})` : ""}</div>
                             <div className={`${styles.metaText} ${styles.metaBlockCompact}`}>Stay: {formatDate(item.arrival_date || item.start_date)} → {formatDate(item.departure_date || item.end_date)}</div>
-                            <div className={`${styles.metaText} ${styles.metaBlockCompact}`}>Created: {formatDateTime(item.created_at)}</div>
-                            <div className={`${styles.metaText} ${styles.metaBlockCompact}`}>Spots: {item.requested_spots || item.people_count || 1}</div>
-                            <div className={`${styles.metaText} ${styles.metaBlockCompact}`}>Fishing days: {(item.fishing_dates || []).length || 0}</div>
-                            <div className={`${styles.metaText} ${styles.metaBlockCompact}`}>Night fishing: {(item.night_fishing_dates || []).length || 0}</div>
-                            <div className={`${styles.metaText} ${styles.metaBlockCompact}`}>Rooms: {(item.room_names || []).length ? item.room_names.join(", ") : "None"}</div>
-                            <div className={`${styles.metaText} ${styles.metaBlockCompact}`}>Total: €{Number(item.total_amount || 0).toFixed(2)}</div>
+                            <div className={styles.metaGrid}>
+                              <div className={`${styles.metaText} ${styles.metaChip}`}>Created: {formatDateTime(item.created_at)}</div>
+                              <div className={`${styles.metaText} ${styles.metaChip}`}>Spots: {item.requested_spots || item.people_count || 1}</div>
+                              <div className={`${styles.metaText} ${styles.metaChip}`}>Fishing days: {(item.fishing_dates || []).length || 0}</div>
+                              <div className={`${styles.metaText} ${styles.metaChip}`}>Night fishing: {(item.night_fishing_dates || []).length || 0}</div>
+                              <div className={`${styles.metaText} ${styles.metaChip}`}>Rooms: {(item.room_names || []).length ? item.room_names.join(", ") : "None"}</div>
+                              <div className={`${styles.metaText} ${styles.metaChip}`}>Total: €{Number(item.total_amount || 0).toFixed(2)}</div>
+                            </div>
                             <div className={`${styles.noteText} ${styles.noteBlock}`}>Notes: {item.notes || "No notes"}</div>
                           </div>
                           <div className={styles.actionColumn}>

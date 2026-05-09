@@ -14,8 +14,8 @@
   composes: heroTitle from "../styles/ui.module.css";
 }
 
-.heroText {
-  composes: heroText from "../styles/ui.module.css";
+.heroEyebrow {
+  composes: heroEyebrow from "../styles/ui.module.css";
 }
 
 .stack {
@@ -648,5 +648,187 @@
 
   .modalBackdrop {
     padding: 12px;
+  }
+}
+.photoManagerCard {
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  padding: 12px;
+  background: white;
+  display: grid;
+  grid-template-columns: 140px 1fr auto;
+  gap: 14px;
+  align-items: center;
+}
+
+.photoThumb {
+  width: 140px;
+  height: 92px;
+  border-radius: 12px;
+  object-fit: cover;
+  border: 1px solid #e5e7eb;
+  background: #f8fafc;
+}
+
+.photoManagerBody {
+  min-width: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.photoActions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.galleryDivider {
+  height: 1px;
+  background: #e5e7eb;
+  margin: 18px 0;
+}
+
+.paginationBar {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid #e5e7eb;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.paginationActions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.input[type="number"]::-webkit-outer-spin-button,
+.input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.input[type="number"] {
+  -moz-appearance: textfield;
+}
+
+@media (max-width: 760px) {
+  .page {
+    padding: 10px;
+  }
+
+  .shell {
+    gap: 12px;
+  }
+
+  .hero {
+    padding: 16px;
+    border-radius: 18px;
+  }
+
+  .lakeCard {
+    padding: 12px;
+    border-radius: 16px;
+  }
+
+  .lakeHeader {
+    gap: 10px;
+    padding-bottom: 14px;
+    margin-bottom: 12px;
+  }
+
+  .tabBar {
+    gap: 8px;
+  }
+
+  .tabButton,
+  .tabButtonActive {
+    padding: 11px 12px;
+    border-radius: 13px;
+    font-size: 14px;
+  }
+
+  .sectionCard {
+    padding: 12px;
+    border-radius: 16px;
+  }
+
+  .settingsGrid,
+  .formGrid,
+  .spotGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .photoManagerCard {
+    grid-template-columns: 96px 1fr;
+    gap: 10px;
+    align-items: start;
+  }
+
+  .photoThumb {
+    width: 96px;
+    height: 76px;
+  }
+
+  .photoActions {
+    grid-column: 1 / -1;
+    justify-content: stretch;
+  }
+
+  .photoActions button,
+  .photoManagerCard > button,
+  .editorHeader button,
+  .sectionCardActions button,
+  .paginationActions button {
+    flex: 1;
+    min-width: 0;
+  }
+}
+
+@media (max-width: 430px) {
+  .page {
+    padding: 8px;
+  }
+
+  .heroTitle {
+    font-size: 20px;
+  }
+
+  .lakeTitle {
+    font-size: 17px;
+  }
+
+  .headerMetrics {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .tabButton,
+  .tabButtonActive {
+    justify-content: center;
+    font-size: 13px;
+  }
+
+  .photoManagerCard {
+    grid-template-columns: 1fr;
+  }
+
+  .photoThumb {
+    width: 100%;
+    height: 150px;
+  }
+
+  .paginationBar {
+    align-items: stretch;
+  }
+
+  .paginationActions {
+    width: 100%;
   }
 }

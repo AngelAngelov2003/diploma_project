@@ -174,6 +174,11 @@ def get_or_train_model(lat, lng, force_refresh=False):
         return None
 
 
+@app.route("/health", methods=["GET"])
+def health():
+    return jsonify({"ok": True, "cached_models": len(models_cache)})
+
+
 @app.route("/predict", methods=["POST"])
 def predict():
     data = request.json or {}
@@ -183,9 +188,14 @@ def predict():
         temp = float(data.get("temp"))
         pressure = float(data.get("pressure"))
         wind = float(data.get("wind"))
+        date_text = data.get("date")
+        try:
+            forecast_date = datetime.fromisoformat(date_text) if date_text else datetime.now()
+        except Exception:
+            forecast_date = datetime.now()
 
         weather_score = calculate_weather_score(temp, pressure, wind)
-        moon_phase = get_moon_phase(datetime.now())
+        moon_phase = get_moon_phase(forecast_date)
         moon_score = calculate_moon_score(moon_phase)
 
         heuristic_score = clamp_score((weather_score * 0.7) + (moon_score * 0.3))

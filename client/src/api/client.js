@@ -31,10 +31,7 @@ const handleExpiredSession = (message) => {
 
   authRedirectInProgress = true;
 
-  sessionStorage.setItem(
-    "auth_expired_message",
-    message || "Your session expired. Please sign in again."
-  );
+  sessionStorage.removeItem("auth_expired_message");
 
   window.dispatchEvent(
     new CustomEvent(AUTH_EXPIRED_EVENT, {
@@ -64,7 +61,7 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     const status = error.response?.status;
-    const message = error.response?.data?.message;
+    const message = error.response?.data?.message || error.response?.data?.error;
     const requestUrl = error.config?.url || "";
 
     if (isAuthRoute(requestUrl)) {
@@ -72,6 +69,8 @@ api.interceptors.response.use(
     }
 
     if (isAuthFailure(status, message)) {
+      error.isAuthExpired = true;
+      error.silent = true;
       handleExpiredSession(message);
     }
 

@@ -428,6 +428,90 @@ const deleteLakePhoto = async (req, res) => {
   }
 };
 
+
+const getOwnerLakeCatches = async (req, res) => {
+  try {
+    await ensureSchema();
+    const lake = await ensureOwnedLake(req.params.waterBodyId, req.user);
+    if (!lake) return res.status(404).json({ error: 'Lake not found or not owned by you' });
+
+    const q = await pool.query(`
+      SELECT
+        c.id,
+        c.water_body_id,
+        c.user_id,
+        c.species,
+        c.weight_kg,
+        c.catch_time,
+        c.notes,
+        c.image_url,
+        c.created_at,
+        u.full_name,
+        u.email
+      FROM catch_logs c
+      LEFT JOIN users u ON u.id = c.user_id
+      WHERE c.water_body_id = $1
+        AND c.image_url IS NOT NULL
+        AND TRIM(c.image_url) <> ''
+      ORDER BY COALESCE(c.catch_time, c.created_at) DESC
+      LIMIT 100
+    `, [req.params.waterBodyId]);
+
+    res.json(q.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message || 'Failed to load user catch photos' });
+  }
+};
+
+const deleteOwnerCatchPhoto = async (req, res) => {
+  try {
+    await ensureSchema();
+    const lake = await ensureOwnedLake(req.params.waterBodyId, req.user);
+    if (!lake) return res.status(404).json({ error: 'Lake not found or not owned by you' });
+
+    const q = await pool.query(
+      `UPDATE catch_logs
+       SET image_url = NULL
+       WHERE id = $1 AND water_body_id = $2 AND image_url IS NOT NULL
+       RETURNING id`,
+      [req.params.catchId, req.params.waterBodyId]
+    );
+
+    if (!q.rows.length) return res.status(404).json({ error: 'Catch photo not found' });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message || 'Failed to remove user catch photo' });
+  }
+};
+
+const reportOwnerLakeCatch = async (req, res) => {
+  try {
+    await ensureSchema();
+    const lake = await ensureOwnedLake(req.params.waterBodyId, req.user);
+    if (!lake) return res.status(404).json({ error: 'Lake not found or not owned by you' });
+
+    const reason = String(req.body.reason || '').trim();
+    if (!reason) return res.status(400).json({ error: 'reason is required' });
+
+    const catchQ = await pool.query(
+      `SELECT id, user_id FROM catch_logs WHERE id = $1 AND water_body_id = $2 LIMIT 1`,
+      [req.params.catchId, req.params.waterBodyId]
+    );
+    if (!catchQ.rows.length) return res.status(404).json({ error: 'Catch not found' });
+
+    const q = await pool.query(
+      `INSERT INTO lake_user_reports (water_body_id, catch_id, reported_user_id, reported_by, reason)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING *`,
+      [req.params.waterBodyId, req.params.catchId, catchQ.rows[0].user_id, req.user, reason]
+    );
+
+    res.json(q.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message || 'Failed to report user' });
+  }
+};
+
 module.exports = {
   getOwnerLakes,
   getMyClaimRequests,
@@ -446,4 +530,7 @@ module.exports = {
   getLakePhotos,
   uploadLakePhoto,
   deleteLakePhoto,
+  getOwnerLakeCatches,
+  deleteOwnerCatchPhoto,
+  reportOwnerLakeCatch,
 };

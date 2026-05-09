@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   FaDownload,
   FaFish,
@@ -93,19 +93,6 @@ const formatDateForExport = (value) => {
   return date.toISOString();
 };
 
-const StatPill = ({ value, label }) => (
-  <div
-    style={{
-      background: "rgba(255,255,255,0.16)",
-      borderRadius: "999px",
-      padding: "8px 12px",
-      fontSize: "13px",
-      fontWeight: 700,
-    }}
-  >
-    {value} {label}
-  </div>
-);
 
 const sortOptions = [
   { value: "newest", label: "Newest first" },
@@ -128,6 +115,8 @@ export default function MyCatches() {
   const [sortBy, setSortBy] = useState("newest");
   const [pageSize, setPageSize] = useState(8);
   const [page, setPage] = useState(1);
+  const listSectionRef = useRef(null);
+  const didMountRef = useRef(false);
   const [isMobile, setIsMobile] = useState(() =>
     typeof window !== "undefined" ? window.innerWidth <= 768 : false,
   );
@@ -275,6 +264,23 @@ export default function MyCatches() {
         sortedCatches.length,
       )} of ${sortedCatches.length} filtered catches`;
 
+
+  useEffect(() => {
+    if (!didMountRef.current) {
+      didMountRef.current = true;
+      return;
+    }
+
+    listSectionRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
+  }, [currentPage]);
+
+  const changePage = (nextPage) => {
+    setPage(Math.max(1, Math.min(totalPages, nextPage)));
+  };
+
   const goToLakeOnMap = (waterBodyId) => {
     if (
       waterBodyId === null ||
@@ -353,15 +359,10 @@ export default function MyCatches() {
     URL.revokeObjectURL(url);
   };
 
-  const catchesWithPhotos = sortedCatches.filter((item) => item.image_url).length;
-  const catchesWithNotes = sortedCatches.filter((item) =>
-    String(item.notes || "").trim(),
-  ).length;
-
   return (
     <div
       style={{
-        padding: isMobile ? "12px" : "20px",
+        padding: isMobile ? "16px 12px 12px" : "20px",
         background: "#f8fafc",
         minHeight: "calc(100vh - 60px)",
       }}
@@ -380,43 +381,29 @@ export default function MyCatches() {
           <div
             style={{
               display: "flex",
-              alignItems: "center",
-              gap: "10px",
-              marginBottom: "8px",
-            }}
-          >
-            <FaList />
-            <div style={{ fontSize: "14px", fontWeight: 700, opacity: 0.95 }}>
-              Catch records
-            </div>
-          </div>
-
-          <h1 style={{ margin: "0 0 8px 0", fontSize: isMobile ? "24px" : "28px", lineHeight: 1.15 }}>My Catches</h1>
-
-          <div
-            style={{
-              fontSize: "14px",
-              opacity: 0.95,
-              maxWidth: "760px",
-              lineHeight: 1.6,
-            }}
-          >
-            This page is your fishing logbook. Use it to browse, filter, sort,
-            review, and export your catch history in a clean, organized way.
-          </div>
-
-          <div
-            style={{
-              display: "flex",
-              gap: "10px",
+              justifyContent: "space-between",
+              gap: isMobile ? "14px" : "18px",
+              alignItems: "flex-start",
               flexWrap: "wrap",
-              marginTop: "16px",
             }}
           >
-            <StatPill value={(catches || []).length} label="total catches" />
-            <StatPill value={sortedCatches.length} label="filtered results" />
-            <StatPill value={catchesWithPhotos} label="with photos" />
-            <StatPill value={catchesWithNotes} label="with notes" />
+            <div style={{ flex: "1 1 320px", minWidth: 0 }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "10px",
+                  marginBottom: "8px",
+                }}
+              >
+                <FaList />
+                <div style={{ fontSize: "14px", fontWeight: 700, opacity: 0.95 }}>
+                  Catch records
+                </div>
+              </div>
+
+              <h1 style={{ margin: 0, fontSize: isMobile ? "24px" : "28px", lineHeight: 1.15 }}>My Catches</h1>
+            </div>
           </div>
         </div>
 
@@ -448,6 +435,7 @@ export default function MyCatches() {
         </div>
 
         <div
+          ref={listSectionRef}
           style={{
             background: "white",
             border: "1px solid #e5e7eb",
@@ -455,6 +443,7 @@ export default function MyCatches() {
             padding: "16px",
             marginBottom: "18px",
             boxShadow: "0 6px 16px rgba(15,23,42,0.05)",
+            scrollMarginTop: "82px",
           }}
         >
           <div
@@ -752,7 +741,7 @@ export default function MyCatches() {
               >
                 <button
                   type="button"
-                  onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+                  onClick={() => changePage(currentPage - 1)}
                   disabled={currentPage <= 1}
                   style={{
                     border: "1px solid #d1d5db",
@@ -773,7 +762,7 @@ export default function MyCatches() {
 
                 <button
                   type="button"
-                  onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+                  onClick={() => changePage(currentPage + 1)}
                   disabled={currentPage >= totalPages}
                   style={{
                     border: "1px solid #d1d5db",

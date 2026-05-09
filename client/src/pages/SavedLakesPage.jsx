@@ -314,11 +314,16 @@ export default function SavedLakesPage({ initialTab = "all" }) {
       <div className={styles.shell}>
         <section className={styles.hero}>
           <div className={styles.heroContent}>
-            <div className={styles.heroEyebrow}>
-              <FaStar />
-              <span>Saved lakes</span>
+            <div className={styles.heroHeader}>
+              <div className={styles.heroIntro}>
+                <div className={styles.heroEyebrow}>
+                  <FaStar />
+                  <span>Saved lakes</span>
+                </div>
+                <h1 className={styles.heroTitle}>Saved Lakes</h1>
+              </div>
+
             </div>
-            <h1 className={styles.heroTitle}>Saved Lakes</h1>
           </div>
         </section>
 

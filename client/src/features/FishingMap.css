@@ -72,7 +72,8 @@
 .fishing-map-page {
   display: flex;
   width: 100%;
-  height: calc(100vh - 60px);
+  height: calc(100dvh - 64px);
+  min-height: calc(100dvh - 64px);
   position: relative;
   overflow: hidden;
   background: var(--fm-color-page-bg);
@@ -1103,7 +1104,7 @@
   }
   .map-floating-actions {
     right: 14px;
-    bottom: 78px;
+    bottom: 108px;
     left: auto;
   }
   .map-floating-button {
@@ -1281,7 +1282,7 @@
   }
   .map-floating-actions {
     right: 12px;
-    bottom: 78px;
+    bottom: 104px;
   }
   .map-floating-button {
     font-size: 13px;
@@ -1307,7 +1308,7 @@
 
 @media (max-height: 820px) {
   .map-floating-actions {
-    bottom: 84px;
+    bottom: 110px;
   }
   .map-selected-preview {
     top: 14px;
@@ -1321,4 +1322,188 @@
 
 .lake-list-card-description > div {
   min-width: 0;
+}
+
+
+@media (max-width: 900px) {
+  .fishing-map-page {
+    height: calc(100dvh - 56px - 96px);
+    min-height: calc(100dvh - 56px - 96px);
+  }
+}
+
+/* Responsive map fixes */
+.fishing-map-canvas,
+.map-main-panel .leaflet-container {
+  width: 100%;
+  height: 100%;
+  min-height: 100%;
+  background: var(--fm-color-map-bg);
+}
+
+@media (max-width: 900px) {
+  .fishing-map-page {
+    height: calc(100dvh - 56px);
+    min-height: calc(100dvh - 56px);
+  }
+
+  .map-main-panel {
+    width: 100%;
+    height: 100%;
+  }
+
+  .map-floating-actions {
+    right: 12px;
+    bottom: 78px;
+  }
+}
+
+@media (max-width: 640px) {
+  .map-overview-card {
+    width: auto;
+    max-width: min(300px, calc(100vw - 72px));
+  }
+
+  .lake-modal-card {
+    width: calc(100vw - 20px);
+    max-height: calc(100dvh - 92px);
+  }
+
+  .map-floating-actions {
+    right: 10px;
+    bottom: 70px;
+  }
+}
+
+@media (max-height: 820px) {
+  .map-floating-actions {
+    bottom: 70px;
+  }
+}
+
+/* Fit the Bulgaria overview better on narrow screens */
+@media (max-width: 640px) {
+  .map-overview-card {
+    top: 16px;
+    left: 50%;
+    width: min(220px, calc(100vw - 150px));
+    max-width: min(220px, calc(100vw - 150px));
+    padding: 12px 14px;
+  }
+
+  .map-overview-card-title {
+    font-size: 17px;
+    line-height: 1.22;
+  }
+
+  .map-overview-card-text {
+    font-size: 12px;
+    line-height: 1.45;
+  }
+
+  .leaflet-control-zoom {
+    transform: scale(0.9);
+    transform-origin: top left;
+  }
+
+  .leaflet-top.leaflet-left {
+    margin-top: 22px;
+    margin-left: 82px;
+  }
+}
+
+/* Mobile viewport/scroll and overview fit fixes */
+.map-main-panel {
+  overflow: hidden;
+}
+
+@media (max-width: 900px) {
+  .fishing-map-page {
+    height: calc(100svh - 56px);
+    min-height: 0;
+    max-height: calc(100svh - 56px);
+    overflow: hidden;
+  }
+
+  .map-main-panel,
+  .fishing-map-canvas,
+  .map-main-panel .leaflet-container {
+    height: 100%;
+    min-height: 0;
+    max-height: 100%;
+    overflow: hidden;
+  }
+
+  .lake-modal-backdrop {
+    position: fixed;
+    top: 56px;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    padding: 14px;
+  }
+}
+
+@media (max-width: 640px) {
+  .map-overview-card {
+    top: 18px;
+    width: min(230px, calc(100vw - 112px));
+    max-width: min(230px, calc(100vw - 112px));
+  }
+
+  .map-floating-actions {
+    right: 8px;
+    bottom: 88px;
+    gap: 8px;
+  }
+
+  .map-floating-button {
+    padding: 10px 12px;
+    font-size: 13px;
+    border-radius: 16px;
+  }
+}
+
+/* Prevent background/map scroll while the lake overview modal is open */
+.map-main-panel.lake-overlay-open {
+  touch-action: none;
+  overscroll-behavior: none;
+}
+
+.map-main-panel.lake-overlay-open .leaflet-container {
+  touch-action: none;
+}
+
+.map-main-panel.lake-overlay-open .lake-modal-backdrop {
+  touch-action: none;
+  overscroll-behavior: none;
+}
+
+.map-main-panel.lake-overlay-open .lake-modal-card {
+  touch-action: pan-y;
+  overscroll-behavior: contain;
+}
+
+@media (max-width: 900px) {
+  .lake-modal-backdrop {
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+
+  .lake-modal-card {
+    max-height: min(620px, calc(100svh - 92px));
+    overflow-y: auto;
+  }
+}
+
+@media (max-width: 640px) {
+  .lake-modal-backdrop {
+    padding: 10px;
+  }
+
+  .lake-modal-card {
+    width: min(370px, calc(100vw - 20px));
+    max-height: calc(100svh - 92px);
+  }
 }

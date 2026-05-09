@@ -10,8 +10,8 @@
 .heroTitle {
   composes: heroTitle from "../styles/ui.module.css";
 }
-.heroText {
-  composes: heroText from "../styles/ui.module.css";
+.heroEyebrow {
+  composes: heroEyebrow from "../styles/ui.module.css";
 }
 .stack {
   composes: stack from "../styles/ui.module.css";

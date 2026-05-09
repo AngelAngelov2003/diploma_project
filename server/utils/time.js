@@ -1,7 +1,7 @@
 const APP_TIMEZONE = process.env.APP_TIMEZONE || "Europe/Sofia";
 const DAILY_ALERT_HOUR = Number(process.env.DAILY_ALERT_HOUR || 7);
 const WEEKLY_ALERT_HOUR = Number(process.env.WEEKLY_ALERT_HOUR || 7);
-const WEEKLY_ALERT_DAY = Number(process.env.WEEKLY_ALERT_DAY || 1);
+const WEEKLY_ALERT_DAY = Number(process.env.WEEKLY_ALERT_DAY || 6);
 
 const getTimePartsInTimeZone = (date = new Date()) => {
   const parts = new Intl.DateTimeFormat("en-GB", {

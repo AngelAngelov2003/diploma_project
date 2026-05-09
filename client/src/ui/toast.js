@@ -5,6 +5,10 @@ export const notifyInfo = (msg) => toast.info(msg);
 export const notifyWarn = (msg) => toast.warn(msg);
 
 export const notifyError = (err, fallback = "Something went wrong") => {
+  if (err?.silent || err?.isAuthExpired) {
+    return;
+  }
+
   const msg =
     typeof err === "string"
       ? err

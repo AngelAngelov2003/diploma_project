@@ -36,3 +36,14 @@
     transform: rotate(360deg);
   }
 }
+
+.app-shell {
+  min-height: calc(100vh - 64px);
+}
+
+@media (max-width: 900px) {
+  .app-shell {
+    min-height: calc(100dvh - 56px);
+    padding-bottom: 98px;
+  }
+}

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import {
   FaFish,
-  FaUserCircle,
+  FaBars,
   FaSignOutAlt,
   FaList,
   FaStar,
@@ -34,6 +34,11 @@ const Navigation = ({ isAuthenticated, onLogout, currentUser }) => {
 
   const isAdmin = currentUser?.role === "admin";
   const isOwner = currentUser?.role === "owner" || isAdmin;
+
+  const closeMenuAndNavigate = (path) => {
+    setShowMenu(false);
+    navigate(path);
+  };
 
   const linkClassName = ({ isActive }) =>
     `main-nav-link ${isActive ? "active" : ""}`;
@@ -69,36 +74,40 @@ const Navigation = ({ isAuthenticated, onLogout, currentUser }) => {
                 <span>Saved Lakes</span>
               </NavLink>
 
-              <NavLink to="/reservations" className={linkClassName}>
+              <NavLink to="/reservations" className={(state) => `${linkClassName(state)} secondary-nav-link`}>
                 <FaCalendarAlt />
                 <span>Reservations</span>
               </NavLink>
 
-              <NavLink to="/become-owner" className={linkClassName}>
+              <NavLink to="/become-owner" className={(state) => `${linkClassName(state)} secondary-nav-link`}>
                 <FaFileSignature />
                 <span>Become Owner</span>
               </NavLink>
 
               {isOwner && (
-                <NavLink to="/owner" className={linkClassName}>
+                <NavLink to="/owner" className={(state) => `${linkClassName(state)} secondary-nav-link`}>
                   <FaTools />
                   <span>Owner Panel</span>
                 </NavLink>
               )}
 
               {isAdmin && (
-                <NavLink to="/admin" className={linkClassName}>
+                <NavLink to="/admin" className={(state) => `${linkClassName(state)} secondary-nav-link`}>
                   <FaUserShield />
                   <span>Admin</span>
                 </NavLink>
               )}
 
+
               <div ref={menuRef} className="main-user-menu-wrap">
                 <button
                   onClick={() => setShowMenu((prev) => !prev)}
-                  className="main-user-avatar-button"
+                  className={`main-user-avatar-button ${showMenu ? "open" : ""}`}
+                  aria-label={showMenu ? "Close navigation menu" : "Open navigation menu"}
+                  aria-expanded={showMenu}
+                  type="button"
                 >
-                  <FaUserCircle size={26} />
+                  <FaBars size={22} />
                 </button>
 
                 {showMenu && (
@@ -109,10 +118,23 @@ const Navigation = ({ isAuthenticated, onLogout, currentUser }) => {
                     </div>
 
                     <div
-                      onClick={() => {
-                        setShowMenu(false);
-                        navigate("/profile");
-                      }}
+                      onClick={() => closeMenuAndNavigate("/")}
+                      className="main-user-dropdown-item mobile-only-menu-item"
+                    >
+                      <FaMapMarkedAlt />
+                      <span>Map</span>
+                    </div>
+
+                    <div
+                      onClick={() => closeMenuAndNavigate("/dashboard")}
+                      className="main-user-dropdown-item mobile-only-menu-item"
+                    >
+                      <FaChartPie />
+                      <span>Dashboard</span>
+                    </div>
+
+                    <div
+                      onClick={() => closeMenuAndNavigate("/profile")}
                       className="main-user-dropdown-item"
                     >
                       <FaUserCog />
@@ -120,10 +142,7 @@ const Navigation = ({ isAuthenticated, onLogout, currentUser }) => {
                     </div>
 
                     <div
-                      onClick={() => {
-                        setShowMenu(false);
-                        navigate("/catches");
-                      }}
+                      onClick={() => closeMenuAndNavigate("/catches")}
                       className="main-user-dropdown-item"
                     >
                       <FaList />
@@ -131,10 +150,7 @@ const Navigation = ({ isAuthenticated, onLogout, currentUser }) => {
                     </div>
 
                     <div
-                      onClick={() => {
-                        setShowMenu(false);
-                        navigate("/saved-lakes");
-                      }}
+                      onClick={() => closeMenuAndNavigate("/saved-lakes")}
                       className="main-user-dropdown-item"
                     >
                       <FaStar />
@@ -142,10 +158,7 @@ const Navigation = ({ isAuthenticated, onLogout, currentUser }) => {
                     </div>
 
                     <div
-                      onClick={() => {
-                        setShowMenu(false);
-                        navigate("/reservations");
-                      }}
+                      onClick={() => closeMenuAndNavigate("/reservations")}
                       className="main-user-dropdown-item"
                     >
                       <FaCalendarAlt />
@@ -153,10 +166,7 @@ const Navigation = ({ isAuthenticated, onLogout, currentUser }) => {
                     </div>
 
                     <div
-                      onClick={() => {
-                        setShowMenu(false);
-                        navigate("/become-owner");
-                      }}
+                      onClick={() => closeMenuAndNavigate("/become-owner")}
                       className="main-user-dropdown-item"
                     >
                       <FaFileSignature />
@@ -165,10 +175,7 @@ const Navigation = ({ isAuthenticated, onLogout, currentUser }) => {
 
                     {isOwner && (
                       <div
-                        onClick={() => {
-                          setShowMenu(false);
-                          navigate("/owner");
-                        }}
+                        onClick={() => closeMenuAndNavigate("/owner")}
                         className="main-user-dropdown-item"
                       >
                         <FaTools />
@@ -178,10 +185,7 @@ const Navigation = ({ isAuthenticated, onLogout, currentUser }) => {
 
                     {isAdmin && (
                       <div
-                        onClick={() => {
-                          setShowMenu(false);
-                          navigate("/admin");
-                        }}
+                        onClick={() => closeMenuAndNavigate("/admin")}
                         className="main-user-dropdown-item"
                       >
                         <FaUserShield />
@@ -281,18 +285,30 @@ const Navigation = ({ isAuthenticated, onLogout, currentUser }) => {
         }
 
         .main-user-avatar-button {
-          background: transparent;
+          width: 42px;
+          height: 42px;
+          background: rgba(255, 255, 255, 0.08);
           color: white;
-          border: none;
+          border: 1px solid rgba(255, 255, 255, 0.14);
+          border-radius: 999px;
           padding: 0;
           display: flex;
           align-items: center;
+          justify-content: center;
           cursor: pointer;
           opacity: 0.95;
+          transition: background 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
         }
 
-        .main-user-avatar-button:hover {
+        .main-user-avatar-button:hover,
+        .main-user-avatar-button.open {
           opacity: 1;
+          background: rgba(59, 130, 246, 0.22);
+          border-color: rgba(96, 165, 250, 0.38);
+        }
+
+        .main-user-avatar-button.open {
+          transform: rotate(90deg);
         }
 
         .main-user-dropdown {
@@ -337,7 +353,11 @@ const Navigation = ({ isAuthenticated, onLogout, currentUser }) => {
           color: #b91c1c;
         }
 
-        @media (max-width: 1100px) {
+        .mobile-only-menu-item {
+          display: none;
+        }
+
+        @media (max-width: 1180px) {
           .main-navigation-links {
             gap: 6px;
           }
@@ -348,17 +368,25 @@ const Navigation = ({ isAuthenticated, onLogout, currentUser }) => {
           }
         }
 
-        @media (max-width: 900px) {
+        @media (max-width: 980px) {
           .main-navigation {
-            padding: 0 14px;
+            height: 56px;
+            padding: 0 12px;
           }
 
           .main-navigation-brand {
             font-size: 18px;
+            margin-right: 10px;
           }
 
           .main-navigation-links {
             gap: 4px;
+            min-width: 0;
+          }
+
+          .main-nav-link {
+            padding: 8px 9px;
+            border-radius: 11px;
           }
 
           .main-nav-link span {
@@ -366,11 +394,64 @@ const Navigation = ({ isAuthenticated, onLogout, currentUser }) => {
           }
         }
 
-        @media (max-width: 640px) {
+        @media (max-width: 720px) {
           .main-navigation-brand span {
             display: none;
           }
         }
+
+        @media (max-width: 560px) {
+          .main-navigation {
+            overflow: visible;
+            padding: 0 10px;
+          }
+
+          .main-navigation-brand {
+            gap: 0;
+            margin-right: 4px;
+          }
+
+          .main-navigation-links > .main-nav-link {
+            display: none;
+          }
+
+          .main-user-avatar-button {
+            width: 42px;
+            height: 42px;
+            justify-content: center;
+          }
+
+          .main-user-dropdown {
+            right: -2px;
+            top: 44px;
+            min-width: min(248px, calc(100vw - 28px));
+            max-height: calc(100svh - 76px);
+            overflow-y: auto;
+            border-radius: 14px;
+          }
+
+          .main-user-dropdown-header {
+            padding: 9px 13px;
+            font-size: 11px;
+          }
+
+          .main-user-dropdown-item {
+            padding: 10px 13px;
+            gap: 9px;
+            font-size: 14px;
+          }
+
+          .main-user-dropdown-item svg {
+            width: 16px;
+            height: 16px;
+            flex: 0 0 16px;
+          }
+
+          .mobile-only-menu-item {
+            display: flex;
+          }
+        }
+
       `}</style>
     </>
   );

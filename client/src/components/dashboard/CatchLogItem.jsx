@@ -22,8 +22,15 @@ export default function CatchLogItem({ log, onLakeClick }) {
 
       <div className={styles.content}>
         <div className={styles.headerRow}>
-          <div className={styles.title}>
-            <strong>{log.species}</strong> — {log.weight_kg}kg
+          <div className={styles.titleWrap}>
+            <div className={styles.title}>
+              <strong>{log.species}</strong>
+              <span className={styles.weight}>— {log.weight_kg}kg</span>
+            </div>
+            <div className={styles.metaChips}>
+              <span className={styles.metaChip}>Catch time: <strong>{formatDateTime(when)}</strong></span>
+              {log.notes ? <span className={styles.metaChip}>Notes: {log.notes}</span> : null}
+            </div>
           </div>
           {log.lake_name || log.water_body_name ? (
             <button
@@ -40,18 +47,6 @@ export default function CatchLogItem({ log, onLakeClick }) {
             </button>
           ) : null}
         </div>
-
-        <div className={styles.meta}>
-          <small>
-            Catch time: <strong>{formatDateTime(when)}</strong>
-          </small>
-        </div>
-
-        {log.notes && (
-          <div className={styles.notes}>
-            <small>Notes: {log.notes}</small>
-          </div>
-        )}
       </div>
     </li>
   );

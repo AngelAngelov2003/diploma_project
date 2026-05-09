@@ -6,7 +6,7 @@ import {
   FaMapMarkedAlt,
   FaWeightHanging,
   FaTrophy,
-  FaStream,
+  FaStream
 } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
 import useMyCatches from "../hooks/useMyCatches";
@@ -454,98 +454,71 @@ export default function Dashboard() {
           <div
             style={{
               display: "flex",
-              alignItems: "center",
-              gap: "10px",
-              marginBottom: "8px",
-            }}
-          >
-            <FaChartBar />
-            <div style={{ fontSize: "14px", fontWeight: 700, opacity: 0.95 }}>
-              Fishing analytics
-            </div>
-          </div>
-
-          <div
-            style={{
-              display: "flex",
               justifyContent: "space-between",
-              gap: isMobile ? "16px" : "18px",
+              gap: isMobile ? "14px" : "18px",
               alignItems: "flex-start",
               flexWrap: "wrap",
             }}
           >
-            <div style={{ flex: "1 1 520px", minWidth: 0 }}>
-              <h1 style={{ margin: "0 0 10px 0", fontSize: isMobile ? "24px" : "30px", lineHeight: 1.15 }}>
-                Fishing Dashboard
-              </h1>
-
-              <div
-                style={{
-                  fontSize: isMobile ? "14px" : "15px",
-                  opacity: 0.96,
-                  maxWidth: "760px",
-                  lineHeight: 1.7,
-                }}
-              >
-                This page focuses on insights, performance patterns, and
-                personal fishing statistics based on your catch history. Use it
-                to understand what species, lakes, and periods perform best for
-                you.
-              </div>
-
+            <div style={{ flex: "1 1 320px", minWidth: 0 }}>
               <div
                 style={{
                   display: "flex",
+                  alignItems: "center",
                   gap: "10px",
-                  flexWrap: "wrap",
-                  marginTop: "16px",
+                  marginBottom: "8px",
                 }}
               >
-                <div
-                  style={{
-                    background: "rgba(255,255,255,0.16)",
-                    borderRadius: "999px",
-                    padding: "8px 12px",
-                    fontSize: "13px",
-                    fontWeight: 700,
-                  }}
-                >
-                  {(catches || []).length} total logged catches
-                </div>
-
-                <div
-                  style={{
-                    background: "rgba(255,255,255,0.16)",
-                    borderRadius: "999px",
-                    padding: "8px 12px",
-                    fontSize: "13px",
-                    fontWeight: 700,
-                  }}
-                >
-                  {filteredCatches.length} catches in current analysis
+                <FaChartBar />
+                <div style={{ fontSize: "14px", fontWeight: 700, opacity: 0.95 }}>
+                  Fishing analytics
                 </div>
               </div>
+
+              <h1 style={{ margin: 0, fontSize: isMobile ? "24px" : "30px", lineHeight: 1.15 }}>
+                Fishing Dashboard
+              </h1>
             </div>
 
-            <button
-              type="button"
-              onClick={goToCatchesPage}
+            <div
               style={{
-                border: "none",
-                background: "white",
-                color: "#0f172a",
-                borderRadius: "14px",
-                padding: isMobile ? "12px 14px" : "12px 16px",
-                cursor: "pointer",
-                fontWeight: 800,
                 display: "flex",
-                alignItems: "center",
-                gap: "8px",
+                gap: "10px",
+                flexWrap: "wrap",
+                justifyContent: isMobile ? "flex-start" : "flex-end",
+                flex: "0 1 520px",
+                marginLeft: "auto",
               }}
             >
-              Open Fishing Log
-              <FaArrowRight />
-            </button>
+              <div style={{ background: "rgba(255,255,255,0.16)", borderRadius: "999px", padding: "8px 12px", fontSize: "13px", fontWeight: 700 }}>
+                {(catches || []).length} total catches
+              </div>
+              <div style={{ background: "rgba(255,255,255,0.16)", borderRadius: "999px", padding: "8px 12px", fontSize: "13px", fontWeight: 700 }}>
+                {filteredCatches.length} filtered
+              </div>
+              <div style={{ background: "rgba(255,255,255,0.1)", borderRadius: "999px", padding: "8px 12px", fontSize: "13px", fontWeight: 700 }}>
+                {dashboardStats.uniqueLakes} lakes
+              </div>
+              <button
+                type="button"
+                onClick={goToCatchesPage}
+                style={{
+                  border: "none",
+                  background: "white",
+                  color: "#0f172a",
+                  borderRadius: "14px",
+                  padding: isMobile ? "10px 13px" : "12px 16px",
+                  cursor: "pointer",
+                  fontWeight: 800,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                }}
+              >
+                Open Fishing Log
+                <FaArrowRight />
+              </button>
+            </div>
           </div>
         </div>
 

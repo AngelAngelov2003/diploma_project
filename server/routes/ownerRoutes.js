@@ -23,5 +23,8 @@ router.delete("/owner/lakes/:waterBodyId/rooms/:roomId", authorize, requireOwner
 router.get("/owner/lakes/:waterBodyId/photos", authorize, requireOwnerOrAdmin, ownerController.getLakePhotos);
 router.post("/owner/lakes/:waterBodyId/photos", authorize, requireOwnerOrAdmin, lakePhotoUpload.array("images", 12), ownerController.uploadLakePhoto);
 router.delete("/owner/lakes/:waterBodyId/photos/:photoId", authorize, requireOwnerOrAdmin, ownerController.deleteLakePhoto);
+router.get("/owner/lakes/:waterBodyId/catches", authorize, requireOwnerOrAdmin, ownerController.getOwnerLakeCatches);
+router.delete("/owner/lakes/:waterBodyId/catches/:catchId/photo", authorize, requireOwnerOrAdmin, ownerController.deleteOwnerCatchPhoto);
+router.post("/owner/lakes/:waterBodyId/catches/:catchId/report", authorize, requireOwnerOrAdmin, ownerController.reportOwnerLakeCatch);
 
 module.exports = router;

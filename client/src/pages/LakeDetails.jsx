@@ -10,10 +10,8 @@ import {
   FaImages,
   FaLock,
   FaMapMarkerAlt,
-  FaMoneyBillWave,
   FaStar,
   FaTemperatureHigh,
-  FaUsers,
   FaWind,
   FaWater,
 } from "react-icons/fa";
@@ -760,116 +758,6 @@ function LakeDetails() {
             </button>
           ) : null}
 
-          <div
-            style={{
-              display: "flex",
-              flexWrap: "wrap",
-              gap: "10px",
-              marginTop: "16px",
-            }}
-          >
-            <div
-              style={{
-                background: "rgba(255,255,255,0.15)",
-                borderRadius: "999px",
-                padding: "8px 12px",
-                fontSize: "13px",
-                fontWeight: 700,
-              }}
-            >
-              Type: {lake.type || "Not specified"}
-            </div>
-
-            <div
-              style={{
-                background: "rgba(255,255,255,0.15)",
-                borderRadius: "999px",
-                padding: "8px 12px",
-                fontSize: "13px",
-                fontWeight: 700,
-              }}
-            >
-              {lake.is_private ? "Private lake" : "Public lake"}
-            </div>
-
-            {lake.is_private && (
-              <div
-                style={{
-                  background: "rgba(255,255,255,0.15)",
-                  borderRadius: "999px",
-                  padding: "8px 12px",
-                  fontSize: "13px",
-                  fontWeight: 700,
-                }}
-              >
-                <FaMoneyBillWave style={{ marginRight: 8 }} />
-                {formatCurrency(lake.price_per_day)} per day
-              </div>
-            )}
-
-            {lake.is_private && (
-              <div
-                style={{
-                  background: "rgba(255,255,255,0.15)",
-                  borderRadius: "999px",
-                  padding: "8px 12px",
-                  fontSize: "13px",
-                  fontWeight: 700,
-                }}
-              >
-                <FaUsers style={{ marginRight: 8 }} />
-                Capacity {lake.capacity || 1}
-              </div>
-            )}
-
-            <div
-              style={{
-                background: "rgba(255,255,255,0.15)",
-                borderRadius: "999px",
-                padding: "8px 12px",
-                fontSize: "13px",
-                fontWeight: 700,
-              }}
-            >
-              {catches.length} recent catches
-            </div>
-
-            <div
-              style={{
-                background: "rgba(255,255,255,0.15)",
-                borderRadius: "999px",
-                padding: "8px 12px",
-                fontSize: "13px",
-                fontWeight: 700,
-              }}
-            >
-              {speciesSummary.length} species tracked
-            </div>
-
-            <div
-              style={{
-                background: "rgba(255,255,255,0.15)",
-                borderRadius: "999px",
-                padding: "8px 12px",
-                fontSize: "13px",
-                fontWeight: 700,
-              }}
-            >
-              {photos.length} photos
-            </div>
-
-            <div
-              style={{
-                background: "rgba(255,255,255,0.15)",
-                borderRadius: "999px",
-                padding: "8px 12px",
-                fontSize: "13px",
-                fontWeight: 700,
-              }}
-            >
-              Rating: {formatAverageRating(reviewsSummary.average_rating)} / 5
-            </div>
-          </div>
         </div>
 
         {lake.is_private && (
@@ -1799,12 +1687,12 @@ function LakeDetails() {
         <div style={cardStyle}>
           <h2 style={sectionTitleStyle}>
             <FaImages />
-            Photo gallery
+            Lake gallery
           </h2>
 
           {photos.length === 0 ? (
             <div style={{ color: "#64748b" }}>
-              No photos uploaded for this lake yet.
+              No owner gallery photos uploaded for this lake yet.
             </div>
           ) : (
             <>
@@ -1827,7 +1715,7 @@ function LakeDetails() {
                   >
                     <img
                       src={`http://localhost:5000/uploads/${photo.image_url}`}
-                      alt={photo.species || "Lake photo"}
+                      alt={photo.caption || "Lake photo"}
                       style={{
                         width: "100%",
                         height: "180px",
@@ -1843,11 +1731,10 @@ function LakeDetails() {
                           marginBottom: "4px",
                         }}
                       >
-                        {photo.species || "Catch photo"}
+                        {photo.caption || "Lake photo"}
                       </div>
                       <div style={{ fontSize: "12px", color: "#64748b" }}>
-                        {photo.weight_kg ?? "-"} kg ·{" "}
-                        {formatDateTime(photo.catch_time || photo.created_at)}
+                        Uploaded {formatDateTime(photo.created_at)}
                       </div>
                     </div>
                   </div>

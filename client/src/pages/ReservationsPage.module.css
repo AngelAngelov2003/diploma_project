@@ -10,9 +10,6 @@
 .heroTitle {
   composes: heroTitle from "../styles/ui.module.css";
 }
-.heroText {
-  composes: heroText from "../styles/ui.module.css";
-}
 .card {
   composes: card from "../styles/ui.module.css";
 }
@@ -68,32 +65,53 @@
 .filterRow {
   composes: filterRow from "../styles/ui.module.css";
 }
-.summaryGrid {
+
+.heroHeader {
+  composes: heroHeader from "../styles/ui.module.css";
+}
+.heroIntro {
+  composes: heroIntro from "../styles/ui.module.css";
+}
+.heroEyebrow {
+  composes: heroEyebrow from "../styles/ui.module.css";
+}
+.metaGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 14px;
-  margin-bottom: 18px;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+  margin-top: 10px;
 }
-.summaryCard {
-  background: white;
-  border: 1px solid #e5e7eb;
-  border-radius: 16px;
-  padding: 18px;
-  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.05);
+.metaChip {
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 8px 10px;
+  background: #f8fafc;
 }
-.summaryLabel {
-  color: #64748b;
-  font-size: 13px;
-  font-weight: 700;
+@media (max-width: 768px) {
+  .itemCard {
+    padding: 14px;
+  }
+
+  .actionColumn {
+    width: 100%;
+    align-items: stretch;
+  }
+
+  .buttonRow {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .buttonRow > * {
+    flex: 1 1 100%;
+  }
+
+  .metaGrid {
+    grid-template-columns: 1fr 1fr;
+  }
 }
-.summaryValue {
-  margin-top: 8px;
-  color: #0f172a;
-  font-size: 28px;
-  font-weight: 800;
-}
-.summaryNote {
-  margin-top: 6px;
-  color: #64748b;
-  font-size: 13px;
+@media (max-width: 560px) {
+  .metaGrid {
+    grid-template-columns: 1fr;
+  }
 }

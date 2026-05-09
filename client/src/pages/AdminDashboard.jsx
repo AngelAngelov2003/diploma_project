@@ -8,6 +8,7 @@ import {
   FaTrash,
   FaSave,
   FaFileAlt,
+  FaShieldAlt,
 } from "react-icons/fa";
 import {
   deleteAdminOwnerClaimRequest,
@@ -546,15 +547,12 @@ export default function AdminDashboard() {
       <PageContainer width="wide" className={styles.shell}>
         <div className={styles.hero}>
           <div className={styles.heroEyebrow}>
-            Administration
+            <FaShieldAlt />
+            <span>Admin Dashboard</span>
           </div>
           <h1 className={styles.heroTitle}>
             Admin Dashboard
           </h1>
-          <div className={styles.heroText}>
-            Manage platform statistics, water bodies, users, reviews, and
-            ownership verification requests from one place.
-          </div>
         </div>
 
         <div className={ui.tabRow}>

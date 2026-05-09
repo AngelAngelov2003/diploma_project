@@ -8,8 +8,6 @@ import {
   FaStar,
   FaBell,
   FaMapMarkedAlt,
-  FaWeightHanging,
-  FaRegClock,
 } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
 import api from "../../api/client";
@@ -54,6 +52,7 @@ const LakePopup = ({ lake, map }) => {
 
   const statusLoadedLakeRef = useRef(null);
   const descriptionLoadedLakeRef = useRef(null);
+  const activePanelRef = useRef(null);
 
   const lakeLat = Number(lake?.latitude);
   const lakeLng = Number(lake?.longitude);
@@ -170,6 +169,19 @@ const LakePopup = ({ lake, map }) => {
       cancelled = true;
     };
   }, [lake?.id]);
+
+  useEffect(() => {
+    if (!activePanel || !activePanelRef.current) return;
+
+    const timer = window.setTimeout(() => {
+      activePanelRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }, 80);
+
+    return () => window.clearTimeout(timer);
+  }, [activePanel, forecast]);
 
   const imagePreviewUrl = useMemo(() => {
     if (!image) return null;
@@ -369,7 +381,7 @@ const LakePopup = ({ lake, map }) => {
     if (activePanel !== "forecast" || !forecast || loading) return null;
 
     return (
-      <div className="lake-popup-panel-card lake-popup-forecast-card">
+      <div ref={activePanelRef} className="lake-popup-panel-card lake-popup-forecast-card">
         <button
           type="button"
           onClick={(e) => {
@@ -449,6 +461,7 @@ const LakePopup = ({ lake, map }) => {
     return (
       <form
         onSubmit={handleLogCatch}
+        ref={activePanelRef}
         className="lake-popup-panel-card lake-popup-form-card"
       >
         <button
@@ -468,10 +481,7 @@ const LakePopup = ({ lake, map }) => {
             <FaMapMarkedAlt />
             <span>Log catch</span>
           </div>
-          <p>
-            Record your result with species, weight, time, notes, and an
-            optional photo.
-          </p>
+          <p>Record species, weight, time and notes.</p>
         </div>
 
         <div className="lake-popup-form-grid">
@@ -521,7 +531,7 @@ const LakePopup = ({ lake, map }) => {
             onChange={(e) =>
               setNotes(e.target.value.slice(0, MAX_NOTES_LENGTH))
             }
-            rows={4}
+            rows={2}
             disabled={saving}
             maxLength={MAX_NOTES_LENGTH}
             placeholder="Bait, method, spot, extra info..."
@@ -565,10 +575,6 @@ const LakePopup = ({ lake, map }) => {
               <small>JPG, PNG, WEBP up to 5 MB</small>
             </label>
           )}
-
-          <div className="lake-popup-field-meta">
-            Maximum image size: 5 MB
-          </div>
         </div>
 
         <button
@@ -596,7 +602,6 @@ const LakePopup = ({ lake, map }) => {
     <>
       <div className="lake-popup-shell">
         <div className="lake-popup-header">
-          <div className="lake-popup-badge">Lake overview</div>
           <h3>{lake?.name}</h3>
           <div
             style={{
@@ -628,23 +633,7 @@ const LakePopup = ({ lake, map }) => {
           ) : null}
         </div>
 
-        <div className="lake-popup-quick-stats">
-          <div className="lake-popup-quick-stat">
-            <FaMapMarkedAlt />
-            <span>
-              {hasValidCoords ? "Map point available" : "Map point unavailable"}
-            </span>
-          </div>
-          <div className="lake-popup-quick-stat">
-            <FaWeightHanging />
-            <span>Catch logging ready</span>
-          </div>
-          <div className="lake-popup-quick-stat">
-            <FaRegClock />
-            <span>Forecast supported</span>
-          </div>
-        </div>
-
+        {!activePanel && (
         <div className="lake-popup-action-grid">
           <button
             type="button"
@@ -703,6 +692,7 @@ const LakePopup = ({ lake, map }) => {
             <span>{favoriteEnabled ? "Unfavorite" : "Favorite"}</span>
           </button>
         </div>
+        )}
 
         {renderForecastCard()}
         {renderLogForm()}
@@ -717,27 +707,34 @@ const LakePopup = ({ lake, map }) => {
       </div>
 
       <style>{`
+        .leaflet-popup {
+          max-width: calc(100vw - 24px) !important;
+        }
+
+        .leaflet-popup-content-wrapper {
+          max-width: calc(100vw - 24px);
+          overflow: hidden;
+        }
+
+        .leaflet-popup-content {
+          width: min(820px, calc(100vw - 44px)) !important;
+          max-width: calc(100vw - 44px) !important;
+          margin: 0 !important;
+          overflow-x: hidden;
+        }
+
         .lake-popup-shell {
           text-align: left;
-          min-width: 300px;
+          width: 100%;
+          min-width: 0;
+          max-width: 100%;
+          box-sizing: border-box;
+          overflow-x: hidden;
         }
 
         .lake-popup-header {
           padding-right: 44px;
         }
-
-        .lake-popup-badge {
-          display: inline-block;
-          background: #eff6ff;
-          color: #1d4ed8;
-          border: 1px solid #bfdbfe;
-          padding: 6px 10px;
-          border-radius: 999px;
-          font-size: 12px;
-          font-weight: 800;
-          margin-bottom: 10px;
-        }
-
         .lake-popup-header h3 {
           margin: 0 0 8px;
           font-size: 28px;
@@ -752,32 +749,11 @@ const LakePopup = ({ lake, map }) => {
           color: #64748b;
           line-height: 1.65;
         }
-
-        .lake-popup-quick-stats {
-          display: grid;
-          grid-template-columns: repeat(3, 1fr);
-          gap: 10px;
-          margin-top: 18px;
-        }
-
-        .lake-popup-quick-stat {
-          background: white;
-          border: 1px solid #e2e8f0;
-          border-radius: 16px;
-          padding: 14px 12px;
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          color: #334155;
-          font-size: 12px;
-          font-weight: 700;
-        }
-
         .lake-popup-action-grid {
           display: grid;
           grid-template-columns: repeat(2, minmax(0, 1fr));
           gap: 12px;
-          margin-top: 18px;
+          margin-top: 20px;
         }
 
         .lake-popup-action-button {
@@ -1142,21 +1118,208 @@ const LakePopup = ({ lake, map }) => {
         }
 
         @media (max-width: 900px) {
-          .lake-popup-quick-stats {
-            grid-template-columns: 1fr;
-          }
-
-          .lake-popup-action-grid,
-          .lake-popup-form-grid,
-          .lake-popup-score-grid,
-          .lake-popup-metric-grid {
+          .lake-popup-form-grid {
             grid-template-columns: 1fr;
           }
         }
 
         @media (max-width: 640px) {
+          .leaflet-popup-content {
+            width: calc(100vw - 40px) !important;
+            max-width: calc(100vw - 40px) !important;
+          }
+
+          .lake-popup-header {
+            padding-right: 30px;
+          }
+
           .lake-popup-header h3 {
             font-size: 22px;
+            overflow-wrap: anywhere;
+          }
+
+          .lake-popup-action-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
+          }
+
+          .lake-popup-action-button,
+          .lake-popup-details-button {
+            min-width: 0;
+            padding: 13px 10px;
+            border-radius: 15px;
+            font-size: 13px;
+          }
+
+          .lake-popup-action-button span {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+          }
+
+          .lake-popup-panel-card,
+          .lake-popup-forecast-card,
+          .lake-popup-form-card {
+            padding: 16px;
+          }
+        }
+
+
+        @media (max-width: 640px) {
+          .lake-popup-header {
+            padding-right: 30px;
+          }
+
+          .lake-popup-header h3 {
+            font-size: 20px;
+            line-height: 1.15;
+            margin-bottom: 6px;
+            overflow-wrap: anywhere;
+          }
+
+          .lake-popup-header > div {
+            font-size: 13px;
+            line-height: 1.35 !important;
+          }
+
+          .lake-popup-action-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 8px;
+            margin-top: 14px;
+          }
+
+          .lake-popup-action-button,
+          .lake-popup-details-button {
+            min-width: 0;
+            padding: 11px 8px;
+            border-radius: 14px;
+            font-size: 12px;
+          }
+
+          .lake-popup-action-button span {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+          }
+
+          .lake-popup-panel-card,
+          .lake-popup-forecast-card,
+          .lake-popup-form-card {
+            margin-top: 10px;
+            padding: 12px;
+            border-radius: 18px;
+          }
+
+          .lake-popup-inline-close {
+            top: 10px;
+            right: 10px;
+            width: 30px;
+            height: 30px;
+          }
+
+          .lake-popup-section-heading {
+            margin-bottom: 10px;
+            padding-right: 34px;
+          }
+
+          .lake-popup-section-heading p {
+            margin-top: 4px;
+            font-size: 12px;
+            line-height: 1.35;
+          }
+
+          .lake-popup-section-title {
+            gap: 8px;
+            font-size: 16px;
+          }
+
+          .lake-popup-score-grid,
+          .lake-popup-metric-grid,
+          .lake-popup-form-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 8px;
+          }
+
+          .lake-popup-score-item {
+            padding: 10px;
+            gap: 8px;
+            border-radius: 14px;
+          }
+
+          .lake-popup-score-icon {
+            width: 32px;
+            height: 32px;
+            border-radius: 12px;
+          }
+
+          .lake-popup-score-label,
+          .lake-popup-metric-item span {
+            font-size: 11px;
+            margin-bottom: 2px;
+          }
+
+          .lake-popup-score-value {
+            font-size: 16px;
+          }
+
+          .lake-popup-total-score {
+            margin-top: 8px;
+            padding: 12px;
+            border-radius: 15px;
+          }
+
+          .lake-popup-total-score strong {
+            font-size: 24px;
+          }
+
+          .lake-popup-metric-grid {
+            margin-top: 8px;
+          }
+
+          .lake-popup-metric-item {
+            padding: 9px 10px;
+            border-radius: 14px;
+          }
+
+          .lake-popup-metric-item strong {
+            font-size: 14px;
+          }
+
+          .lake-popup-field {
+            margin-bottom: 9px;
+          }
+
+          .lake-popup-field label {
+            font-size: 10px;
+            margin-bottom: 5px;
+          }
+
+          .lake-popup-field input,
+          .lake-popup-field textarea {
+            padding: 10px 11px;
+            border-radius: 13px;
+            font-size: 13px;
+          }
+
+          .lake-popup-field textarea {
+            min-height: 58px;
+          }
+
+          .lake-popup-upload-box {
+            min-height: 58px;
+            padding: 10px;
+            border-radius: 13px;
+            gap: 2px;
+          }
+
+          .lake-popup-upload-box small {
+            display: none;
+          }
+
+          .lake-popup-primary-submit {
+            padding: 11px 12px;
+            border-radius: 14px;
+            font-size: 13px;
           }
         }
       `}</style>

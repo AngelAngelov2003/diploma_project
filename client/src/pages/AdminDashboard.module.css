@@ -2,20 +2,12 @@
 .shell { composes: shell shellWide from "../styles/ui.module.css"; }
 .hero { composes: hero heroDark from "../styles/ui.module.css"; }
 .heroEyebrow {
-  font-size: 13px;
-  opacity: 0.92;
-  margin-bottom: 8px;
+  composes: heroEyebrow from "../styles/ui.module.css";
 }
 .heroTitle {
   margin: 0 0 8px 0;
   font-size: 30px;
   font-weight: 900;
-}
-.heroText {
-  max-width: 900px;
-  line-height: 1.6;
-  font-size: 14px;
-  opacity: 0.98;
 }
 .card { composes: card from "../styles/ui.module.css"; border-radius: 18px; }
 .statCard { composes: card from "../styles/ui.module.css"; border-radius: 18px; }
@@ -39,3 +31,44 @@
   color: #64748b;
 }
 
+
+
+@media (max-width: 768px) {
+  .page { padding: 16px 12px 12px; }
+
+  .hero {
+    padding: 18px;
+    border-radius: 20px;
+    margin-bottom: 16px;
+  }
+
+  .heroTitle {
+    font-size: 24px;
+    line-height: 1.1;
+  }
+
+  .statsGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  .statCard {
+    padding: 14px;
+    min-height: 0;
+  }
+}
+
+@media (max-width: 480px) {
+  .statsGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .card, .statCard {
+    border-radius: 16px;
+  }
+
+  .input, .textarea {
+    font-size: 16px;
+  }
+}

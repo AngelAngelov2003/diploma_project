@@ -39,6 +39,12 @@ import {
 
 const LakePopup = lazy(() => import("./LakePopUp"));
 
+const MOBILE_BULGARIA_ZOOM = 6;
+const getInitialBulgariaZoom = () =>
+  typeof window !== "undefined" && window.innerWidth <= 640
+    ? MOBILE_BULGARIA_ZOOM
+    : BULGARIA_ZOOM;
+
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
   iconRetinaUrl: require("leaflet/dist/images/marker-icon-2x.png"),
@@ -79,12 +85,14 @@ function FishingMapCanvas({
   locationModeActive,
   distanceKm,
   distanceFilterActive,
+  scheduleBoundsFetch,
 }) {
-  const [zoom, setZoom] = useState(BULGARIA_ZOOM);
+  const [zoom, setZoom] = useState(() => getInitialBulgariaZoom());
   const [hoveredRegion, setHoveredRegion] = useState(null);
   const overlayOpen = Boolean(activeLake);
   const regionsLayerRef = useRef(null);
   const hoveredRegionLayerRef = useRef(null);
+  const overviewFitTimerRef = useRef(null);
 
   const activeLakeId =
     activeLake?.id === undefined || activeLake?.id === null
@@ -95,6 +103,21 @@ function FishingMapCanvas({
     activeLake?.dedupe_key === undefined || activeLake?.dedupe_key === null
       ? null
       : String(activeLake.dedupe_key);
+
+  useEffect(() => {
+    if (!overlayOpen) return undefined;
+
+    const previousOverflow = document.body.style.overflow;
+    const previousOverscroll = document.body.style.overscrollBehavior;
+
+    document.body.style.overflow = "hidden";
+    document.body.style.overscrollBehavior = "none";
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.body.style.overscrollBehavior = previousOverscroll;
+    };
+  }, [overlayOpen]);
 
   const defaultLakeIcon = useMemo(() => createLakeIcon(false), []);
   const selectedLakeIcon = useMemo(() => createLakeIcon(true), []);
@@ -204,6 +227,74 @@ function FishingMapCanvas({
     return truncate(getDisplayDescription(activeLake.description), 110);
   }, [activeLake]);
 
+  useEffect(() => {
+    if (!mapInstance || !showRegionOverview || locationModeActive) return;
+
+    const invalidateOverviewMap = () => {
+      window.clearTimeout(overviewFitTimerRef.current);
+      overviewFitTimerRef.current = window.setTimeout(() => {
+        mapInstance.invalidateSize(false);
+      }, 80);
+    };
+
+    invalidateOverviewMap();
+    window.addEventListener("resize", invalidateOverviewMap);
+    window.addEventListener("orientationchange", invalidateOverviewMap);
+
+    return () => {
+      window.clearTimeout(overviewFitTimerRef.current);
+      window.removeEventListener("resize", invalidateOverviewMap);
+      window.removeEventListener("orientationchange", invalidateOverviewMap);
+    };
+  }, [mapInstance, showRegionOverview, locationModeActive]);
+
+  useEffect(() => {
+    if (!mapInstance) return;
+
+    const invalidateMapSize = () => {
+      window.requestAnimationFrame(() => {
+        mapInstance.invalidateSize(false);
+      });
+    };
+
+    invalidateMapSize();
+    window.addEventListener("resize", invalidateMapSize);
+    window.addEventListener("orientationchange", invalidateMapSize);
+
+    return () => {
+      window.removeEventListener("resize", invalidateMapSize);
+      window.removeEventListener("orientationchange", invalidateMapSize);
+    };
+  }, [mapInstance]);
+
+
+  useEffect(() => {
+    if (!mapInstance) return;
+
+    const restoreRegionsWhenZoomedOut = () => {
+      if (locationModeActive || distanceFilterActive) return;
+
+      if (mapInstance.getZoom() <= getInitialBulgariaZoom() + 0.25) {
+        setShowRegionOverview(true);
+        setSelectedRegion(null);
+        setActiveLake(null);
+      }
+    };
+
+    mapInstance.on("zoomend", restoreRegionsWhenZoomedOut);
+
+    return () => {
+      mapInstance.off("zoomend", restoreRegionsWhenZoomedOut);
+    };
+  }, [
+    mapInstance,
+    locationModeActive,
+    distanceFilterActive,
+    setActiveLake,
+    setSelectedRegion,
+    setShowRegionOverview,
+  ]);
+
   const handleClusterClick = useCallback(
     (event) => {
       const cluster = event?.layer;
@@ -278,20 +369,6 @@ function FishingMapCanvas({
   }, [clearHoveredRegion]);
 
   useEffect(() => {
-    if (!mapInstance) return;
-
-    const handleMapMouseOut = () => {
-      clearHoveredRegion();
-    };
-
-    mapInstance.on("mouseout", handleMapMouseOut);
-
-    return () => {
-      mapInstance.off("mouseout", handleMapMouseOut);
-    };
-  }, [mapInstance, clearHoveredRegion]);
-
-  useEffect(() => {
     if (!showRegionOverview) {
       clearHoveredRegion();
     }
@@ -318,55 +395,78 @@ function FishingMapCanvas({
     (feature, layer) => {
       const regionName = getRegionName(feature);
 
+      layer.bindTooltip(regionName, {
+        className: "region-tooltip",
+        sticky: true,
+        direction: "top",
+        opacity: 0.96,
+      });
+
       layer.on({
         mouseover: () => {
           hoveredRegionLayerRef.current = layer;
           setHoveredRegion(regionName);
+          layer.setStyle(getRegionStyle(feature));
 
           if (!L.Browser.ie && !L.Browser.opera && !L.Browser.edge) {
             layer.bringToFront();
           }
         },
+        mousemove: () => {
+          hoveredRegionLayerRef.current = layer;
+          setHoveredRegion(regionName);
+        },
         mouseout: () => {
           if (hoveredRegionLayerRef.current === layer) {
             clearHoveredRegion();
+            layer.setStyle(getRegionStyle(feature));
           }
         },
         click: (e) => {
           const bounds = e.target.getBounds();
+          const isSmallScreen =
+            typeof window !== "undefined" ? window.innerWidth <= 640 : false;
 
           clearHoveredRegion();
           setSelectedRegion(regionName);
           setActiveLake(null);
+          setShowRegionOverview(false);
 
           if (mapInstance) {
-            mapInstance.fitBounds(bounds, {
-              padding: [30, 30],
-              maxZoom: 9,
-            });
-          }
+            const fetchAfterMove = () => {
+              scheduleBoundsFetch?.({ immediate: true });
+            };
 
-          setTimeout(() => {
-            setShowRegionOverview(false);
-          }, 180);
+            mapInstance.once("moveend", fetchAfterMove);
+            mapInstance.fitBounds(bounds, {
+              padding: isSmallScreen ? [18, 18] : [30, 30],
+              maxZoom: isSmallScreen ? 10 : 9,
+              animate: true,
+            });
+
+            window.setTimeout(fetchAfterMove, 350);
+          }
         },
       });
     },
     [
       clearHoveredRegion,
       getRegionName,
+      getRegionStyle,
       mapInstance,
       setActiveLake,
       setSelectedRegion,
       setShowRegionOverview,
+      scheduleBoundsFetch,
     ]
   );
 
   return (
-    <section className="map-main-panel">
+    <section className={`map-main-panel ${overlayOpen ? "lake-overlay-open" : ""}`}>
       <MapContainer
         center={BULGARIA_CENTER}
-        zoom={BULGARIA_ZOOM}
+        zoom={getInitialBulgariaZoom()}
+        minZoom={4}
         maxZoom={19}
         className="fishing-map-canvas"
         whenReady={(event) => {

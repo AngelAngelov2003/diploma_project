@@ -182,37 +182,16 @@ const getWaterBodyPhotos = async (req, res) => {
 
     const q = await pool.query(
       `
-        SELECT *
-        FROM (
-          SELECT
-            id,
-            image_url,
-            NULL::text AS species,
-            NULL::numeric AS weight_kg,
-            NULL::timestamp AS catch_time,
-            created_at,
-            caption,
-            'owner_gallery'::text AS photo_source
-          FROM lake_gallery_photos
-          WHERE water_body_id = $1
-
-          UNION ALL
-
-          SELECT
-            id,
-            image_url,
-            species,
-            weight_kg,
-            catch_time,
-            created_at,
-            NULL::text AS caption,
-            'catch_log'::text AS photo_source
-          FROM catch_logs
-          WHERE water_body_id = $1
-            AND image_url IS NOT NULL
-            AND TRIM(image_url) <> ''
-        ) photo_rows
-        ORDER BY created_at DESC NULLS LAST
+        SELECT
+          id,
+          image_url,
+          caption,
+          sort_order,
+          created_at,
+          'owner_gallery'::text AS photo_source
+        FROM lake_gallery_photos
+        WHERE water_body_id = $1
+        ORDER BY sort_order ASC, created_at DESC NULLS LAST
         LIMIT 24
       `,
       [waterBodyId]

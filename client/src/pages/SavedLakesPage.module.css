@@ -563,3 +563,48 @@
     width: 100%;
   }
 }
+
+.heroHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.heroIntro {
+  min-width: 0;
+  flex: 1 1 320px;
+}
+
+.heroMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-left: auto;
+}
+
+.heroBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.16);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.heroBadgeMuted {
+  background: rgba(255,255,255,0.1);
+}
+
+@media (max-width: 768px) {
+  .heroMeta {
+    width: 100%;
+    margin-left: 0;
+    justify-content: flex-start;
+  }
+}

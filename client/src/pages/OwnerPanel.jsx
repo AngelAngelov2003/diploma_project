@@ -1,10 +1,14 @@
 import React, { useEffect, useState } from "react";
+import { FaUserCog } from "react-icons/fa";
 import {
   addBlockedDate,
   createLakeRoom,
   deleteBlockedDate,
   deleteLakePhoto,
   deleteLakeRoom,
+  deleteOwnerCatchPhoto,
+  getOwnerLakeCatches,
+  reportOwnerLakeCatch,
   getBlockedDates,
   getLakePhotos,
   getLakeRooms,
@@ -28,12 +32,22 @@ const DEFAULT_ROOM_FORM = {
   sort_order: 0,
 };
 
+const SPOTS_PAGE_SIZE = 12;
+
+const getUploadUrl = (imageUrl) => {
+  if (!imageUrl) return "";
+  if (/^https?:/i.test(imageUrl) || imageUrl.startsWith("blob:")) return imageUrl;
+  return `http://localhost:5000/uploads/${imageUrl}`;
+};
+
+const parseMoneyInput = (value) => value.replace(/[^0-9.]/g, "").replace(/(\..*)\./g, "$1");
+
 const TAB_ITEMS = [
-  { key: "overview", label: "Overview", icon: "🧭" },
-  { key: "spots", label: "Fishing Spots", icon: "🎣" },
-  { key: "rooms", label: "Housing / Rooms", icon: "🛏️" },
-  { key: "gallery", label: "Gallery & Media", icon: "🖼️" },
-  { key: "blocked", label: "Blocked Dates", icon: "📅" },
+  { key: "overview", label: "Overview" },
+  { key: "spots", label: "Fishing Spots" },
+  { key: "rooms", label: "Housing / Rooms" },
+  { key: "gallery", label: "Gallery & Media" },
+  { key: "blocked", label: "Blocked Dates" },
 ];
 
 const normalizeLakePayload = (lake) => ({
@@ -113,6 +127,7 @@ export default function OwnerPanel() {
   const [spotsByLake, setSpotsByLake] = useState({});
   const [roomsByLake, setRoomsByLake] = useState({});
   const [photosByLake, setPhotosByLake] = useState({});
+  const [catchPhotosByLake, setCatchPhotosByLake] = useState({});
   const [newRoomByLake, setNewRoomByLake] = useState({});
   const [photoFilesByLake, setPhotoFilesByLake] = useState({});
   const [photoCaptionsByLake, setPhotoCaptionsByLake] = useState({});
@@ -120,6 +135,7 @@ export default function OwnerPanel() {
   const [activeTabByLake, setActiveTabByLake] = useState({});
   const [roomModalByLake, setRoomModalByLake] = useState({});
   const [roomDraftByLake, setRoomDraftByLake] = useState({});
+  const [spotPageByLake, setSpotPageByLake] = useState({});
   const [loading, setLoading] = useState(true);
   const [savingId, setSavingId] = useState("");
   const [busyLakeId, setBusyLakeId] = useState("");
@@ -131,7 +147,7 @@ export default function OwnerPanel() {
       const normalizedLakes = Array.isArray(owned) ? owned : [];
       setLakes(normalizedLakes);
 
-      const [blockedEntries, spotEntries, roomEntries, photoEntries] = await Promise.all([
+      const [blockedEntries, spotEntries, roomEntries, photoEntries, catchPhotoEntries] = await Promise.all([
         Promise.all(
           normalizedLakes.map(async (lake) => [
             lake.id,
@@ -156,12 +172,19 @@ export default function OwnerPanel() {
             await getLakePhotos(lake.id).catch(() => []),
           ])
         ),
+        Promise.all(
+          normalizedLakes.map(async (lake) => [
+            lake.id,
+            await getOwnerLakeCatches(lake.id).catch(() => []),
+          ])
+        ),
       ]);
 
       setBlockedDatesByLake(Object.fromEntries(blockedEntries));
       setSpotsByLake(Object.fromEntries(spotEntries));
       setRoomsByLake(Object.fromEntries(roomEntries));
       setPhotosByLake(Object.fromEntries(photoEntries));
+      setCatchPhotosByLake(Object.fromEntries(catchPhotoEntries));
       setNewRoomByLake(
         Object.fromEntries(
           normalizedLakes.map((lake) => [lake.id, { ...DEFAULT_ROOM_FORM }])
@@ -169,6 +192,9 @@ export default function OwnerPanel() {
       );
       setActiveTabByLake(
         Object.fromEntries(normalizedLakes.map((lake) => [lake.id, "overview"]))
+      );
+      setSpotPageByLake(
+        Object.fromEntries(normalizedLakes.map((lake) => [lake.id, 1]))
       );
     } catch (error) {
       notifyError(error, "Failed to load owner lakes");
@@ -302,6 +328,7 @@ export default function OwnerPanel() {
         ...prev,
         [lake.id]: Array.isArray(synced) ? synced : [],
       }));
+      setSpotPageByLake((prev) => ({ ...prev, [lake.id]: 1 }));
 
       setLakes((prev) =>
         prev.map((item) =>
@@ -479,6 +506,38 @@ export default function OwnerPanel() {
     }
   };
 
+  const handleDeleteCatchPhoto = async (lakeId, catchId) => {
+    try {
+      setBusyLakeId(lakeId);
+      await deleteOwnerCatchPhoto(lakeId, catchId);
+      setCatchPhotosByLake((prev) => ({
+        ...prev,
+        [lakeId]: (prev[lakeId] || []).filter((item) => item.id !== catchId),
+      }));
+      notifySuccess("User catch photo removed");
+    } catch (error) {
+      notifyError(error, "Failed to remove user catch photo");
+    } finally {
+      setBusyLakeId("");
+    }
+  };
+
+  const handleReportCatchUser = async (lakeId, catchItem) => {
+    const reason = window.prompt("Why do you want to report this user/catch photo?");
+    if (!reason || !reason.trim()) return;
+
+    try {
+      setBusyLakeId(lakeId);
+      await reportOwnerLakeCatch(lakeId, catchItem.id, { reason: reason.trim() });
+      notifySuccess("Report sent to admin");
+    } catch (error) {
+      notifyError(error, "Failed to report user");
+    } finally {
+      setBusyLakeId("");
+    }
+  };
+
+
   if (loading) {
     return <div className={styles.loading}>Loading owner panel...</div>;
   }
@@ -487,11 +546,11 @@ export default function OwnerPanel() {
     <div className={styles.page}>
       <div className={styles.shell}>
         <div className={styles.hero}>
-          <h2 className={styles.heroTitle}>Owner Panel</h2>
-          <div className={styles.heroText}>
-            Manage reservation settings, fishing spots, accommodation, gallery photos,
-            and blocked dates for your lakes.
+          <div className={styles.heroEyebrow}>
+            <FaUserCog />
+            <span>Owner Panel</span>
           </div>
+          <h2 className={styles.heroTitle}>Owner Panel</h2>
         </div>
 
         {!lakes.length ? (
@@ -512,6 +571,15 @@ export default function OwnerPanel() {
               const blockedCount = blockedDatesByLake[lake.id]?.length || 0;
               const roomModalOpen = Boolean(roomModalByLake[lake.id]);
               const roomDraft = roomDraftByLake[lake.id] || DEFAULT_ROOM_FORM;
+              const sortedSpots = [...(spotsByLake[lake.id] || [])].sort(
+                (a, b) => Number(a.spot_number) - Number(b.spot_number)
+              );
+              const spotTotalPages = Math.max(1, Math.ceil(sortedSpots.length / SPOTS_PAGE_SIZE));
+              const spotPage = Math.min(spotPageByLake[lake.id] || 1, spotTotalPages);
+              const visibleSpots = sortedSpots.slice(
+                (spotPage - 1) * SPOTS_PAGE_SIZE,
+                spotPage * SPOTS_PAGE_SIZE
+              );
 
               return (
                 <article key={lake.id} className={styles.lakeCard}>
@@ -567,7 +635,6 @@ export default function OwnerPanel() {
                             setActiveTabByLake((prev) => ({ ...prev, [lake.id]: tab.key }))
                           }
                         >
-                          <span className={styles.tabIcon}>{tab.icon}</span>
                           <span>{tab.label}</span>
                         </button>
                       )
@@ -677,15 +744,14 @@ export default function OwnerPanel() {
                                 >
                                   <input
                                     className={styles.input}
-                                    type="number"
-                                    min="0"
-                                    step="0.01"
+                                    type="text"
+                                    inputMode="decimal"
                                     value={lake.night_fishing_price ?? 0}
                                     onChange={(event) =>
                                       updateLocalLake(
                                         lake.id,
                                         "night_fishing_price",
-                                        event.target.value
+                                        parseMoneyInput(event.target.value)
                                       )
                                     }
                                   />
@@ -725,12 +791,11 @@ export default function OwnerPanel() {
                             <LabeledInput label="Base price per day (€)">
                               <input
                                 className={styles.input}
-                                type="number"
-                                min="0"
-                                step="0.01"
+                                type="text"
+                                inputMode="decimal"
                                 value={lake.price_per_day ?? 0}
                                 onChange={(event) =>
-                                  updateLocalLake(lake.id, "price_per_day", event.target.value)
+                                  updateLocalLake(lake.id, "price_per_day", parseMoneyInput(event.target.value))
                                 }
                               />
                             </LabeledInput>
@@ -819,11 +884,9 @@ export default function OwnerPanel() {
                           {!spotsByLake[lake.id]?.length ? (
                             <div className={styles.emptyState}>No spots generated yet.</div>
                           ) : (
-                            <div className={styles.spotGrid}>
-                              {spotsByLake[lake.id]
-                                .slice()
-                                .sort((a, b) => Number(a.spot_number) - Number(b.spot_number))
-                                .map((spot) => (
+                            <>
+                              <div className={styles.spotGrid}>
+                                {visibleSpots.map((spot) => (
                                   <div key={spot.id} className={styles.spotCard}>
                                     <div className={styles.spotCardHeader}>
                                       <div>
@@ -853,7 +916,43 @@ export default function OwnerPanel() {
                                     </button>
                                   </div>
                                 ))}
-                            </div>
+                              </div>
+                              {spotTotalPages > 1 ? (
+                                <div className={styles.paginationBar}>
+                                  <span>
+                                    Page {spotPage} of {spotTotalPages} · {sortedSpots.length} spots
+                                  </span>
+                                  <div className={styles.paginationActions}>
+                                    <button
+                                      type="button"
+                                      className={styles.filterButton}
+                                      disabled={spotPage <= 1}
+                                      onClick={() =>
+                                        setSpotPageByLake((prev) => ({
+                                          ...prev,
+                                          [lake.id]: Math.max(1, spotPage - 1),
+                                        }))
+                                      }
+                                    >
+                                      Previous
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className={styles.primaryButton}
+                                      disabled={spotPage >= spotTotalPages}
+                                      onClick={() =>
+                                        setSpotPageByLake((prev) => ({
+                                          ...prev,
+                                          [lake.id]: Math.min(spotTotalPages, spotPage + 1),
+                                        }))
+                                      }
+                                    >
+                                      Next
+                                    </button>
+                                  </div>
+                                </div>
+                              ) : null}
+                            </>
                           )}
                         </SectionCard>
                       </>
@@ -1120,25 +1219,25 @@ export default function OwnerPanel() {
                           {(photoPreviewsByLake[lake.id] || []).length ? (
                             <div className={styles.itemList}>
                               {(photoPreviewsByLake[lake.id] || []).map((preview, index) => (
-                                <div key={`${preview.name}-${index}`} className={styles.itemCardCompact}>
-                                  <div className={styles.photoMeta}>
+                                <div key={`${preview.name}-${index}`} className={styles.photoManagerCard}>
+                                  <img className={styles.photoThumb} src={preview.url} alt={preview.name} />
+                                  <div className={styles.photoManagerBody}>
                                     <div className={styles.blockedDate}>{preview.name}</div>
                                     <div className={styles.metaText}>Ready to upload</div>
-                                    <div className={styles.photoUrl}>{preview.url}</div>
+                                    <input
+                                      className={styles.input}
+                                      type="text"
+                                      placeholder="Optional caption"
+                                      value={(photoCaptionsByLake[lake.id] || [])[index] || ""}
+                                      onChange={(event) =>
+                                        setPhotoCaptionsByLake((prev) => {
+                                          const current = [...(prev[lake.id] || [])];
+                                          current[index] = event.target.value;
+                                          return { ...prev, [lake.id]: current };
+                                        })
+                                      }
+                                    />
                                   </div>
-                                  <input
-                                    className={styles.input}
-                                    type="text"
-                                    placeholder="Optional caption"
-                                    value={(photoCaptionsByLake[lake.id] || [])[index] || ""}
-                                    onChange={(event) =>
-                                      setPhotoCaptionsByLake((prev) => {
-                                        const current = [...(prev[lake.id] || [])];
-                                        current[index] = event.target.value;
-                                        return { ...prev, [lake.id]: current };
-                                      })
-                                    }
-                                  />
                                 </div>
                               ))}
                             </div>
@@ -1150,8 +1249,13 @@ export default function OwnerPanel() {
                         ) : (
                           <div className={styles.itemList}>
                             {photosByLake[lake.id].map((photo) => (
-                              <div key={photo.id} className={styles.itemCardCompact}>
-                                <div className={styles.photoMeta}>
+                              <div key={photo.id} className={styles.photoManagerCard}>
+                                <img
+                                  className={styles.photoThumb}
+                                  src={getUploadUrl(photo.image_url)}
+                                  alt={photo.caption || "Lake photo"}
+                                />
+                                <div className={styles.photoManagerBody}>
                                   <div className={styles.blockedDate}>
                                     {photo.caption || "Untitled photo"}
                                   </div>
@@ -1172,6 +1276,56 @@ export default function OwnerPanel() {
                             ))}
                           </div>
                         )}
+
+                        <div className={styles.galleryDivider} />
+
+                        <SectionCard
+                          title="User catch photos"
+                          subtitle="These come from users' catch logs. They are separated from owner lake photos."
+                        >
+                          {!catchPhotosByLake[lake.id]?.length ? (
+                            <div className={styles.emptyState}>No user catch photos for this lake yet.</div>
+                          ) : (
+                            <div className={styles.itemList}>
+                              {catchPhotosByLake[lake.id].map((item) => (
+                                <div key={item.id} className={styles.photoManagerCard}>
+                                  <img
+                                    className={styles.photoThumb}
+                                    src={getUploadUrl(item.image_url)}
+                                    alt={item.species || "User catch"}
+                                  />
+                                  <div className={styles.photoManagerBody}>
+                                    <div className={styles.blockedDate}>
+                                      {item.species || "User catch photo"}
+                                    </div>
+                                    <div className={styles.metaText}>
+                                      By {item.full_name || "Unknown user"} · {item.weight_kg ?? "-"} kg · {formatDate(item.catch_time || item.created_at)}
+                                    </div>
+                                    {item.notes ? <div className={styles.photoUrl}>{item.notes}</div> : null}
+                                  </div>
+                                  <div className={styles.photoActions}>
+                                    <button
+                                      type="button"
+                                      className={styles.filterButton}
+                                      disabled={busyLakeId === lake.id}
+                                      onClick={() => handleReportCatchUser(lake.id, item)}
+                                    >
+                                      Report user
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className={styles.dangerButton}
+                                      disabled={busyLakeId === lake.id}
+                                      onClick={() => handleDeleteCatchPhoto(lake.id, item.id)}
+                                    >
+                                      Remove photo
+                                    </button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </SectionCard>
                       </SectionCard>
                     ) : null}
 

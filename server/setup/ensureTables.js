@@ -86,6 +86,21 @@ const ensureReservationDomainTables = async () => {
     )
   `);
 
+
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS lake_user_reports (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      water_body_id UUID NOT NULL REFERENCES water_bodies(id) ON DELETE CASCADE,
+      catch_id UUID REFERENCES catch_logs(id) ON DELETE SET NULL,
+      reported_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+      reported_by UUID REFERENCES users(id) ON DELETE SET NULL,
+      reason TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+      resolved_at TIMESTAMP
+    )
+  `);
   await pool.query(`
     ALTER TABLE lake_reservations
     ADD COLUMN IF NOT EXISTS start_date DATE,
@@ -169,6 +184,11 @@ const ensureReservationDomainTables = async () => {
   await pool.query(`
     CREATE INDEX IF NOT EXISTS idx_lake_gallery_photos_water_body_id
     ON lake_gallery_photos (water_body_id)
+  `);
+
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_lake_user_reports_water_body_id
+    ON lake_user_reports (water_body_id)
   `);
 
   await pool.query(`

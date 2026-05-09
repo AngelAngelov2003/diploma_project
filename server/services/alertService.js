@@ -1,7 +1,7 @@
 const cron = require("node-cron");
 const pool = require("../db");
 const { sendEmail } = require("./emailService");
-const { fetchForecastForLatLng } = require("./forecastService");
+const { fetchForecastForLatLng, fetchWeeklyForecastForLatLng, isMlServerHealthy } = require("./forecastService");
 const {
   APP_TIMEZONE,
   DAILY_ALERT_HOUR,
@@ -15,6 +15,44 @@ const {
 
 const DAILY_ALERT_JOB_NAME = "daily_alert_emails";
 const WEEKLY_ALERT_JOB_NAME = "weekly_alert_emails";
+const ALERT_RETRY_INTERVAL_MINUTES = Math.max(
+  1,
+  Number(process.env.ALERT_RETRY_INTERVAL_MINUTES || 10),
+);
+const ALERT_MAX_RETRY_ATTEMPTS = Math.max(
+  1,
+  Number(process.env.ALERT_MAX_RETRY_ATTEMPTS || 12),
+);
+const alertRetryState = new Map();
+
+const getRetryJobKey = ({ frequency, deliveryDate }) => `${frequency}:${deliveryDate}`;
+
+const clearRetryJob = (key) => {
+  const existing = alertRetryState.get(key);
+  if (!existing) return;
+
+  if (existing.timeoutId) {
+    clearTimeout(existing.timeoutId);
+  }
+
+  alertRetryState.delete(key);
+};
+
+
+const formatForecastDate = (date) => {
+  if (!date) return "N/A";
+
+  const parsed = new Date(`${date}T00:00:00Z`);
+  if (Number.isNaN(parsed.getTime())) return String(date);
+
+  return new Intl.DateTimeFormat("en-GB", {
+    weekday: "short",
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(parsed);
+};
 
 const getScoreLabel = (score) => {
   const n = Number(score || 0);
@@ -28,6 +66,7 @@ const getScoreLabel = (score) => {
 
 const renderCombinedAlertEmail = ({ userName, periodLabel, alerts }) => {
   const safeName = userName || "angler";
+  const isWeeklyEmail = String(periodLabel).toLowerCase() === "weekly";
 
   const sortedAlerts = [...(alerts || [])].sort(
     (a, b) => Number(b.forecast?.total_score || 0) - Number(a.forecast?.total_score || 0)
@@ -36,8 +75,20 @@ const renderCombinedAlertEmail = ({ userName, periodLabel, alerts }) => {
   const rows = sortedAlerts
     .map((item, index) => {
       const forecast = item.forecast || {};
+      const weeklyForecast = item.weeklyForecast || [];
       const score = Number(forecast.total_score || 0);
       const scoreLabel = getScoreLabel(score);
+      const forecastDateText = formatForecastDate(forecast.date);
+      const weeklyRows = weeklyForecast
+        .map((day) => `
+          <tr>
+            <td style="padding:7px 8px;border-top:1px solid #e5e7eb;white-space:nowrap;">${formatForecastDate(day.date)}</td>
+            <td style="padding:7px 8px;border-top:1px solid #e5e7eb;font-weight:700;">${Number(day.total_score || 0)}%</td>
+            <td style="padding:7px 8px;border-top:1px solid #e5e7eb;">${day.desc || "N/A"}</td>
+            <td style="padding:7px 8px;border-top:1px solid #e5e7eb;white-space:nowrap;">${day.temp ?? "N/A"} °C</td>
+          </tr>
+        `)
+        .join("");
 
       return `
         <div style="border:1px solid #e5e7eb;border-radius:14px;padding:14px 16px;margin-bottom:12px;background:#fff;">
@@ -48,12 +99,28 @@ const renderCombinedAlertEmail = ({ userName, periodLabel, alerts }) => {
             </div>
           </div>
           <div style="margin-top:10px;font-size:14px;color:#374151;line-height:1.7;">
+            <div><b>Forecast date:</b> ${forecastDateText}</div>
             <div><b>Weather:</b> ${forecast.desc || "N/A"}</div>
             <div><b>Temperature:</b> ${forecast.temp ?? "N/A"} °C</div>
             <div><b>Pressure:</b> ${forecast.pressure ?? "N/A"} hPa</div>
             <div><b>Wind:</b> ${forecast.wind ?? "N/A"} m/s</div>
             <div><b>Your minimum score:</b> ${Number(item.min_score || 0)}%</div>
           </div>
+          ${weeklyRows ? `
+            <div style="margin-top:12px;overflow-x:auto;">
+              <table style="width:100%;border-collapse:collapse;font-size:13px;color:#374151;">
+                <thead>
+                  <tr>
+                    <th style="text-align:left;padding:7px 8px;background:#f8fafc;">Date</th>
+                    <th style="text-align:left;padding:7px 8px;background:#f8fafc;">Score</th>
+                    <th style="text-align:left;padding:7px 8px;background:#f8fafc;">Weather</th>
+                    <th style="text-align:left;padding:7px 8px;background:#f8fafc;">Temp</th>
+                  </tr>
+                </thead>
+                <tbody>${weeklyRows}</tbody>
+              </table>
+            </div>
+          ` : ""}
         </div>
       `;
     })
@@ -76,7 +143,7 @@ const renderCombinedAlertEmail = ({ userName, periodLabel, alerts }) => {
         <h2 style="margin:0 0 8px 0;color:#0f172a;">Hi ${safeName}, here are your best lake alerts</h2>
 
         <div style="color:#475569;font-size:14px;margin-bottom:16px;">
-          ${subjectLine}. Lakes are sorted from highest fishing score to lowest so the best conditions appear first.
+          ${subjectLine}. ${isWeeklyEmail ? "The table shows the forecast dates for the coming week." : "Each forecast is for tomorrow and now includes the exact forecast date."} Lakes are sorted from highest fishing score to lowest so the best conditions appear first.
         </div>
 
         ${
@@ -145,8 +212,8 @@ const processAlertEmails = async ({ frequency, deliveryDate, periodLabel }) => {
         u.email AS user_email,
         u.full_name AS user_name,
         w.name AS lake_name,
-        ST_Y(ST_Centroid(w.geom)) AS latitude,
-        ST_X(ST_Centroid(w.geom)) AS longitude,
+        COALESCE(ST_Y(ST_Centroid(w.geom)), w.display_lat) AS latitude,
+        COALESCE(ST_X(ST_Centroid(w.geom)), w.display_lng) AS longitude,
         COALESCE(p.email_alerts_enabled, TRUE) AS email_alerts_enabled
       FROM lake_subscriptions s
       JOIN users u ON u.id = s.user_id
@@ -198,7 +265,12 @@ const processAlertEmails = async ({ frequency, deliveryDate, periodLabel }) => {
           throw new Error("Lake has no centroid coords");
         }
 
-        const forecast = await fetchForecastForLatLng(lat, lng);
+        const weeklyForecast = frequency === "weekly"
+          ? await fetchWeeklyForecastForLatLng(lat, lng)
+          : null;
+        const forecast = weeklyForecast?.length
+          ? weeklyForecast.reduce((best, day) => Number(day.total_score || 0) > Number(best.total_score || 0) ? day : best, weeklyForecast[0])
+          : await fetchForecastForLatLng(lat, lng);
 
         if (Number(forecast.total_score || 0) < Number(sub.min_score || 0)) {
           await pool.query(
@@ -222,6 +294,7 @@ const processAlertEmails = async ({ frequency, deliveryDate, periodLabel }) => {
           lake_name: sub.lake_name,
           min_score: Number(sub.min_score || 0),
           forecast,
+          weeklyForecast,
         });
       } catch (err) {
         try {
@@ -255,10 +328,11 @@ const processAlertEmails = async ({ frequency, deliveryDate, periodLabel }) => {
         alerts: qualifiedAlerts,
       });
 
+      const subjectDatePart = frequency === "daily" ? ` for ${deliveryDate}` : "";
       const subject =
         qualifiedAlerts.length === 1
-          ? `${periodLabel} fishing alerts — 1 lake matched`
-          : `${periodLabel} fishing alerts — ${qualifiedAlerts.length} lakes matched`;
+          ? `${periodLabel} fishing alerts${subjectDatePart} — 1 lake matched`
+          : `${periodLabel} fishing alerts${subjectDatePart} — ${qualifiedAlerts.length} lakes matched`;
 
       console.log(
         `[alerts] Sending ${periodLabel} alert email to ${group.user_email} with ${qualifiedAlerts.length} lake(s)`
@@ -307,15 +381,60 @@ const processAlertEmails = async ({ frequency, deliveryDate, periodLabel }) => {
   }
 };
 
-const runAlertEmails = async ({ frequency, force = false, deliveryDate }) => {
+const scheduleAlertRetry = ({ frequency, deliveryDate, attempt }) => {
+  const key = getRetryJobKey({ frequency, deliveryDate });
+  const existing = alertRetryState.get(key);
+
+  if (existing?.timeoutId) {
+    clearTimeout(existing.timeoutId);
+  }
+
+  const timeoutMs = ALERT_RETRY_INTERVAL_MINUTES * 60 * 1000;
+  const timeoutId = setTimeout(() => {
+    runAlertEmails({
+      frequency,
+      force: false,
+      deliveryDate,
+      retryAttempt: attempt,
+      triggeredByRetry: true,
+    }).catch((err) => {
+      console.error(
+        `[alerts] Retry run failed for ${frequency} alerts (${deliveryDate}):`,
+        err,
+      );
+    });
+  }, timeoutMs);
+
+  alertRetryState.set(key, {
+    frequency,
+    deliveryDate,
+    attempt,
+    timeoutId,
+    scheduledAt: Date.now(),
+  });
+};
+
+const runAlertEmails = async ({
+  frequency,
+  force = false,
+  deliveryDate,
+  retryAttempt = 0,
+  triggeredByRetry = false,
+}) => {
   const finalDeliveryDate = deliveryDate || toISODate();
   const isWeekly = frequency === "weekly";
   const jobName = isWeekly ? WEEKLY_ALERT_JOB_NAME : DAILY_ALERT_JOB_NAME;
   const periodLabel = isWeekly ? "Weekly" : "Daily";
+  const retryKey = getRetryJobKey({
+    frequency,
+    deliveryDate: finalDeliveryDate,
+  });
 
   if (!force) {
     const alreadyRan = await hasSuccessfulJobRun(jobName, finalDeliveryDate);
     if (alreadyRan) {
+      clearRetryJob(retryKey);
+
       return {
         ok: true,
         skipped: true,
@@ -326,12 +445,60 @@ const runAlertEmails = async ({ frequency, force = false, deliveryDate }) => {
     }
   }
 
+  const mlHealthy = await isMlServerHealthy();
+  if (!mlHealthy) {
+    if (retryAttempt >= ALERT_MAX_RETRY_ATTEMPTS) {
+      clearRetryJob(retryKey);
+      console.error(
+        `[alerts] ${periodLabel} alerts skipped for ${finalDeliveryDate}: ML server unavailable after ${retryAttempt} retry attempt(s).`,
+      );
+
+      return {
+        ok: false,
+        skipped: true,
+        reason: "ml_unavailable_max_retries_reached",
+        frequency,
+        deliveryDate: finalDeliveryDate,
+        retryAttempt,
+      };
+    }
+
+    const nextAttempt = retryAttempt + 1;
+    console.warn(
+      `[alerts] ${periodLabel} alerts delayed for ${finalDeliveryDate}: ML server unavailable. Retrying in ${ALERT_RETRY_INTERVAL_MINUTES} minute(s) (attempt ${nextAttempt}/${ALERT_MAX_RETRY_ATTEMPTS}).`,
+    );
+
+    scheduleAlertRetry({
+      frequency,
+      deliveryDate: finalDeliveryDate,
+      attempt: nextAttempt,
+    });
+
+    return {
+      ok: false,
+      skipped: true,
+      reason: "ml_unavailable_retry_scheduled",
+      frequency,
+      deliveryDate: finalDeliveryDate,
+      retryAttempt: nextAttempt,
+    };
+  }
+
+  if (triggeredByRetry && retryAttempt > 0) {
+    console.log(
+      `[alerts] ${periodLabel} alerts recovered for ${finalDeliveryDate}: ML server is healthy again. Sending now after ${retryAttempt} retry attempt(s).`,
+    );
+  }
+
+  clearRetryJob(retryKey);
+
   await processAlertEmails({
     frequency,
     deliveryDate: finalDeliveryDate,
     periodLabel,
   });
 
+  clearRetryJob(retryKey);
   await markSuccessfulJobRun(jobName, finalDeliveryDate);
 
   return {

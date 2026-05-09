@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import "./App.css";
 import {
   BrowserRouter as Router,
   Routes,
@@ -24,7 +25,6 @@ import AdminDashboard from "./pages/AdminDashboard";
 import Profile from "./pages/Profile";
 import { getCurrentUser } from "./api/authApi";
 import { AUTH_EXPIRED_EVENT } from "./api/client";
-import { notifyInfo } from "./ui/toast";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
@@ -68,17 +68,6 @@ function App() {
     return () => {
       window.removeEventListener(AUTH_EXPIRED_EVENT, handleAuthExpired);
     };
-  }, []);
-
-  useEffect(() => {
-    const expiredMessage = sessionStorage.getItem("auth_expired_message");
-
-    if (!expiredMessage) {
-      return;
-    }
-
-    sessionStorage.removeItem("auth_expired_message");
-    notifyInfo(expiredMessage);
   }, []);
 
   useEffect(() => {
@@ -147,7 +136,8 @@ function App() {
         currentUser={currentUser}
       />
 
-      <Routes>
+      <div className="app-shell">
+        <Routes>
         <Route
           path="/login"
           element={
@@ -219,7 +209,8 @@ function App() {
           path="*"
           element={<Navigate to={isAuthenticated ? "/" : "/login"} replace />}
         />
-      </Routes>
+        </Routes>
+      </div>
 
       <ToastContainer position="bottom-center" autoClose={3000} />
     </Router>
