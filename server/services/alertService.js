@@ -64,6 +64,31 @@ const getScoreLabel = (score) => {
   return "Poor";
 };
 
+const escapeHtml = (value) => String(value ?? "")
+  .replace(/&/g, "&amp;")
+  .replace(/</g, "&lt;")
+  .replace(/>/g, "&gt;")
+  .replace(/"/g, "&quot;")
+  .replace(/'/g, "&#039;");
+
+const renderExplanationList = (explanation) => {
+  const reasons = Array.isArray(explanation?.reasons) ? explanation.reasons : [];
+  const warnings = Array.isArray(explanation?.warnings) ? explanation.warnings : [];
+  const lines = [...reasons, ...warnings];
+  if (!lines.length && !explanation?.summary) return "";
+
+  return `
+    <div style="margin-top:10px;background:#f8fafc;border:1px solid #e5e7eb;border-radius:12px;padding:10px 12px;">
+      ${explanation?.summary ? `<div style="font-weight:700;color:#0f172a;margin-bottom:6px;">${escapeHtml(explanation.summary)}</div>` : ""}
+      ${lines.length ? `
+        <ul style="margin:0;padding-left:18px;color:#475569;font-size:13px;line-height:1.6;">
+          ${lines.slice(0, 4).map((line) => `<li>${escapeHtml(line)}</li>`).join("")}
+        </ul>
+      ` : ""}
+    </div>
+  `;
+};
+
 const renderCombinedAlertEmail = ({ userName, periodLabel, alerts }) => {
   const safeName = userName || "angler";
   const isWeeklyEmail = String(periodLabel).toLowerCase() === "weekly";
@@ -86,6 +111,7 @@ const renderCombinedAlertEmail = ({ userName, periodLabel, alerts }) => {
             <td style="padding:7px 8px;border-top:1px solid #e5e7eb;font-weight:700;">${Number(day.total_score || 0)}%</td>
             <td style="padding:7px 8px;border-top:1px solid #e5e7eb;">${day.desc || "N/A"}</td>
             <td style="padding:7px 8px;border-top:1px solid #e5e7eb;white-space:nowrap;">${day.temp ?? "N/A"} °C</td>
+            <td style="padding:7px 8px;border-top:1px solid #e5e7eb;">${escapeHtml(day.explanation?.summary || "")}</td>
           </tr>
         `)
         .join("");
@@ -106,6 +132,7 @@ const renderCombinedAlertEmail = ({ userName, periodLabel, alerts }) => {
             <div><b>Wind:</b> ${forecast.wind ?? "N/A"} m/s</div>
             <div><b>Your minimum score:</b> ${Number(item.min_score || 0)}%</div>
           </div>
+          ${renderExplanationList(forecast.explanation)}
           ${weeklyRows ? `
             <div style="margin-top:12px;overflow-x:auto;">
               <table style="width:100%;border-collapse:collapse;font-size:13px;color:#374151;">
@@ -115,6 +142,7 @@ const renderCombinedAlertEmail = ({ userName, periodLabel, alerts }) => {
                     <th style="text-align:left;padding:7px 8px;background:#f8fafc;">Score</th>
                     <th style="text-align:left;padding:7px 8px;background:#f8fafc;">Weather</th>
                     <th style="text-align:left;padding:7px 8px;background:#f8fafc;">Temp</th>
+                    <th style="text-align:left;padding:7px 8px;background:#f8fafc;">Reason</th>
                   </tr>
                 </thead>
                 <tbody>${weeklyRows}</tbody>

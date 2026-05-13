@@ -10,6 +10,8 @@ router.get("/owner/lakes", authorize, requireOwnerOrAdmin, ownerController.getOw
 router.get("/owner/my-claim-requests", authorize, ownerController.getMyClaimRequests);
 router.post("/owner/claim-requests", authorize, claimUpload.single("proof_document"), ownerController.createClaimRequest);
 router.patch("/owner/lakes/:waterBodyId", authorize, requireOwnerOrAdmin, ownerController.updateOwnerLake);
+router.get("/owner/lakes/:waterBodyId/reservations", authorize, requireOwnerOrAdmin, ownerController.getOwnerLakeReservations);
+router.get("/owner/lakes/:waterBodyId/spot-availability", authorize, requireOwnerOrAdmin, ownerController.getOwnerLakeSpotAvailability);
 router.get("/owner/lakes/:waterBodyId/blocked-dates", authorize, requireOwnerOrAdmin, ownerController.getOwnerBlockedDates);
 router.post("/owner/lakes/:waterBodyId/blocked-dates", authorize, requireOwnerOrAdmin, ownerController.createOwnerBlockedDate);
 router.delete("/owner/lakes/:waterBodyId/blocked-dates/:blockedDateId", authorize, requireOwnerOrAdmin, ownerController.deleteOwnerBlockedDate);

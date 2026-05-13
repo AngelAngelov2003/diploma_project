@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import DatePicker from "../components/ui/DatePicker";
 import { GeoJSON, MapContainer, TileLayer, Marker } from "react-leaflet";
 import {
   FaArrowLeft,
@@ -35,6 +36,8 @@ import {
   deleteMyWaterBodyReview,
   getWaterBodyBlockedDates,
   getWaterBodyBookingOptions,
+  getWaterBodyAvailability,
+  getWaterBodyUnavailableDates,
   getWaterBodyById,
   getWaterBodyCatches,
   getWaterBodyForecast,
@@ -197,6 +200,7 @@ function LakeDetails() {
 
   const [lake, setLake] = useState(null);
   const [forecast, setForecast] = useState(null);
+  const [forecastError, setForecastError] = useState("");
   const [catches, setCatches] = useState([]);
   const [speciesSummary, setSpeciesSummary] = useState([]);
   const [photos, setPhotos] = useState([]);
@@ -214,21 +218,34 @@ function LakeDetails() {
   const [savingAlertState, setSavingAlertState] = useState(false);
 
   const [bookingOptions, setBookingOptions] = useState({ lake: null, rooms: [], spots: [] });
+  const [availability, setAvailability] = useState(null);
+  const [unavailableDates, setUnavailableDates] = useState([]);
   const [blockedDates, setBlockedDates] = useState([]);
   const [arrivalDate, setArrivalDate] = useState("");
   const [departureDate, setDepartureDate] = useState("");
-  const [requestedSpots, setRequestedSpots] = useState(1);
+  const [selectedSpotIds, setSelectedSpotIds] = useState([]);
+  const [isSpotPickerOpen, setIsSpotPickerOpen] = useState(false);
   const [fishingDates, setFishingDates] = useState([]);
+  const [nightFishingRequested, setNightFishingRequested] = useState(false);
   const [nightFishingDates, setNightFishingDates] = useState([]);
   const [selectedRoomIds, setSelectedRoomIds] = useState([]);
   const [reservationNotes, setReservationNotes] = useState("");
   const [reservationQuote, setReservationQuote] = useState(null);
+  const [reservationQuoteError, setReservationQuoteError] = useState("");
   const [savingReservation, setSavingReservation] = useState(false);
 
   const [loading, setLoading] = useState(true);
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 1000);
   const [descriptionExpanded, setDescriptionExpanded] = useState(false);
   const lakeMapRef = useRef(null);
+  const reservationRangeRef = useRef("");
+
+  const getDateOffsetValue = (offsetDays) => {
+    const date = new Date();
+    date.setHours(0, 0, 0, 0);
+    date.setDate(date.getDate() + offsetDays);
+    return date.toISOString().slice(0, 10);
+  };
 
   const loadReviews = async () => {
     try {
@@ -246,53 +263,146 @@ function LakeDetails() {
 
 
   useEffect(() => {
-    const loadLakeDetails = async () => {
+    let cancelled = false;
+
+    const resetSecondaryLakeData = () => {
+      setForecast(null);
+      setForecastError("");
+      setCatches([]);
+      setSpeciesSummary([]);
+      setPhotos([]);
+      setReviews([]);
+      setReviewsSummary(DEFAULT_REVIEWS_SUMMARY);
+      setAlertState(DEFAULT_ALERT_STATE);
+      setBookingOptions({ lake: null, rooms: [], spots: [] });
+      setBlockedDates([]);
+      setUnavailableDates([]);
+      setAvailability(null);
+      setSelectedSpotIds([]);
+      setIsSpotPickerOpen(false);
+      setReservationQuote(null);
+      setReservationQuoteError("");
+    };
+
+    const loadPrimaryLakeDetails = async () => {
       setLoading(true);
+      resetSecondaryLakeData();
 
       try {
-        const [
-          lakeData,
-          forecastData,
-          catchesData,
-          speciesSummaryData,
-          photosData,
-          reviewsData,
-          reviewsSummaryData,
-          alertStatusData,
-          bookingOptionsData,
-          blockedDatesData,
-        ] = await Promise.all([
-          getWaterBodyById(id),
-          getWaterBodyForecast(id),
-          getWaterBodyCatches(id),
-          getWaterBodySpeciesSummary(id),
-          getWaterBodyPhotos(id),
-          getWaterBodyReviews(id),
-          getWaterBodyReviewsSummary(id),
-          getAlertStatus(id),
-          getWaterBodyBookingOptions(id),
-          getWaterBodyBlockedDates(id),
-        ]);
-
+        const lakeData = await getWaterBodyById(id);
+        if (cancelled) return;
         setLake(lakeData || null);
-        setForecast(forecastData || null);
-        setCatches(catchesData || []);
-        setSpeciesSummary(speciesSummaryData || []);
-        setPhotos(photosData || []);
-        setReviews(reviewsData || []);
-        setReviewsSummary(reviewsSummaryData || DEFAULT_REVIEWS_SUMMARY);
-        setAlertState(alertStatusData || DEFAULT_ALERT_STATE);
-        setBookingOptions(bookingOptionsData || { lake: null, rooms: [], spots: [] });
-        setBlockedDates(blockedDatesData || []);
-      } catch (error) {
-        notifyError(error, "Failed to load lake details");
-      } finally {
         setLoading(false);
+      } catch (error) {
+        if (!cancelled) {
+          setLake(null);
+          notifyError(error, "Failed to load lake details");
+          setLoading(false);
+        }
       }
     };
 
-    loadLakeDetails();
+    loadPrimaryLakeDetails();
+
+    return () => {
+      cancelled = true;
+    };
   }, [id]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadSecondaryLakeDetails = async () => {
+      if (!lake?.id) {
+        return;
+      }
+
+      const [
+        forecastData,
+        catchesData,
+        speciesSummaryData,
+        photosData,
+        reviewsData,
+        reviewsSummaryData,
+        alertStatusData,
+        bookingOptionsData,
+        blockedDatesData,
+      ] = await Promise.all([
+        getWaterBodyForecast(id)
+          .then((data) => ({ ok: true, data }))
+          .catch((error) => ({ ok: false, error })),
+        getWaterBodyCatches(id).catch(() => []),
+        getWaterBodySpeciesSummary(id).catch(() => []),
+        getWaterBodyPhotos(id).catch(() => []),
+        getWaterBodyReviews(id).catch(() => []),
+        getWaterBodyReviewsSummary(id).catch(() => DEFAULT_REVIEWS_SUMMARY),
+        getAlertStatus(id).catch(() => DEFAULT_ALERT_STATE),
+        getWaterBodyBookingOptions(id).catch(() => ({ lake: null, rooms: [], spots: [] })),
+        getWaterBodyBlockedDates(id).catch(() => []),
+      ]);
+
+      if (cancelled) return;
+
+      if (forecastData?.ok) {
+        setForecast(forecastData.data || null);
+        setForecastError("");
+      } else {
+        setForecast(null);
+        setForecastError(
+          forecastData?.error?.response?.data?.error ||
+            "Forecast temporarily unavailable. Please try again later."
+        );
+      }
+      setCatches(catchesData || []);
+      setSpeciesSummary(speciesSummaryData || []);
+      setPhotos(photosData || []);
+      setReviews(reviewsData || []);
+      setReviewsSummary(reviewsSummaryData || DEFAULT_REVIEWS_SUMMARY);
+      setAlertState(alertStatusData || DEFAULT_ALERT_STATE);
+      setBookingOptions(bookingOptionsData || { lake: null, rooms: [], spots: [] });
+      setBlockedDates(blockedDatesData || []);
+    };
+
+    loadSecondaryLakeDetails().catch((error) => {
+      if (!cancelled) {
+        console.warn("Failed to load secondary lake details", error);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [id, lake?.id]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadUnavailableDates = async () => {
+      if (!id || !lake?.is_reservable) {
+        setUnavailableDates([]);
+        return;
+      }
+
+      try {
+        const data = await getWaterBodyUnavailableDates(id, {
+          start_date: getDateOffsetValue(0),
+          end_date: getDateOffsetValue(365),
+        });
+
+        if (!cancelled) {
+          setUnavailableDates(data?.unavailable_dates || []);
+        }
+      } catch (_error) {
+        if (!cancelled) setUnavailableDates([]);
+      }
+    };
+
+    loadUnavailableDates();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [id, lake?.is_reservable]);
 
   useEffect(() => {
     const onResize = () => setIsMobile(window.innerWidth <= 1000);
@@ -337,6 +447,48 @@ function LakeDetails() {
 
     return [42.7339, 25.4858];
   }, [lake]);
+
+
+  const bookingLake = useMemo(() => bookingOptions?.lake || null, [bookingOptions?.lake]);
+
+  const allowsNightFishing = useMemo(() => Boolean(
+    lake?.allows_night_fishing ??
+    lake?.allowsNightFishing ??
+    bookingLake?.allows_night_fishing ??
+    bookingLake?.allowsNightFishing
+  ), [lake, bookingLake]);
+
+  const nightFishingPrice = useMemo(() => Number(
+    lake?.night_fishing_price ??
+    lake?.nightFishingPrice ??
+    bookingLake?.night_fishing_price ??
+    bookingLake?.nightFishingPrice ??
+    0
+  ), [lake, bookingLake]);
+
+  const configuredSpotCapacity = useMemo(() => {
+    const value = Number(
+      bookingLake?.spots_count ??
+      bookingLake?.spotsCount ??
+      lake?.spots_count ??
+      lake?.spotsCount ??
+      lake?.capacity ??
+      1
+    );
+    return Math.max(1, Number.isFinite(value) ? value : 1);
+  }, [bookingLake, lake]);
+
+  const availableSpotCapacity = useMemo(() => {
+    if (availability?.lake) {
+      const value = Number(availability.lake.remaining_spot_capacity);
+      return Math.max(0, Number.isFinite(value) ? value : 0);
+    }
+
+    return configuredSpotCapacity;
+  }, [availability, configuredSpotCapacity]);
+
+  const maxRequestableSpots = Math.max(0, availableSpotCapacity);
+  const selectedSpotCount = selectedSpotIds.length;
 
 
   const paginatedSpecies = useMemo(
@@ -513,17 +665,21 @@ function LakeDetails() {
 
   const allowedFishingDates = useMemo(() => {
     if (!arrivalDate || !departureDate) return [];
-    if (arrivalDate === departureDate) return [arrivalDate];
     const dates = [];
     const cursor = new Date(`${arrivalDate}T00:00:00Z`);
     const final = new Date(`${departureDate}T00:00:00Z`);
-    final.setUTCDate(final.getUTCDate() - 1);
     while (cursor <= final) {
       dates.push(cursor.toISOString().slice(0, 10));
       cursor.setUTCDate(cursor.getUTCDate() + 1);
     }
     return dates;
   }, [arrivalDate, departureDate]);
+
+  const defaultFishingDates = useMemo(() => {
+    if (!arrivalDate || !departureDate) return [];
+    if (arrivalDate === departureDate) return [arrivalDate];
+    return allowedFishingDates.filter((date) => date !== departureDate);
+  }, [arrivalDate, departureDate, allowedFishingDates]);
 
   const allowedNightDates = useMemo(() => {
     if (!arrivalDate || !departureDate) return [];
@@ -548,15 +704,77 @@ function LakeDetails() {
   };
 
   useEffect(() => {
+    const rangeKey = `${arrivalDate || ""}|${departureDate || ""}`;
+
+    if (!arrivalDate || !departureDate) {
+      reservationRangeRef.current = rangeKey;
+      setFishingDates([]);
+      setNightFishingRequested(false);
+      setNightFishingDates([]);
+      setReservationQuote(null);
+      return;
+    }
+
+    if (reservationRangeRef.current !== rangeKey) {
+      reservationRangeRef.current = rangeKey;
+      setFishingDates(defaultFishingDates);
+      setNightFishingDates(nightFishingRequested && allowsNightFishing ? allowedNightDates : []);
+      return;
+    }
+
     setFishingDates((prev) => prev.filter((date) => allowedFishingDates.includes(date)));
-    setNightFishingDates((prev) => prev.filter((date) => allowedNightDates.includes(date)));
-  }, [allowedFishingDates, allowedNightDates]);
+    setNightFishingDates((prev) => nightFishingRequested && allowsNightFishing ? prev.filter((date) => allowedNightDates.includes(date)) : []);
+  }, [arrivalDate, departureDate, allowedFishingDates, defaultFishingDates, allowedNightDates, nightFishingRequested, allowsNightFishing]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadAvailability = async () => {
+      if (!arrivalDate || !departureDate) {
+        setAvailability(null);
+        return;
+      }
+
+      try {
+        const data = await getWaterBodyAvailability(id, {
+          start_date: arrivalDate,
+          end_date: departureDate,
+        });
+        if (!cancelled) setAvailability(data || null);
+      } catch (_error) {
+        if (!cancelled) setAvailability(null);
+      }
+    };
+
+    loadAvailability();
+    return () => { cancelled = true; };
+  }, [id, arrivalDate, departureDate]);
+
+  useEffect(() => {
+    const availableSpotIds = new Set((availability?.spots || []).filter((spot) => spot.is_available).map((spot) => String(spot.id)));
+    if (!availableSpotIds.size) {
+      setSelectedSpotIds([]);
+      return;
+    }
+    setSelectedSpotIds((prev) => prev.filter((spotId) => availableSpotIds.has(String(spotId))));
+  }, [availability]);
+
+  useEffect(() => {
+    if (!lake?.is_reservable) return;
+
+    if (maxRequestableSpots <= 0) {
+      setSelectedSpotIds([]);
+      setIsSpotPickerOpen(false);
+    } else {
+      setSelectedSpotIds((prev) => prev.slice(0, maxRequestableSpots));
+    }
+  }, [lake?.is_reservable, maxRequestableSpots]);
 
   useEffect(() => {
     let cancelled = false;
     const loadEstimate = async () => {
-      if (!arrivalDate || !departureDate || (!fishingDates.length && !nightFishingDates.length && !selectedRoomIds.length)) {
+      if (!arrivalDate || !departureDate || selectedSpotCount <= 0 || (!fishingDates.length && !nightFishingDates.length && !selectedRoomIds.length)) {
         setReservationQuote(null);
+        setReservationQuoteError("");
         return;
       }
       try {
@@ -567,16 +785,23 @@ function LakeDetails() {
           fishing_dates: fishingDates,
           night_fishing_dates: nightFishingDates,
           room_ids: selectedRoomIds,
-          requested_spots: Number(requestedSpots || 1),
+          spot_ids: selectedSpotIds,
+          requested_spots: selectedSpotCount,
         });
-        if (!cancelled) setReservationQuote(quote);
-      } catch (_error) {
-        if (!cancelled) setReservationQuote(null);
+        if (!cancelled) {
+          setReservationQuote(quote);
+          setReservationQuoteError("");
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setReservationQuote(null);
+          setReservationQuoteError(error?.response?.data?.error || "Could not calculate the reservation price for the selected range.");
+        }
       }
     };
     loadEstimate();
     return () => { cancelled = true; };
-  }, [id, arrivalDate, departureDate, fishingDates, nightFishingDates, selectedRoomIds, requestedSpots]);
+  }, [id, arrivalDate, departureDate, fishingDates, nightFishingDates, selectedRoomIds, selectedSpotIds, selectedSpotCount]);
 
   const submitReservation = async (event) => {
     event.preventDefault();
@@ -590,6 +815,18 @@ function LakeDetails() {
       notifyError(null, "Select at least one fishing day, night fishing night, or room");
       return;
     }
+    if (maxRequestableSpots <= 0) {
+      notifyError(null, "No fishing spots are available for the selected date range");
+      return;
+    }
+    if (selectedSpotCount <= 0) {
+      notifyError(null, "Please choose at least one fishing spot");
+      return;
+    }
+    if (selectedSpotCount > maxRequestableSpots) {
+      notifyError(null, `Only ${maxRequestableSpots} fishing spot${maxRequestableSpots === 1 ? "" : "s"} are available for the selected range`);
+      return;
+    }
 
     try {
       setSavingReservation(true);
@@ -600,7 +837,8 @@ function LakeDetails() {
         fishing_dates: fishingDates,
         night_fishing_dates: nightFishingDates,
         room_ids: selectedRoomIds,
-        requested_spots: Number(requestedSpots || 1),
+        spot_ids: selectedSpotIds,
+        requested_spots: selectedSpotCount,
         notes: reservationNotes.trim(),
       });
 
@@ -767,70 +1005,24 @@ function LakeDetails() {
               Reservation request
             </h2>
 
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr",
-                gap: "12px",
-                marginBottom: "16px",
-              }}
-            >
+            {lake.availability_notes ? (
               <div
                 style={{
                   background: "#f8fafc",
                   border: "1px solid #e2e8f0",
                   borderRadius: "12px",
                   padding: "14px",
+                  marginBottom: "16px",
                 }}
               >
-                <div
-                  style={{
-                    fontSize: "12px",
-                    color: "#64748b",
-                    marginBottom: "6px",
-                  }}
-                >
-                  Reservation flow
+                <div style={{ fontSize: "12px", color: "#64748b", marginBottom: "6px" }}>
+                  Notes from owner
                 </div>
-                <div
-                  style={{
-                    fontSize: "18px",
-                    fontWeight: 800,
-                    color: "#0f172a",
-                  }}
-                >
-                  {lake.is_reservable ? "Request approval available" : "Closed"}
+                <div style={{ fontSize: "14px", fontWeight: 700, color: "#0f172a" }}>
+                  {lake.availability_notes}
                 </div>
               </div>
-
-              <div
-                style={{
-                  background: "#f8fafc",
-                  border: "1px solid #e2e8f0",
-                  borderRadius: "12px",
-                  padding: "14px",
-                }}
-              >
-                <div
-                  style={{
-                    fontSize: "12px",
-                    color: "#64748b",
-                    marginBottom: "6px",
-                  }}
-                >
-                  Availability notes
-                </div>
-                <div
-                  style={{
-                    fontSize: "14px",
-                    fontWeight: 700,
-                    color: "#0f172a",
-                  }}
-                >
-                  {lake.availability_notes || "No notes from the owner"}
-                </div>
-              </div>
-            </div>
+            ) : null}
 
             {!!blockedDates.length && (
               <div
@@ -877,77 +1069,154 @@ function LakeDetails() {
                   alignItems: "start",
                 }}
               >
-                <div>
-                  <div style={{ fontSize: "12px", color: "#555", marginBottom: "6px" }}>
-                    Arrival date
-                  </div>
-                  <input
-                    type="date"
-                    value={arrivalDate}
-                    min={new Date().toISOString().split("T")[0]}
-                    onChange={(event) => {
-                      const nextValue = event.target.value;
-                      setArrivalDate(nextValue);
-                      if (departureDate && departureDate < nextValue) {
-                        setDepartureDate(nextValue);
-                      }
+                <div style={{ gridColumn: isMobile ? "auto" : "1 / -1" }}>
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr",
+                      gap: "18px",
+                      alignItems: "start",
                     }}
-                    disabled={savingReservation || !lake.is_reservable}
-                    style={{ width: "100%", padding: "10px", borderRadius: 10, border: "1px solid #ddd", boxSizing: "border-box", background: "white" }}
-                  />
+                  >
+                    <div>
+                      <div style={{ fontSize: "12px", color: "#555", marginBottom: "6px" }}>
+                        Fishing date range
+                      </div>
+                      <DatePicker
+                        range
+                        startValue={arrivalDate}
+                        endValue={departureDate}
+                        min={new Date().toISOString().split("T")[0]}
+                        disabledDates={unavailableDates}
+                        placeholder="Choose fishing date or range"
+                        onRangeChange={({ start, end }) => {
+                          setArrivalDate(start);
+                          setDepartureDate(end || start);
+                          setSelectedSpotIds([]);
+                          setIsSpotPickerOpen(false);
+                        }}
+                        disabled={savingReservation || !lake.is_reservable}
+                      />
+                    </div>
+
+                    <div>
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          gap: "12px",
+                          marginBottom: "6px",
+                        }}
+                      >
+                        <div style={{ fontSize: "12px", color: "#555" }}>
+                          Fishing spots
+                        </div>
+                        {arrivalDate && departureDate ? (
+                          <div style={{ fontSize: "13px", color: maxRequestableSpots > 0 ? "#475569" : "#b91c1c", fontWeight: 700 }}>
+                            {maxRequestableSpots > 0 ? `${maxRequestableSpots} available` : "No spots available"}
+                          </div>
+                        ) : null}
+                      </div>
+
+                      <button
+                        type="button"
+                        disabled={savingReservation || !lake.is_reservable || !arrivalDate || !departureDate || maxRequestableSpots <= 0}
+                        onClick={() => setIsSpotPickerOpen((value) => !value)}
+                        style={{
+                          width: "100%",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          gap: "12px",
+                          border: "1px solid #d1d5db",
+                          background: savingReservation || !lake.is_reservable || !arrivalDate || !departureDate || maxRequestableSpots <= 0 ? "#f8fafc" : "white",
+                          color: selectedSpotCount ? "#0f172a" : "#64748b",
+                          borderRadius: "10px",
+                          padding: "12px 14px",
+                          cursor: savingReservation || !lake.is_reservable || !arrivalDate || !departureDate || maxRequestableSpots <= 0 ? "not-allowed" : "pointer",
+                          fontWeight: 800,
+                          boxSizing: "border-box",
+                        }}
+                      >
+                        <span>
+                          {selectedSpotCount
+                            ? `${selectedSpotCount} spot${selectedSpotCount === 1 ? "" : "s"} selected`
+                            : arrivalDate && departureDate
+                              ? "Choose spots"
+                              : "Choose dates first"}
+                        </span>
+                        <span style={{ color: "#2563eb" }}>{isSpotPickerOpen ? "Close" : "Open"}</span>
+                      </button>
+                    </div>
+                  </div>
                 </div>
 
-                <div>
-                  <div style={{ fontSize: "12px", color: "#555", marginBottom: "6px" }}>
-                    Departure date
-                  </div>
-                  <input
-                    type="date"
-                    value={departureDate}
-                    min={arrivalDate || new Date().toISOString().split("T")[0]}
-                    onChange={(event) => setDepartureDate(event.target.value)}
-                    disabled={savingReservation || !lake.is_reservable}
-                    style={{ width: "100%", padding: "10px", borderRadius: 10, border: "1px solid #ddd", boxSizing: "border-box", background: "white" }}
-                  />
-                </div>
-
-                <div>
-                  <div style={{ fontSize: "12px", color: "#555", marginBottom: "6px" }}>
-                    Fishing spots needed
-                  </div>
-                  <input
-                    type="number"
-                    min={1}
-                    max={Math.max(1, Number(lake.spots_count || lake.capacity || 1))}
-                    value={requestedSpots}
-                    onChange={(event) => {
-                      const nextValue = Number(event.target.value || 1);
-                      setRequestedSpots(
-                        Math.min(
-                          Math.max(1, nextValue),
-                          Math.max(1, Number(lake.spots_count || lake.capacity || 1)),
-                        ),
-                      );
+                {isSpotPickerOpen && Array.isArray(availability?.spots) && availability.spots.length ? (
+                  <div
+                    style={{
+                      gridColumn: isMobile ? "auto" : "1 / -1",
+                      background: "#f8fbff",
+                      border: "1px solid #dbeafe",
+                      borderRadius: "14px",
+                      padding: "14px",
                     }}
-                    disabled={savingReservation || !lake.is_reservable}
-                    style={{ width: "100%", padding: "10px", borderRadius: 10, border: "1px solid #ddd", boxSizing: "border-box", background: "white" }}
-                  />
-                </div>
+                  >
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", marginBottom: "12px", flexWrap: "wrap" }}>
+                      <div style={{ fontSize: "13px", color: "#0f172a", fontWeight: 800 }}>
+                        Choose fishing spots
+                      </div>
+                      <div style={{ fontSize: "12px", color: "#64748b", fontWeight: 700 }}>
+                        {selectedSpotCount} selected
+                      </div>
+                    </div>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+                      {availability.spots.map((spot) => {
+                        const selected = selectedSpotIds.some((item) => String(item) === String(spot.id));
+                        const disabled = savingReservation || !lake.is_reservable || !spot.is_available;
+                        return (
+                          <button
+                            key={spot.id}
+                            type="button"
+                            disabled={disabled}
+                            onClick={() => {
+                              setSelectedSpotIds((prev) => {
+                                if (prev.some((item) => String(item) === String(spot.id))) {
+                                  return prev.filter((item) => String(item) !== String(spot.id));
+                                }
+                                return [...prev, spot.id].sort();
+                              });
+                            }}
+                            style={{
+                              border: selected ? "1px solid #2563eb" : "1px solid #cbd5e1",
+                              background: selected ? "#dbeafe" : spot.is_available ? "white" : "#f1f5f9",
+                              color: spot.is_available ? "#0f172a" : "#94a3b8",
+                              borderRadius: "999px",
+                              padding: "8px 12px",
+                              fontWeight: 700,
+                              cursor: disabled ? "not-allowed" : "pointer",
+                            }}
+                          >
+                            Spot {spot.spot_number}{spot.is_available ? "" : " · booked"}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : null}
 
-                <div>
-                  <div style={{ fontSize: "12px", color: "#555", marginBottom: "6px" }}>
-                    Available active spots
+                {Array.isArray(availability?.blocked_dates) && availability.blocked_dates.length ? (
+                  <div style={{ gridColumn: isMobile ? "auto" : "1 / -1", background: "#fff7ed", border: "1px solid #fdba74", borderRadius: "12px", padding: "12px", color: "#9a3412", fontSize: "13px", fontWeight: 700 }}>
+                    Blocked in selected range: {availability.blocked_dates.map((item) => formatDate(item.blocked_date)).join(", ")}
                   </div>
-                  <div style={{ fontSize: "13px", color: "#64748b", lineHeight: 1.6 }}>
-                    {Array.isArray(bookingOptions?.spots) && bookingOptions.spots.length
-                      ? bookingOptions.spots.map((spot) => `Spot ${spot.spot_number}`).join(", ")
-                      : "Spot availability is managed by the owner."}
-                  </div>
-                </div>
+                ) : null}
 
                 <div style={{ gridColumn: isMobile ? "auto" : "1 / -1" }}>
                   <div style={{ fontSize: "12px", color: "#555", marginBottom: "8px" }}>
-                    Fishing days
+                    Day fishing
+                  </div>
+                  <div style={{ fontSize: "12px", color: "#64748b", marginBottom: "8px" }}>
+                    The departure day is optional. Select it only if you will also fish before leaving.
                   </div>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
                     {allowedFishingDates.length ? allowedFishingDates.map((dateValue) => (
@@ -965,37 +1234,61 @@ function LakeDetails() {
                           cursor: "pointer",
                         }}
                       >
-                        {formatDate(dateValue)}
+                        {formatDate(dateValue)}{dateValue === departureDate && arrivalDate !== departureDate ? " · departure day" : ""}
                       </button>
                     )) : <div style={{ fontSize: "13px", color: "#64748b" }}>Choose trip dates first.</div>}
                   </div>
                 </div>
 
-                {lake.allows_night_fishing ? (
-                  <div style={{ gridColumn: isMobile ? "auto" : "1 / -1" }}>
-                    <div style={{ fontSize: "12px", color: "#555", marginBottom: "8px" }}>
-                      Night fishing
-                    </div>
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
-                      {allowedNightDates.length ? allowedNightDates.map((dateValue) => (
-                        <button
-                          key={dateValue}
-                          type="button"
-                          onClick={() => toggleDateSelection(dateValue, setNightFishingDates)}
-                          style={{
-                            border: nightFishingDates.includes(dateValue) ? "1px solid #7c3aed" : "1px solid #cbd5e1",
-                            background: nightFishingDates.includes(dateValue) ? "#ede9fe" : "white",
-                            color: "#0f172a",
-                            borderRadius: "999px",
-                            padding: "8px 12px",
-                            fontWeight: 700,
-                            cursor: "pointer",
-                          }}
-                        >
-                          Night of {formatDate(dateValue)}
-                        </button>
-                      )) : <div style={{ fontSize: "13px", color: "#64748b" }}>Choose trip dates to see available nights.</div>}
-                    </div>
+                {allowsNightFishing ? (
+                  <div style={{ gridColumn: isMobile ? "auto" : "1 / -1", background: "#f8fbff", border: "1px solid #dbeafe", borderRadius: "14px", padding: "12px" }}>
+                    <label style={{ display: "flex", alignItems: "flex-start", gap: "10px", cursor: allowedNightDates.length ? "pointer" : "not-allowed" }}>
+                      <input
+                        type="checkbox"
+                        checked={nightFishingRequested}
+                        disabled={!allowedNightDates.length || savingReservation || !lake.is_reservable}
+                        onChange={(event) => {
+                          const checked = event.target.checked;
+                          setNightFishingRequested(checked);
+                          setNightFishingDates(checked ? allowedNightDates : []);
+                        }}
+                        style={{ marginTop: "3px" }}
+                      />
+                      <span>
+                        <span style={{ display: "block", fontSize: "13px", color: "#0f172a", fontWeight: 800 }}>Request night fishing approval</span>
+                        <span style={{ display: "block", fontSize: "12px", color: "#64748b", marginTop: "4px" }}>
+                          Add this only if you want to fish during the night. The owner approves the whole reservation request, including night fishing
+                          {nightFishingPrice ? ` (${formatCurrency(nightFishingPrice)} / night)` : ""}.
+                        </span>
+                      </span>
+                    </label>
+                    {nightFishingRequested ? (
+                      <div style={{ marginTop: "12px" }}>
+                        <div style={{ fontSize: "12px", color: "#555", marginBottom: "8px" }}>
+                          Night fishing nights
+                        </div>
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+                          {allowedNightDates.length ? allowedNightDates.map((dateValue) => (
+                            <button
+                              key={dateValue}
+                              type="button"
+                              onClick={() => toggleDateSelection(dateValue, setNightFishingDates)}
+                              style={{
+                                border: nightFishingDates.includes(dateValue) ? "1px solid #7c3aed" : "1px solid #cbd5e1",
+                                background: nightFishingDates.includes(dateValue) ? "#ede9fe" : "white",
+                                color: "#0f172a",
+                                borderRadius: "999px",
+                                padding: "8px 12px",
+                                fontWeight: 700,
+                                cursor: "pointer",
+                              }}
+                            >
+                              Night of {formatDate(dateValue)}
+                            </button>
+                          )) : <div style={{ fontSize: "13px", color: "#64748b" }}>Choose an overnight trip range first.</div>}
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
                 ) : null}
 
@@ -1005,16 +1298,21 @@ function LakeDetails() {
                       Rooms for the stay
                     </div>
                     <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                      {bookingOptions.rooms.map((room) => (
-                        <label key={room.id} style={{ display: "flex", alignItems: "center", gap: "10px", fontSize: "14px", color: "#334155" }}>
-                          <input
-                            type="checkbox"
-                            checked={selectedRoomIds.includes(room.id)}
-                            onChange={() => setSelectedRoomIds((prev) => prev.includes(room.id) ? prev.filter((item) => item !== room.id) : [...prev, room.id])}
-                          />
-                          <span>{room.name} · {formatCurrency(room.price_per_night)} / night</span>
-                        </label>
-                      ))}
+                      {bookingOptions.rooms.map((room) => {
+                        const liveRoom = (availability?.rooms || []).find((item) => String(item.id) === String(room.id));
+                        const isAvailable = liveRoom ? liveRoom.is_available : true;
+                        return (
+                          <label key={room.id} style={{ display: "flex", alignItems: "center", gap: "10px", fontSize: "14px", color: isAvailable ? "#334155" : "#94a3b8" }}>
+                            <input
+                              type="checkbox"
+                              disabled={!isAvailable}
+                              checked={selectedRoomIds.includes(room.id)}
+                              onChange={() => setSelectedRoomIds((prev) => prev.includes(room.id) ? prev.filter((item) => item !== room.id) : [...prev, room.id])}
+                            />
+                            <span>{room.name} · {formatCurrency(room.price_per_night)} / night{isAvailable ? "" : " · booked"}</span>
+                          </label>
+                        );
+                      })}
                     </div>
                   </div>
                 ) : null}
@@ -1038,15 +1336,26 @@ function LakeDetails() {
                 <div style={{ background: "#eff6ff", color: "#1d4ed8", border: "1px solid #bfdbfe", borderRadius: "12px", padding: "10px 14px", fontWeight: 700 }}>
                   Total: {formatCurrency(reservationQuote?.totalAmount || reservationQuote?.total_amount || 0)}
                 </div>
+                {reservationQuote ? (
+                  <div style={{ fontSize: "13px", color: "#475569", fontWeight: 700 }}>
+                    Day fishing: {formatCurrency(reservationQuote.baseAmount || reservationQuote.base_amount || 0)} · Night fishing: {formatCurrency(reservationQuote.nightFishingAmount || reservationQuote.night_fishing_amount || 0)} · Rooms: {formatCurrency(reservationQuote.roomsAmount || reservationQuote.rooms_amount || 0)}
+                  </div>
+                ) : null}
                 <div style={{ fontSize: "13px", color: "#64748b", fontWeight: 600 }}>
-                  Choose your trip range first, then add day fishing, night fishing, and optional rooms.
+                  Day fishing is charged per selected day. Night fishing is charged per selected night. The departure day is charged only when selected.
                 </div>
               </div>
 
+              {reservationQuoteError ? (
+                <div style={{ marginTop: "10px", background: "#fef2f2", border: "1px solid #fecaca", color: "#991b1b", borderRadius: "12px", padding: "10px 12px", fontSize: "13px", fontWeight: 700 }}>
+                  {reservationQuoteError}
+                </div>
+              ) : null}
+
               <button
                 type="submit"
-                disabled={savingReservation || !lake.is_reservable || !arrivalDate || !departureDate}
-                style={{ marginTop: "14px", border: "none", background: lake.is_reservable ? "#16a34a" : "#94a3b8", color: "white", borderRadius: "10px", padding: "10px 14px", cursor: savingReservation || !lake.is_reservable ? "not-allowed" : "pointer", fontWeight: 700 }}
+                disabled={savingReservation || !lake.is_reservable || !arrivalDate || !departureDate || maxRequestableSpots <= 0 || selectedSpotCount <= 0 || selectedSpotCount > maxRequestableSpots}
+                style={{ marginTop: "14px", border: "none", background: lake.is_reservable && maxRequestableSpots > 0 && selectedSpotCount > 0 && selectedSpotCount <= maxRequestableSpots ? "#16a34a" : "#94a3b8", color: "white", borderRadius: "10px", padding: "10px 14px", cursor: savingReservation || !lake.is_reservable || maxRequestableSpots <= 0 || selectedSpotCount <= 0 || selectedSpotCount > maxRequestableSpots ? "not-allowed" : "pointer", fontWeight: 700 }}
               >
                 {savingReservation ? "Sending..." : "Send reservation request"}
               </button>
@@ -1502,7 +1811,46 @@ function LakeDetails() {
                     </div>
                   </div>
                 )}
+
+                {forecast.explanation && (
+                  <div
+                    style={{
+                      background: "#f0fdf4",
+                      border: "1px solid #bbf7d0",
+                      borderRadius: "12px",
+                      padding: "14px",
+                      marginTop: "12px",
+                    }}
+                  >
+                    <div style={{ fontWeight: 800, color: "#14532d", marginBottom: "8px" }}>
+                      Why this score?
+                    </div>
+                    {forecast.explanation.summary ? (
+                      <div style={{ fontSize: "14px", color: "#166534", fontWeight: 700, marginBottom: "8px" }}>
+                        {forecast.explanation.summary}
+                      </div>
+                    ) : null}
+                    <ul style={{ margin: 0, paddingLeft: "18px", color: "#166534", fontSize: "14px", lineHeight: 1.7 }}>
+                      {[...(forecast.explanation.reasons || []), ...(forecast.explanation.warnings || [])].slice(0, 5).map((reason, reasonIndex) => (
+                        <li key={`${reason}-${reasonIndex}`}>{reason}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </>
+            ) : forecastError ? (
+              <div
+                style={{
+                  background: "#fff7ed",
+                  border: "1px solid #fed7aa",
+                  borderRadius: "12px",
+                  padding: "14px",
+                  color: "#9a3412",
+                  fontWeight: 700,
+                }}
+              >
+                {forecastError}
+              </div>
             ) : (
               <div style={{ color: "#64748b" }}>No forecast available.</div>
             )}

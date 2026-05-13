@@ -8,6 +8,8 @@ import {
   deleteLakeRoom,
   deleteOwnerCatchPhoto,
   getOwnerLakeCatches,
+  getOwnerLakeReservations,
+  getOwnerLakeSpotAvailability,
   reportOwnerLakeCatch,
   getBlockedDates,
   getLakePhotos,
@@ -20,8 +22,10 @@ import {
   updateOwnerLake,
   uploadLakePhoto,
 } from "../api/ownerApi";
+import { updateReservationStatus } from "../api/reservationsApi";
 import { notifyError, notifySuccess } from "../ui/toast";
 import { formatCurrency } from "../utils/formatCurrency";
+import DatePicker from "../components/ui/DatePicker";
 import styles from "./OwnerPanel.module.css";
 
 const DEFAULT_ROOM_FORM = {
@@ -44,6 +48,7 @@ const parseMoneyInput = (value) => value.replace(/[^0-9.]/g, "").replace(/(\..*)
 
 const TAB_ITEMS = [
   { key: "overview", label: "Overview" },
+  { key: "reservations", label: "Reservations" },
   { key: "spots", label: "Fishing Spots" },
   { key: "rooms", label: "Housing / Rooms" },
   { key: "gallery", label: "Gallery & Media" },
@@ -74,6 +79,57 @@ const formatDate = (value) => {
   return date.toLocaleDateString();
 };
 
+const formatDateTime = (value) => {
+  if (!value) return "Unknown time";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString();
+};
+
+const getTodayDateString = () => new Date().toISOString().slice(0, 10);
+
+const isReservationPast = (reservation) => {
+  const departure = String(reservation?.departure_date || reservation?.end_date || reservation?.start_date || reservation?.reservation_date || "").slice(0, 10);
+  return Boolean(departure && departure < getTodayDateString());
+};
+
+const getReservedSpotNumbers = (item) => (
+  Array.isArray(item?.spot_numbers)
+    ? item.spot_numbers.filter((value) => value !== null && value !== undefined)
+    : []
+);
+
+const formatReservedSpots = (item) => {
+  const numbers = getReservedSpotNumbers(item);
+  if (numbers.length) return `${numbers.length} selected`;
+  const count = Number(item?.requested_spots || item?.people_count || 1);
+  return `${count} requested`;
+};
+
+function ReservedSpotsBadge({ reservation }) {
+  const numbers = getReservedSpotNumbers(reservation);
+
+  return (
+    <span className={`${styles.mutedBadge} ${styles.reservationSpotBadge}`}>
+      <span>Reserved spots: {formatReservedSpots(reservation)}</span>
+      {numbers.length ? (
+        <details className={styles.reservationSpotDetails}>
+          <summary>View spot numbers</summary>
+          <span className={styles.reservationSpotList}>
+            {numbers.map((value) => (
+              <span key={value} className={styles.reservationSpotPill}>
+                Spot {value}
+              </span>
+            ))}
+          </span>
+        </details>
+      ) : null}
+    </span>
+  );
+}
+
+const OWNER_RESERVATION_FILTERS = ["pending", "approved", "rejected", "cancelled", "all"];
+
 const getLakeModeLabel = (lake) => {
   if (lake.is_private && lake.is_reservable) return "Private & reservable";
   if (lake.is_private) return "Private";
@@ -84,6 +140,9 @@ const getLakeModeLabel = (lake) => {
 const getTabDescription = (tabKey) => {
   if (tabKey === "overview") {
     return "Manage the main lake settings, booking rules, and pricing from one focused place.";
+  }
+  if (tabKey === "reservations") {
+    return "Review booking requests and check spot availability for selected dates.";
   }
   if (tabKey === "spots") {
     return "Create and manage individual fishing spots for this lake.";
@@ -128,6 +187,10 @@ export default function OwnerPanel() {
   const [roomsByLake, setRoomsByLake] = useState({});
   const [photosByLake, setPhotosByLake] = useState({});
   const [catchPhotosByLake, setCatchPhotosByLake] = useState({});
+  const [reservationsByLake, setReservationsByLake] = useState({});
+  const [reservationFilterByLake, setReservationFilterByLake] = useState({});
+  const [spotAvailabilityDateByLake, setSpotAvailabilityDateByLake] = useState({});
+  const [spotAvailabilityByLake, setSpotAvailabilityByLake] = useState({});
   const [newRoomByLake, setNewRoomByLake] = useState({});
   const [photoFilesByLake, setPhotoFilesByLake] = useState({});
   const [photoCaptionsByLake, setPhotoCaptionsByLake] = useState({});
@@ -147,7 +210,7 @@ export default function OwnerPanel() {
       const normalizedLakes = Array.isArray(owned) ? owned : [];
       setLakes(normalizedLakes);
 
-      const [blockedEntries, spotEntries, roomEntries, photoEntries, catchPhotoEntries] = await Promise.all([
+      const [blockedEntries, spotEntries, roomEntries, photoEntries, catchPhotoEntries, reservationEntries] = await Promise.all([
         Promise.all(
           normalizedLakes.map(async (lake) => [
             lake.id,
@@ -178,6 +241,12 @@ export default function OwnerPanel() {
             await getOwnerLakeCatches(lake.id).catch(() => []),
           ])
         ),
+        Promise.all(
+          normalizedLakes.map(async (lake) => [
+            lake.id,
+            await getOwnerLakeReservations(lake.id).catch(() => []),
+          ])
+        ),
       ]);
 
       setBlockedDatesByLake(Object.fromEntries(blockedEntries));
@@ -185,6 +254,7 @@ export default function OwnerPanel() {
       setRoomsByLake(Object.fromEntries(roomEntries));
       setPhotosByLake(Object.fromEntries(photoEntries));
       setCatchPhotosByLake(Object.fromEntries(catchPhotoEntries));
+      setReservationsByLake(Object.fromEntries(reservationEntries));
       setNewRoomByLake(
         Object.fromEntries(
           normalizedLakes.map((lake) => [lake.id, { ...DEFAULT_ROOM_FORM }])
@@ -195,6 +265,9 @@ export default function OwnerPanel() {
       );
       setSpotPageByLake(
         Object.fromEntries(normalizedLakes.map((lake) => [lake.id, 1]))
+      );
+      setReservationFilterByLake(
+        Object.fromEntries(normalizedLakes.map((lake) => [lake.id, "pending"]))
       );
     } catch (error) {
       notifyError(error, "Failed to load owner lakes");
@@ -522,6 +595,50 @@ export default function OwnerPanel() {
     }
   };
 
+
+  const refreshOwnerLakeReservations = async (lakeId) => {
+    const reservations = await getOwnerLakeReservations(lakeId).catch(() => []);
+    setReservationsByLake((prev) => ({ ...prev, [lakeId]: reservations }));
+  };
+
+  const handleUpdateReservationStatus = async (lakeId, reservationId, status) => {
+    try {
+      setBusyLakeId(lakeId);
+      await updateReservationStatus(reservationId, status);
+      notifySuccess("Reservation updated");
+      await refreshOwnerLakeReservations(lakeId);
+      const selectedDate = spotAvailabilityDateByLake[lakeId];
+      if (selectedDate) {
+        const availability = await getOwnerLakeSpotAvailability(lakeId, selectedDate).catch(() => null);
+        setSpotAvailabilityByLake((prev) => ({ ...prev, [lakeId]: availability }));
+      }
+    } catch (error) {
+      notifyError(error, "Failed to update reservation");
+    } finally {
+      setBusyLakeId("");
+    }
+  };
+
+  const handleLoadSpotAvailability = async (lakeId, date) => {
+    const nextDate = String(date || "").trim();
+    setSpotAvailabilityDateByLake((prev) => ({ ...prev, [lakeId]: nextDate }));
+    if (!nextDate) {
+      setSpotAvailabilityByLake((prev) => ({ ...prev, [lakeId]: null }));
+      return;
+    }
+
+    try {
+      setBusyLakeId(lakeId);
+      const availability = await getOwnerLakeSpotAvailability(lakeId, nextDate);
+      setSpotAvailabilityByLake((prev) => ({ ...prev, [lakeId]: availability }));
+    } catch (error) {
+      notifyError(error, "Failed to load spot availability");
+      setSpotAvailabilityByLake((prev) => ({ ...prev, [lakeId]: null }));
+    } finally {
+      setBusyLakeId("");
+    }
+  };
+
   const handleReportCatchUser = async (lakeId, catchItem) => {
     const reason = window.prompt("Why do you want to report this user/catch photo?");
     if (!reason || !reason.trim()) return;
@@ -569,6 +686,14 @@ export default function OwnerPanel() {
               const roomCount = roomsByLake[lake.id]?.length || 0;
               const photoCount = photosByLake[lake.id]?.length || 0;
               const blockedCount = blockedDatesByLake[lake.id]?.length || 0;
+              const ownerReservations = reservationsByLake[lake.id] || [];
+              const pendingReservationCount = ownerReservations.filter((item) => item.status === "pending").length;
+              const activeReservationFilter = reservationFilterByLake[lake.id] || "pending";
+              const filteredOwnerReservations = activeReservationFilter === "all"
+                ? ownerReservations
+                : ownerReservations.filter((item) => item.status === activeReservationFilter);
+              const selectedAvailabilityDate = spotAvailabilityDateByLake[lake.id] || "";
+              const spotAvailability = spotAvailabilityByLake[lake.id] || null;
               const roomModalOpen = Boolean(roomModalByLake[lake.id]);
               const roomDraft = roomDraftByLake[lake.id] || DEFAULT_ROOM_FORM;
               const sortedSpots = [...(spotsByLake[lake.id] || [])].sort(
@@ -616,6 +741,10 @@ export default function OwnerPanel() {
                         <span className={styles.metricValue}>{photoCount}</span>
                       </div>
                       <div className={styles.metricPill}>
+                        <span className={styles.metricLabel}>Pending</span>
+                        <span className={styles.metricValue}>{pendingReservationCount}</span>
+                      </div>
+                      <div className={styles.metricPill}>
                         <span className={styles.metricLabel}>Blocked</span>
                         <span className={styles.metricValue}>{blockedCount}</span>
                       </div>
@@ -636,6 +765,9 @@ export default function OwnerPanel() {
                           }
                         >
                           <span>{tab.label}</span>
+                          {tab.key === "reservations" && pendingReservationCount ? (
+                            <span className={styles.tabBadge}>{pendingReservationCount > 99 ? "99+" : pendingReservationCount}</span>
+                          ) : null}
                         </button>
                       )
                     )}
@@ -841,6 +973,176 @@ export default function OwnerPanel() {
                               />
                             </LabeledInput>
                           </div>
+                        </SectionCard>
+                      </>
+                    ) : null}
+
+                    {activeTab === "reservations" ? (
+                      <>
+                        <SectionCard
+                          title="Reservation requests"
+                          subtitle="Approve, reject, or return booking requests to pending for this lake."
+                        >
+                          <div className={styles.filterRow}>
+                            {OWNER_RESERVATION_FILTERS.map((filter) => (
+                              <button
+                                key={filter}
+                                type="button"
+                                className={
+                                  activeReservationFilter === filter
+                                    ? styles.filterButtonActive
+                                    : styles.filterButton
+                                }
+                                onClick={() =>
+                                  setReservationFilterByLake((prev) => ({
+                                    ...prev,
+                                    [lake.id]: filter,
+                                  }))
+                                }
+                              >
+                                {filter.charAt(0).toUpperCase() + filter.slice(1)}
+                              </button>
+                            ))}
+                          </div>
+
+                          {!filteredOwnerReservations.length ? (
+                            <div className={styles.emptyState}>No reservations match this status.</div>
+                          ) : (
+                            <div className={styles.itemList}>
+                              {filteredOwnerReservations.map((reservation) => (
+                                <div key={reservation.id} className={styles.itemCardCompact} style={{ alignItems: "flex-start" }}>
+                                  <div style={{ minWidth: 0, flex: "1 1 420px" }}>
+                                    <div className={styles.itemTitle}>{reservation.lake_name || lake.name}</div>
+                                    <div className={styles.metaText}>
+                                      User: {reservation.full_name || "Unknown"}{reservation.email ? ` (${reservation.email})` : ""}
+                                    </div>
+                                    <div className={styles.metaText}>
+                                      Stay: {formatDate(reservation.arrival_date || reservation.start_date)} → {formatDate(reservation.departure_date || reservation.end_date)}
+                                    </div>
+                                    <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginTop: "10px" }}>
+                                      <span className={styles.mutedBadge}>Created: {formatDateTime(reservation.created_at)}</span>
+                                      <ReservedSpotsBadge reservation={reservation} />
+                                      <span className={styles.mutedBadge}>Fishing days: {(reservation.fishing_dates || []).length || 0}</span>
+                                      <span className={styles.mutedBadge}>Night fishing: {(reservation.night_fishing_dates || []).length || 0}</span>
+                                      <span className={styles.mutedBadge}>Rooms: {(reservation.room_names || []).length ? reservation.room_names.join(", ") : "None"}</span>
+                                      <span className={styles.mutedBadge}>Total: {formatCurrency(reservation.total_amount || 0)}</span>
+                                    </div>
+                                    <div className={styles.metaText} style={{ marginTop: "10px" }}>
+                                      Notes: {reservation.notes || "No notes"}
+                                    </div>
+                                  </div>
+
+                                  <div style={{ display: "grid", gap: "8px", justifyItems: "end" }}>
+                                    <span className={
+                                      reservation.status === "approved"
+                                        ? styles.successBadge
+                                        : reservation.status === "pending"
+                                          ? styles.warningBadge
+                                          : styles.mutedBadge
+                                    }>
+                                      {String(reservation.status || "pending").toUpperCase()}
+                                    </span>
+                                    {isReservationPast(reservation) ? (
+                                      <span className={styles.mutedBadge}>Past reservation</span>
+                                    ) : (
+                                      <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", justifyContent: "flex-end" }}>
+                                        <button
+                                          type="button"
+                                          className={styles.secondaryButton}
+                                          disabled={busyLakeId === lake.id}
+                                          onClick={() => handleUpdateReservationStatus(lake.id, reservation.id, "approved")}
+                                        >
+                                          Approve
+                                        </button>
+                                        <button
+                                          type="button"
+                                          className={styles.dangerButton}
+                                          disabled={busyLakeId === lake.id}
+                                          onClick={() => handleUpdateReservationStatus(lake.id, reservation.id, "rejected")}
+                                        >
+                                          Reject
+                                        </button>
+                                        <button
+                                          type="button"
+                                          className={styles.filterButton}
+                                          disabled={busyLakeId === lake.id}
+                                          onClick={() => handleUpdateReservationStatus(lake.id, reservation.id, "pending")}
+                                        >
+                                          Mark pending
+                                        </button>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </SectionCard>
+
+                        <SectionCard
+                          title="Spot availability by date"
+                          subtitle="Choose a date to see which numbered spots are free, pending, approved, blocked, or inactive."
+                          actions={
+                            <button
+                              type="button"
+                              className={styles.secondaryButton}
+                              disabled={!selectedAvailabilityDate || busyLakeId === lake.id}
+                              onClick={() => handleLoadSpotAvailability(lake.id, selectedAvailabilityDate)}
+                            >
+                              Refresh
+                            </button>
+                          }
+                        >
+                          <div className={styles.formGrid}>
+                            <LabeledInput label="Availability date">
+                              <DatePicker
+                                value={selectedAvailabilityDate}
+                                onChange={(nextValue) => handleLoadSpotAvailability(lake.id, nextValue)}
+                              />
+                            </LabeledInput>
+                          </div>
+
+                          {!selectedAvailabilityDate ? (
+                            <div className={styles.emptyState}>Choose a date to inspect spot availability.</div>
+                          ) : !spotAvailability ? (
+                            <div className={styles.emptyState}>No availability loaded for this date yet.</div>
+                          ) : (
+                            <>
+                              {spotAvailability.blocked ? (
+                                <div className={styles.emptyState} style={{ marginBottom: "12px" }}>
+                                  This date is blocked{spotAvailability.blocked.reason ? `: ${spotAvailability.blocked.reason}` : "."}
+                                </div>
+                              ) : null}
+                              <div className={styles.spotGrid}>
+                                {(spotAvailability.spots || []).map((spot) => {
+                                  const status = String(spot.status || "free");
+                                  const badgeClass = status === "free"
+                                    ? styles.successBadge
+                                    : status === "pending"
+                                      ? styles.warningBadge
+                                      : styles.mutedBadge;
+                                  return (
+                                    <div key={spot.id} className={styles.spotCard}>
+                                      <div className={styles.spotCardHeader}>
+                                        <div>
+                                          <div className={styles.itemTitle}>Spot {spot.spot_number}</div>
+                                          <div className={styles.metaText}>
+                                            {spot.user_name ? `${spot.user_name}${spot.user_email ? ` (${spot.user_email})` : ""}` : status === "free" ? "Available" : status}
+                                          </div>
+                                        </div>
+                                        <span className={badgeClass}>{status.toUpperCase()}</span>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                              {Array.isArray(spotAvailability.capacity_reservations) && spotAvailability.capacity_reservations.length ? (
+                                <div className={styles.emptyState} style={{ marginTop: "12px" }}>
+                                  There are {spotAvailability.capacity_reservations.length} capacity-based reservation(s) without exact spot numbers on this date.
+                                </div>
+                              ) : null}
+                            </>
+                          )}
                         </SectionCard>
                       </>
                     ) : null}
@@ -1349,29 +1651,25 @@ export default function OwnerPanel() {
 
                           <div className={styles.formGrid}>
                             <LabeledInput label="Start date">
-                              <input
-                                className={styles.input}
-                                type="date"
+                              <DatePicker
                                 value={blockedDateInputs[lake.id] || ""}
-                                onChange={(event) =>
+                                onChange={(nextValue) =>
                                   setBlockedDateInputs((prev) => ({
                                     ...prev,
-                                    [lake.id]: event.target.value,
+                                    [lake.id]: nextValue,
                                   }))
                                 }
                               />
                             </LabeledInput>
 
                             <LabeledInput label="End date">
-                              <input
-                                className={styles.input}
-                                type="date"
+                              <DatePicker
                                 value={blockedEndDateInputs[lake.id] || ""}
                                 min={blockedDateInputs[lake.id] || undefined}
-                                onChange={(event) =>
+                                onChange={(nextValue) =>
                                   setBlockedEndDateInputs((prev) => ({
                                     ...prev,
-                                    [lake.id]: event.target.value,
+                                    [lake.id]: nextValue,
                                   }))
                                 }
                               />

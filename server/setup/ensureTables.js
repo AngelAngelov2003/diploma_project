@@ -103,6 +103,11 @@ const ensureReservationDomainTables = async () => {
   `);
   await pool.query(`
     ALTER TABLE lake_reservations
+    DROP CONSTRAINT IF EXISTS lake_reservations_water_body_id_user_id_reservation_date_key
+  `);
+
+  await pool.query(`
+    ALTER TABLE lake_reservations
     ADD COLUMN IF NOT EXISTS start_date DATE,
     ADD COLUMN IF NOT EXISTS end_date DATE,
     ADD COLUMN IF NOT EXISTS sector_id UUID REFERENCES lake_sectors(id) ON DELETE SET NULL,
@@ -112,7 +117,13 @@ const ensureReservationDomainTables = async () => {
     ADD COLUMN IF NOT EXISTS base_amount NUMERIC(10,2) NOT NULL DEFAULT 0,
     ADD COLUMN IF NOT EXISTS night_fishing_amount NUMERIC(10,2) NOT NULL DEFAULT 0,
     ADD COLUMN IF NOT EXISTS rooms_amount NUMERIC(10,2) NOT NULL DEFAULT 0,
-    ADD COLUMN IF NOT EXISTS total_amount NUMERIC(10,2) NOT NULL DEFAULT 0
+    ADD COLUMN IF NOT EXISTS total_amount NUMERIC(10,2) NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS payment_status TEXT NOT NULL DEFAULT 'unpaid',
+    ADD COLUMN IF NOT EXISTS payment_required BOOLEAN NOT NULL DEFAULT FALSE,
+    ADD COLUMN IF NOT EXISTS platform_fee_amount NUMERIC(10,2) NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS owner_amount NUMERIC(10,2) NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS snapshot_price_per_day NUMERIC(10,2) NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS snapshot_night_fishing_price NUMERIC(10,2) NOT NULL DEFAULT 0
   `);
 
   await pool.query(`
@@ -143,6 +154,17 @@ const ensureReservationDomainTables = async () => {
       room_id UUID NOT NULL REFERENCES lake_rooms(id) ON DELETE CASCADE,
       created_at TIMESTAMP NOT NULL DEFAULT NOW(),
       UNIQUE (reservation_id, room_id)
+    )
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS reservation_spots (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      reservation_id UUID NOT NULL REFERENCES lake_reservations(id) ON DELETE CASCADE,
+      spot_id UUID NOT NULL REFERENCES lake_spots(id) ON DELETE CASCADE,
+      price_snapshot NUMERIC(10,2) NOT NULL DEFAULT 0,
+      created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+      UNIQUE (reservation_id, spot_id)
     )
   `);
 
@@ -199,6 +221,16 @@ const ensureReservationDomainTables = async () => {
   await pool.query(`
     CREATE INDEX IF NOT EXISTS idx_lake_reservation_rooms_reservation_id
     ON lake_reservation_rooms (reservation_id)
+  `);
+
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_reservation_spots_reservation_id
+    ON reservation_spots (reservation_id)
+  `);
+
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_reservation_spots_spot_id
+    ON reservation_spots (spot_id)
   `);
 
   await pool.query(`

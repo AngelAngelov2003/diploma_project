@@ -4,6 +4,7 @@ const reservationController = require("../controllers/reservationController");
 
 const router = express.Router();
 
+router.get("/reservations/badge-counts", authorize, reservationController.getReservationBadgeCounts);
 router.get("/reservations/my", authorize, reservationController.getMyReservations);
 router.get("/reservations/incoming", authorize, reservationController.getIncomingReservations);
 router.get("/reservations/:waterBodyId/my-status", authorize, reservationController.getMyReservationStatus);

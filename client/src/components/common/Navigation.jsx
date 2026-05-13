@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { getReservationBadgeCounts } from "../../api/reservationsApi";
 import { NavLink, useNavigate } from "react-router-dom";
 import {
   FaFish,
@@ -19,6 +20,7 @@ import {
 
 const Navigation = ({ isAuthenticated, onLogout, currentUser }) => {
   const [showMenu, setShowMenu] = useState(false);
+  const [reservationBadges, setReservationBadges] = useState({ user_reservation_updates: 0, owner_pending_reservations: 0 });
   const menuRef = useRef(null);
   const navigate = useNavigate();
 
@@ -34,6 +36,48 @@ const Navigation = ({ isAuthenticated, onLogout, currentUser }) => {
 
   const isAdmin = currentUser?.role === "admin";
   const isOwner = currentUser?.role === "owner" || isAdmin;
+  const userReservationBadgeCount = Number(reservationBadges.user_reservation_updates || 0);
+  const ownerReservationBadgeCount = Number(reservationBadges.owner_pending_reservations || 0);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadReservationBadges = async () => {
+      if (!isAuthenticated) {
+        setReservationBadges({ user_reservation_updates: 0, owner_pending_reservations: 0 });
+        return;
+      }
+
+      try {
+        const data = await getReservationBadgeCounts();
+        if (!cancelled) {
+          setReservationBadges(data || { user_reservation_updates: 0, owner_pending_reservations: 0 });
+        }
+      } catch (_error) {
+        if (!cancelled) {
+          setReservationBadges({ user_reservation_updates: 0, owner_pending_reservations: 0 });
+        }
+      }
+    };
+
+    loadReservationBadges();
+    const intervalId = window.setInterval(loadReservationBadges, 60000);
+
+    const refreshOnFocus = () => loadReservationBadges();
+    window.addEventListener("focus", refreshOnFocus);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+      window.removeEventListener("focus", refreshOnFocus);
+    };
+  }, [isAuthenticated, currentUser?.id, currentUser?.role]);
+
+  const Badge = ({ count }) => {
+    if (!count) return null;
+    const safeCount = Number(count) > 99 ? "99+" : String(count);
+    return <span className="nav-notification-badge">{safeCount}</span>;
+  };
 
   const closeMenuAndNavigate = (path) => {
     setShowMenu(false);
@@ -74,20 +118,18 @@ const Navigation = ({ isAuthenticated, onLogout, currentUser }) => {
                 <span>Saved Lakes</span>
               </NavLink>
 
-              <NavLink to="/reservations" className={(state) => `${linkClassName(state)} secondary-nav-link`}>
+              <NavLink to="/reservations" className={(state) => `${linkClassName(state)} secondary-nav-link has-badge`}>
                 <FaCalendarAlt />
                 <span>Reservations</span>
+                <Badge count={userReservationBadgeCount} />
               </NavLink>
 
-              <NavLink to="/become-owner" className={(state) => `${linkClassName(state)} secondary-nav-link`}>
-                <FaFileSignature />
-                <span>Become Owner</span>
-              </NavLink>
 
               {isOwner && (
-                <NavLink to="/owner" className={(state) => `${linkClassName(state)} secondary-nav-link`}>
+                <NavLink to="/owner" className={(state) => `${linkClassName(state)} secondary-nav-link has-badge`}>
                   <FaTools />
                   <span>Owner Panel</span>
+                  <Badge count={ownerReservationBadgeCount} />
                 </NavLink>
               )}
 
@@ -119,7 +161,7 @@ const Navigation = ({ isAuthenticated, onLogout, currentUser }) => {
 
                     <div
                       onClick={() => closeMenuAndNavigate("/")}
-                      className="main-user-dropdown-item mobile-only-menu-item"
+                      className="main-user-dropdown-item responsive-menu-item"
                     >
                       <FaMapMarkedAlt />
                       <span>Map</span>
@@ -127,7 +169,7 @@ const Navigation = ({ isAuthenticated, onLogout, currentUser }) => {
 
                     <div
                       onClick={() => closeMenuAndNavigate("/dashboard")}
-                      className="main-user-dropdown-item mobile-only-menu-item"
+                      className="main-user-dropdown-item responsive-menu-item"
                     >
                       <FaChartPie />
                       <span>Dashboard</span>
@@ -143,7 +185,7 @@ const Navigation = ({ isAuthenticated, onLogout, currentUser }) => {
 
                     <div
                       onClick={() => closeMenuAndNavigate("/catches")}
-                      className="main-user-dropdown-item"
+                      className="main-user-dropdown-item responsive-menu-item"
                     >
                       <FaList />
                       <span>My Catches</span>
@@ -151,7 +193,7 @@ const Navigation = ({ isAuthenticated, onLogout, currentUser }) => {
 
                     <div
                       onClick={() => closeMenuAndNavigate("/saved-lakes")}
-                      className="main-user-dropdown-item"
+                      className="main-user-dropdown-item responsive-menu-item"
                     >
                       <FaStar />
                       <span>Saved Lakes</span>
@@ -159,10 +201,11 @@ const Navigation = ({ isAuthenticated, onLogout, currentUser }) => {
 
                     <div
                       onClick={() => closeMenuAndNavigate("/reservations")}
-                      className="main-user-dropdown-item"
+                      className="main-user-dropdown-item responsive-menu-item"
                     >
                       <FaCalendarAlt />
                       <span>Reservations</span>
+                      <Badge count={userReservationBadgeCount} />
                     </div>
 
                     <div
@@ -176,17 +219,18 @@ const Navigation = ({ isAuthenticated, onLogout, currentUser }) => {
                     {isOwner && (
                       <div
                         onClick={() => closeMenuAndNavigate("/owner")}
-                        className="main-user-dropdown-item"
+                        className="main-user-dropdown-item responsive-menu-item"
                       >
                         <FaTools />
                         <span>Owner Panel</span>
+                        <Badge count={ownerReservationBadgeCount} />
                       </div>
                     )}
 
                     {isAdmin && (
                       <div
                         onClick={() => closeMenuAndNavigate("/admin")}
-                        className="main-user-dropdown-item"
+                        className="main-user-dropdown-item responsive-menu-item"
                       >
                         <FaUserShield />
                         <span>Admin Dashboard</span>
@@ -278,6 +322,33 @@ const Navigation = ({ isAuthenticated, onLogout, currentUser }) => {
           box-shadow: inset 0 0 0 1px rgba(96, 165, 250, 0.24);
         }
 
+
+        .main-nav-link.has-badge,
+        .main-user-dropdown-item {
+          position: relative;
+        }
+
+        .nav-notification-badge {
+          min-width: 18px;
+          height: 18px;
+          padding: 0 6px;
+          border-radius: 999px;
+          background: #ef4444;
+          color: white;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 11px;
+          font-weight: 900;
+          line-height: 1;
+          box-shadow: 0 0 0 2px rgba(17, 24, 39, 0.92);
+        }
+
+        .main-user-dropdown-item .nav-notification-badge {
+          margin-left: auto;
+          box-shadow: none;
+        }
+
         .main-user-menu-wrap {
           position: relative;
           display: flex;
@@ -353,22 +424,25 @@ const Navigation = ({ isAuthenticated, onLogout, currentUser }) => {
           color: #b91c1c;
         }
 
-        .mobile-only-menu-item {
+        .responsive-menu-item {
           display: none;
         }
 
-        @media (max-width: 1180px) {
+        @media (max-width: 1380px) {
           .main-navigation-links {
             gap: 6px;
           }
 
-          .main-nav-link {
-            padding: 8px 10px;
-            font-size: 14px;
+          .main-navigation-links > .main-nav-link {
+            display: none;
+          }
+
+          .responsive-menu-item {
+            display: flex;
           }
         }
 
-        @media (max-width: 980px) {
+        @media (max-width: 1120px) {
           .main-navigation {
             height: 56px;
             padding: 0 12px;
@@ -387,10 +461,15 @@ const Navigation = ({ isAuthenticated, onLogout, currentUser }) => {
           .main-nav-link {
             padding: 8px 9px;
             border-radius: 11px;
+            flex: 0 0 auto;
           }
 
           .main-nav-link span {
             display: none;
+          }
+
+          .responsive-menu-item {
+            display: flex;
           }
         }
 
@@ -447,7 +526,7 @@ const Navigation = ({ isAuthenticated, onLogout, currentUser }) => {
             flex: 0 0 16px;
           }
 
-          .mobile-only-menu-item {
+          .responsive-menu-item {
             display: flex;
           }
         }

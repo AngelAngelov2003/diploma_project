@@ -1,8 +1,9 @@
 const pool = require("../db");
 const { ensureReservationDomainTables } = require("../setup/ensureTables");
+const { sendEmail, getSmtpSummary } = require("../services/emailService");
 
 const ACTIVE_RESERVATION_STATUSES = ["pending", "approved"];
-const MANAGEABLE_STATUSES = ["approved", "rejected", "pending"];
+const MANAGEABLE_STATUSES = ["approved", "approved_waiting_payment", "rejected", "pending"];
 
 let schemaEnsured = false;
 const ensureSchema = async () => {
@@ -15,6 +16,18 @@ const ensureSchema = async () => {
 const toNumber = (value, fallback = 0) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
+};
+
+const getPlatformFeePercent = () => {
+  const value = Number(process.env.PLATFORM_FEE_PERCENT || 10);
+  return Number.isFinite(value) && value >= 0 ? value : 10;
+};
+
+const buildPaymentBreakdown = (totalAmount) => {
+  const total = toNumber(totalAmount, 0);
+  const platformFeeAmount = Number(((total * getPlatformFeePercent()) / 100).toFixed(2));
+  const ownerAmount = Number((total - platformFeeAmount).toFixed(2));
+  return { platformFeeAmount, ownerAmount };
 };
 
 const normalizeDate = (value) => String(value || "").trim();
@@ -41,12 +54,322 @@ const normalizeDateList = (value) => {
   return [...new Set(value.map((item) => normalizeDate(item)).filter(Boolean))].sort();
 };
 
+const getTodayDateString = () => new Date().toISOString().slice(0, 10);
+
+const isReservationPast = (reservation) => {
+  const departure = normalizeDate(reservation?.departure_date || reservation?.end_date || reservation?.start_date || reservation?.reservation_date);
+  return Boolean(departure && departure < getTodayDateString());
+};
+
+const canUserCancelReservation = (reservation) => {
+  return ["pending", "approved"].includes(String(reservation?.status || "")) && !isReservationPast(reservation);
+};
+
+
+const formatEmailDate = (value) => {
+  if (!value) return "-";
+  const date = new Date(`${String(value).slice(0, 10)}T00:00:00Z`);
+  if (Number.isNaN(date.getTime())) return String(value);
+  return date.toLocaleDateString("en-GB", { year: "numeric", month: "short", day: "numeric" });
+};
+
+const formatEmailCurrency = (value) => {
+  const amount = Number(value || 0);
+  return `€${amount.toFixed(2)}`;
+};
+
+const escapeHtml = (value) => String(value ?? "")
+  .replace(/&/g, "&amp;")
+  .replace(/</g, "&lt;")
+  .replace(/>/g, "&gt;")
+  .replace(/"/g, "&quot;")
+  .replace(/'/g, "&#039;");
+
+const safeJsonArray = (value) => {
+  if (Array.isArray(value)) return value;
+  if (!value) return [];
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (_error) {
+      return [];
+    }
+  }
+  return [];
+};
+
+const getReservationNotificationContext = async (reservationId) => {
+  // Keep the main lookup intentionally small and dependent only on core tables.
+  // Earlier versions joined optional owner-claim tables in this query; if that
+  // table was missing in a local database, the whole email flow silently skipped.
+  const q = await pool.query(`
+    SELECT
+      r.id,
+      r.status,
+      r.notes,
+      COALESCE(r.start_date, r.reservation_date) AS arrival_date,
+      COALESCE(r.end_date, r.start_date, r.reservation_date) AS departure_date,
+      COALESCE(r.requested_spots, r.people_count, 1) AS requested_spots,
+      r.base_amount,
+      r.night_fishing_amount,
+      r.rooms_amount,
+      r.total_amount,
+      w.id AS water_body_id,
+      w.name AS lake_name,
+      w.owner_id,
+      requester.id AS requester_id,
+      requester.email AS user_email,
+      requester.full_name AS user_name,
+      owner.email AS owner_email,
+      owner.full_name AS owner_name
+    FROM lake_reservations r
+    JOIN water_bodies w ON w.id = r.water_body_id
+    JOIN users requester ON requester.id = r.user_id
+    LEFT JOIN users owner ON owner.id = w.owner_id
+    WHERE r.id = $1
+    LIMIT 1
+  `, [reservationId]);
+
+  const reservation = q.rows[0] || null;
+  if (!reservation) return null;
+
+  // Fallback: some lakes may have an approved owner claim email even when
+  // water_bodies.owner_id is not populated. This lookup is optional and safe.
+  if (!reservation.owner_email) {
+    try {
+      const claimQ = await pool.query(`
+        SELECT email, full_name, user_id
+        FROM lake_owner_claim_requests
+        WHERE water_body_id = $1 AND status = 'approved'
+        ORDER BY updated_at DESC NULLS LAST, created_at DESC
+        LIMIT 1
+      `, [reservation.water_body_id]);
+      if (claimQ.rows[0]) {
+        reservation.owner_email = claimQ.rows[0].email || reservation.owner_email;
+        reservation.owner_name = claimQ.rows[0].full_name || reservation.owner_name;
+        reservation.owner_claim_user_id = claimQ.rows[0].user_id || null;
+      }
+    } catch (error) {
+      console.warn(`[reservation-email] Owner claim fallback skipped for reservation ${reservationId}:`, error.message);
+    }
+  }
+
+  const listQueries = [
+    pool.query(`
+      SELECT fishing_date::text AS value
+      FROM reservation_fishing_days
+      WHERE reservation_id = $1
+      ORDER BY fishing_date
+    `, [reservationId]).then((result) => {
+      reservation.fishing_dates = result.rows.map((row) => row.value);
+    }),
+    pool.query(`
+      SELECT night_date::text AS value
+      FROM reservation_night_fishing
+      WHERE reservation_id = $1
+      ORDER BY night_date
+    `, [reservationId]).then((result) => {
+      reservation.night_fishing_dates = result.rows.map((row) => row.value);
+    }),
+    pool.query(`
+      SELECT ls.spot_number AS value
+      FROM reservation_spots rs
+      JOIN lake_spots ls ON ls.id = rs.spot_id
+      WHERE rs.reservation_id = $1
+      ORDER BY ls.spot_number
+    `, [reservationId]).then((result) => {
+      reservation.spot_numbers = result.rows.map((row) => row.value);
+    }),
+    pool.query(`
+      SELECT rm.name AS value
+      FROM lake_reservation_rooms rrm
+      JOIN lake_rooms rm ON rm.id = rrm.room_id
+      WHERE rrm.reservation_id = $1
+      ORDER BY rm.name
+    `, [reservationId]).then((result) => {
+      reservation.room_names = result.rows.map((row) => row.value);
+    }),
+  ];
+
+  await Promise.all(listQueries.map((query) => query.catch((error) => {
+    console.warn(`[reservation-email] Optional reservation detail lookup failed for reservation ${reservationId}:`, error.message);
+  })));
+
+  reservation.fishing_dates = safeJsonArray(reservation.fishing_dates);
+  reservation.night_fishing_dates = safeJsonArray(reservation.night_fishing_dates);
+  reservation.spot_numbers = safeJsonArray(reservation.spot_numbers);
+  reservation.room_names = safeJsonArray(reservation.room_names);
+
+  return reservation;
+};
+
+const buildReservationEmailHtml = ({ title, intro, reservation }) => {
+  const spotNumbers = Array.isArray(reservation.spot_numbers) ? reservation.spot_numbers : [];
+  const fishingDates = Array.isArray(reservation.fishing_dates) ? reservation.fishing_dates : [];
+  const nightDates = Array.isArray(reservation.night_fishing_dates) ? reservation.night_fishing_dates : [];
+  const roomNames = Array.isArray(reservation.room_names) ? reservation.room_names : [];
+  const notes = reservation.notes ? escapeHtml(reservation.notes) : "No notes";
+
+  const rows = [
+    ["Lake", reservation.lake_name],
+    ["Stay", `${formatEmailDate(reservation.arrival_date)} → ${formatEmailDate(reservation.departure_date)}`],
+    ["Selected spots", spotNumbers.length ? spotNumbers.map((number) => `Spot ${number}`).join(", ") : `${reservation.requested_spots || 1} spot(s)`],
+    ["Fishing days", fishingDates.length ? fishingDates.map(formatEmailDate).join(", ") : "None"],
+    ["Night fishing", nightDates.length ? nightDates.map(formatEmailDate).join(", ") : "None"],
+    ["Rooms", roomNames.length ? roomNames.join(", ") : "None"],
+    ["Total", formatEmailCurrency(reservation.total_amount)],
+    ["Notes", notes],
+  ];
+
+  return `
+    <div style="font-family: Arial, sans-serif; color: #0f172a; line-height: 1.5;">
+      <h2 style="margin: 0 0 10px;">${escapeHtml(title)}</h2>
+      <p style="margin: 0 0 16px; color: #475569;">${escapeHtml(intro)}</p>
+      <table style="border-collapse: collapse; width: 100%; max-width: 720px;">
+        <tbody>
+          ${rows.map(([label, value]) => `
+            <tr>
+              <td style="border: 1px solid #e2e8f0; padding: 10px; font-weight: 700; background: #f8fafc; width: 170px;">${escapeHtml(label)}</td>
+              <td style="border: 1px solid #e2e8f0; padding: 10px;">${label === "Notes" ? value : escapeHtml(value)}</td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+    </div>
+  `;
+};
+
+const buildReservationEmailText = ({ title, intro, reservation }) => {
+  const spotNumbers = Array.isArray(reservation.spot_numbers) ? reservation.spot_numbers : [];
+  const fishingDates = Array.isArray(reservation.fishing_dates) ? reservation.fishing_dates : [];
+  const nightDates = Array.isArray(reservation.night_fishing_dates) ? reservation.night_fishing_dates : [];
+  const roomNames = Array.isArray(reservation.room_names) ? reservation.room_names : [];
+
+  return [
+    title,
+    "",
+    intro,
+    "",
+    `Lake: ${reservation.lake_name || "-"}`,
+    `Stay: ${formatEmailDate(reservation.arrival_date)} → ${formatEmailDate(reservation.departure_date)}`,
+    `Selected spots: ${spotNumbers.length ? spotNumbers.map((number) => `Spot ${number}`).join(", ") : `${reservation.requested_spots || 1} spot(s)`}`,
+    `Fishing days: ${fishingDates.length ? fishingDates.map(formatEmailDate).join(", ") : "None"}`,
+    `Night fishing: ${nightDates.length ? nightDates.map(formatEmailDate).join(", ") : "None"}`,
+    `Rooms: ${roomNames.length ? roomNames.join(", ") : "None"}`,
+    `Total: ${formatEmailCurrency(reservation.total_amount)}`,
+    `Notes: ${reservation.notes || "No notes"}`,
+  ].join("\n");
+};
+
+const safeSendReservationEmail = async ({ to, subject, title, intro, reservation, reason }) => {
+  const recipient = String(to || "").trim();
+
+  if (!recipient) {
+    console.warn(`[reservation-email] Skipped ${reason || "reservation email"}: missing recipient email for reservation ${reservation?.id || "unknown"}`);
+    return false;
+  }
+
+  try {
+    console.log(`[reservation-email] SMTP config`, getSmtpSummary());
+    console.log(`[reservation-email] Sending ${reason || "reservation email"} to ${recipient} for reservation ${reservation?.id || "unknown"}`);
+
+    const info = await sendEmail({
+      to: recipient,
+      subject,
+      text: buildReservationEmailText({ title, intro, reservation }),
+      html: buildReservationEmailHtml({ title, intro, reservation }),
+    });
+
+    console.log(`[reservation-email] Sent ${reason || "reservation email"} to ${recipient}`, { messageId: info?.messageId || null, response: info?.response || null });
+    return true;
+  } catch (error) {
+    console.warn(`[reservation-email] Failed to send ${reason || "reservation email"} to ${recipient}:`, error.message);
+    return false;
+  }
+};
+
+const withReservationEmailContext = async (reservationId, handler) => {
+  try {
+    const reservation = await getReservationNotificationContext(reservationId);
+
+    if (!reservation) {
+      console.warn(`[reservation-email] Skipped email: reservation ${reservationId} was not found`);
+      return;
+    }
+
+    console.log(`[reservation-email] Context for reservation ${reservationId}`, {
+      lake: reservation.lake_name,
+      ownerId: reservation.owner_id || null,
+      ownerClaimUserId: reservation.owner_claim_user_id || null,
+      ownerEmail: reservation.owner_email || null,
+      userEmail: reservation.user_email || null,
+      status: reservation.status || null,
+    });
+
+    await handler(reservation);
+  } catch (error) {
+    console.warn(`[reservation-email] Failed to prepare email for reservation ${reservationId}:`, error.message);
+  }
+};
+
+const notifyReservationCreated = async (reservationId) => withReservationEmailContext(reservationId, async (reservation) => {
+  await safeSendReservationEmail({
+    to: reservation.owner_email,
+    subject: `New reservation request for ${reservation.lake_name}`,
+    title: "New reservation request",
+    intro: `${reservation.user_name || "A user"} submitted a reservation request for your lake.`,
+    reservation,
+    reason: "new request owner notification",
+  });
+
+  await safeSendReservationEmail({
+    to: reservation.user_email,
+    subject: `Reservation request sent for ${reservation.lake_name}`,
+    title: "Reservation request sent",
+    intro: `Your reservation request for ${reservation.lake_name} was sent to the lake owner. You will be notified when it is approved or rejected.`,
+    reservation,
+    reason: "new request user confirmation",
+  });
+});
+
+const notifyUserReservationStatusChanged = async (reservationId, status) => withReservationEmailContext(reservationId, async (reservation) => {
+  const readableStatus = status === "approved" ? "approved" : status === "rejected" ? "rejected" : "updated";
+
+  await safeSendReservationEmail({
+    to: reservation.user_email,
+    subject: `Your reservation was ${readableStatus}`,
+    title: `Reservation ${readableStatus}`,
+    intro: `Your reservation request for ${reservation.lake_name} was ${readableStatus}.`,
+    reservation,
+    reason: `user ${readableStatus} notification`,
+  });
+});
+
+const notifyOwnerReservationCancelled = async (reservationId) => withReservationEmailContext(reservationId, async (reservation) => {
+  await safeSendReservationEmail({
+    to: reservation.owner_email,
+    subject: `Reservation cancelled for ${reservation.lake_name}`,
+    title: "Reservation cancelled",
+    intro: `${reservation.user_name || "A user"} cancelled their reservation request.`,
+    reservation,
+    reason: "owner cancellation notification",
+  });
+});
+
+const queueReservationEmail = (task, label = "reservation email") => {
+  setImmediate(async () => {
+    try {
+      await task();
+    } catch (error) {
+      console.warn(`[reservation-email] Background ${label} failed:`, error.message);
+    }
+  });
+};
+
 const getAllowedFishingDates = (arrival, departure) => {
   if (!arrival || !departure) return [];
-  if (arrival === departure) return [arrival];
-  const dayBeforeDeparture = new Date(`${departure}T00:00:00Z`);
-  dayBeforeDeparture.setUTCDate(dayBeforeDeparture.getUTCDate() - 1);
-  return eachDateInclusive(arrival, dayBeforeDeparture.toISOString().slice(0, 10));
+  return eachDateInclusive(arrival, departure);
 };
 
 const getAllowedNightDates = (arrival, departure) => {
@@ -84,6 +407,12 @@ const getReservationById = async (reservationId) => {
       r.night_fishing_amount,
       r.rooms_amount,
       r.total_amount,
+      r.payment_status,
+      r.payment_required,
+      r.platform_fee_amount,
+      r.owner_amount,
+      r.snapshot_price_per_day,
+      r.snapshot_night_fishing_price,
       r.status,
       r.created_at,
       r.updated_at,
@@ -105,6 +434,12 @@ const getReservationById = async (reservationId) => {
         JOIN lake_rooms rm ON rm.id = rrm.room_id
         WHERE rrm.reservation_id = r.id
       ), '[]'::json) AS rooms,
+      COALESCE((
+        SELECT json_agg(json_build_object('id', ls.id, 'spot_number', ls.spot_number) ORDER BY ls.spot_number)
+        FROM reservation_spots rs
+        JOIN lake_spots ls ON ls.id = rs.spot_id
+        WHERE rs.reservation_id = r.id
+      ), '[]'::json) AS spots,
       COALESCE((
         SELECT json_agg(rm.name ORDER BY rm.name)
         FROM lake_reservation_rooms rrm
@@ -161,6 +496,58 @@ const getRooms = async (roomIds, waterBodyId) => {
   return q.rows;
 };
 
+const getSelectedSpots = async (spotIds, waterBodyId) => {
+  if (!spotIds.length) return [];
+  const q = await pool.query(`
+    SELECT id, water_body_id, spot_number, is_active
+    FROM lake_spots
+    WHERE water_body_id = $1 AND id = ANY($2::uuid[])
+    ORDER BY spot_number ASC
+  `, [waterBodyId, spotIds]);
+  return q.rows;
+};
+
+const getReservedSpotIds = async ({ waterBodyId, arrival, departure, excludedReservationId = null }) => {
+  const params = [waterBodyId, arrival, departure, ACTIVE_RESERVATION_STATUSES];
+  let exclusionSql = "";
+  if (excludedReservationId) {
+    params.push(excludedReservationId);
+    exclusionSql = ` AND r.id <> $${params.length}`;
+  }
+
+  const q = await pool.query(`
+    SELECT DISTINCT rs.spot_id::text AS spot_id
+    FROM reservation_spots rs
+    JOIN lake_reservations r ON r.id = rs.reservation_id
+    WHERE r.water_body_id = $1
+      AND daterange(r.start_date::date, (r.end_date::date + 1)::date, '[)') && daterange($2::date, ($3::date + 1)::date, '[)')
+      AND r.status = ANY($4::text[])
+      ${exclusionSql}
+  `, params);
+
+  return q.rows.map((row) => row.spot_id);
+};
+
+const ensureSelectedSpotAvailability = async ({ spotIds, waterBodyId, arrival, departure, excludedReservationId = null }) => {
+  if (!spotIds.length) return;
+
+  const selectedSpots = await getSelectedSpots(spotIds, waterBodyId);
+  if (selectedSpots.length !== spotIds.length) {
+    throw new Error("One or more selected spots are invalid");
+  }
+
+  const inactive = selectedSpots.filter((spot) => !spot.is_active);
+  if (inactive.length) {
+    throw new Error(`These spots are inactive: ${inactive.map((spot) => spot.spot_number).join(', ')}`);
+  }
+
+  const reservedSpotIds = new Set(await getReservedSpotIds({ waterBodyId, arrival, departure, excludedReservationId }));
+  const taken = selectedSpots.filter((spot) => reservedSpotIds.has(String(spot.id)));
+  if (taken.length) {
+    throw new Error(`These spots are already reserved for the selected dates: ${taken.map((spot) => spot.spot_number).join(', ')}`);
+  }
+};
+
 const getReservedSpotCount = async ({ waterBodyId, arrival, departure, excludedReservationId = null }) => {
   const params = [waterBodyId, arrival, departure, ACTIVE_RESERVATION_STATUSES];
   let exclusionSql = "";
@@ -172,7 +559,7 @@ const getReservedSpotCount = async ({ waterBodyId, arrival, departure, excludedR
     SELECT COALESCE(SUM(r.requested_spots), 0)::int AS reserved_spots
     FROM lake_reservations r
     WHERE r.water_body_id = $1
-      AND daterange(r.start_date, r.end_date + INTERVAL '1 day', '[)') && daterange($2::date, $3::date + INTERVAL '1 day', '[)')
+      AND daterange(r.start_date::date, (r.end_date::date + 1)::date, '[)') && daterange($2::date, ($3::date + 1)::date, '[)')
       AND r.status = ANY($4::text[])
       ${exclusionSql}
   `, params);
@@ -193,7 +580,7 @@ const ensureRoomAvailability = async ({ roomIds, arrival, departure, excludedRes
     JOIN lake_reservations r ON r.id = rrm.reservation_id
     JOIN lake_rooms rm ON rm.id = rrm.room_id
     WHERE rrm.room_id = ANY($1::uuid[])
-      AND daterange(r.start_date, r.end_date + INTERVAL '1 day', '[)') && daterange($2::date, $3::date + INTERVAL '1 day', '[)')
+      AND daterange(r.start_date::date, (r.end_date::date + 1)::date, '[)') && daterange($2::date, ($3::date + 1)::date, '[)')
       AND r.status = ANY($4::text[])
       ${exclusionSql}
   `, params);
@@ -220,7 +607,7 @@ const buildPricing = ({ lake, requestedSpots, fishingDates, nightFishingDates, s
   };
 };
 
-const validateReservationInput = ({ lake, arrival, departure, requestedSpots, roomIds, fishingDates, nightFishingDates }) => {
+const validateReservationInput = ({ lake, arrival, departure, requestedSpots, roomIds, fishingDates, nightFishingDates, selectedSpotIds = [] }) => {
   if (!arrival || !departure) {
     throw new Error("arrival_date and departure_date are required");
   }
@@ -229,6 +616,9 @@ const validateReservationInput = ({ lake, arrival, departure, requestedSpots, ro
   }
   if (!Number.isInteger(requestedSpots) || requestedSpots < 1) {
     throw new Error("requested_spots must be an integer greater than 0");
+  }
+  if (selectedSpotIds.length && selectedSpotIds.length !== requestedSpots) {
+    throw new Error("Selected spot count must match requested spots");
   }
   if (!lake.is_private) throw new Error("Reservations are only allowed for private lakes");
   if (!lake.is_reservable) throw new Error("Reservations are currently disabled for this lake");
@@ -273,9 +663,12 @@ const getMyReservations = async (req, res) => {
         r.status,
         r.created_at,
         r.updated_at,
+        ((COALESCE(r.end_date, r.start_date, r.reservation_date)::date >= CURRENT_DATE) AND r.status IN ('pending', 'approved')) AS can_cancel,
+        (COALESCE(r.end_date, r.start_date, r.reservation_date)::date < CURRENT_DATE) AS is_past,
         w.name AS lake_name,
         COALESCE((SELECT json_agg(fishing_date::text ORDER BY fishing_date) FROM reservation_fishing_days WHERE reservation_id = r.id), '[]'::json) AS fishing_dates,
         COALESCE((SELECT json_agg(night_date::text ORDER BY night_date) FROM reservation_night_fishing WHERE reservation_id = r.id), '[]'::json) AS night_fishing_dates,
+        COALESCE((SELECT json_agg(ls.spot_number ORDER BY ls.spot_number) FROM reservation_spots rs JOIN lake_spots ls ON ls.id = rs.spot_id WHERE rs.reservation_id = r.id), '[]'::json) AS spot_numbers,
         COALESCE((SELECT json_agg(rm.name ORDER BY rm.name) FROM lake_reservation_rooms rrm JOIN lake_rooms rm ON rm.id = rrm.room_id WHERE rrm.reservation_id = r.id), '[]'::json) AS room_names
       FROM lake_reservations r
       JOIN water_bodies w ON w.id = r.water_body_id
@@ -309,11 +702,13 @@ const getIncomingReservations = async (req, res) => {
         r.status,
         r.created_at,
         r.updated_at,
+        (COALESCE(r.end_date, r.start_date, r.reservation_date)::date < CURRENT_DATE) AS is_past,
         w.name AS lake_name,
         u.full_name,
         u.email,
         COALESCE((SELECT json_agg(fishing_date::text ORDER BY fishing_date) FROM reservation_fishing_days WHERE reservation_id = r.id), '[]'::json) AS fishing_dates,
         COALESCE((SELECT json_agg(night_date::text ORDER BY night_date) FROM reservation_night_fishing WHERE reservation_id = r.id), '[]'::json) AS night_fishing_dates,
+        COALESCE((SELECT json_agg(ls.spot_number ORDER BY ls.spot_number) FROM reservation_spots rs JOIN lake_spots ls ON ls.id = rs.spot_id WHERE rs.reservation_id = r.id), '[]'::json) AS spot_numbers,
         COALESCE((SELECT json_agg(rm.name ORDER BY rm.name) FROM lake_reservation_rooms rrm JOIN lake_rooms rm ON rm.id = rrm.room_id WHERE rrm.reservation_id = r.id), '[]'::json) AS room_names
       FROM lake_reservations r
       JOIN water_bodies w ON w.id = r.water_body_id
@@ -333,6 +728,36 @@ const getIncomingReservations = async (req, res) => {
     res.json(q.rows);
   } catch (err) {
     res.status(500).json({ error: err.message || "Failed to load incoming reservations" });
+  }
+};
+
+
+const getReservationBadgeCounts = async (req, res) => {
+  try {
+    await ensureSchema();
+
+    const userCountQ = await pool.query(`
+      SELECT COUNT(*)::int AS count
+      FROM lake_reservations
+      WHERE user_id = $1
+        AND status IN ('approved', 'rejected')
+    `, [req.user]);
+
+    const ownerCountQ = await pool.query(`
+      SELECT COUNT(*)::int AS count
+      FROM lake_reservations r
+      JOIN water_bodies w ON w.id = r.water_body_id
+      WHERE w.owner_id = $1
+        AND w.is_private = TRUE
+        AND r.status = 'pending'
+    `, [req.user]);
+
+    res.json({
+      user_reservation_updates: Number(userCountQ.rows[0]?.count || 0),
+      owner_pending_reservations: Number(ownerCountQ.rows[0]?.count || 0),
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message || "Failed to load reservation badge counts" });
   }
 };
 
@@ -360,21 +785,38 @@ const getMyReservationStatus = async (req, res) => {
 const estimateReservation = async (req, res) => {
   try {
     await ensureSchema();
-    const { water_body_id, room_ids = [] } = req.body;
+    const { water_body_id, room_ids = [], spot_ids = [] } = req.body;
     const { arrival, departure } = normalizeTripDates(req.body);
     const fishingDates = normalizeDateList(req.body.fishing_dates);
     const nightFishingDates = normalizeDateList(req.body.night_fishing_dates);
     const lake = await getLakeBookingContext(water_body_id);
     if (!lake) return res.status(404).json({ error: "Lake not found" });
     const normalizedRoomIds = Array.isArray(room_ids) ? [...new Set(room_ids.map((id) => String(id).trim()).filter(Boolean))] : [];
+    const normalizedSpotIds = Array.isArray(spot_ids) ? [...new Set(spot_ids.map((id) => String(id).trim()).filter(Boolean))] : [];
     const selectedRooms = await getRooms(normalizedRoomIds, water_body_id);
     const requestedSpots = Number(req.body.requested_spots || req.body.people_count || 1);
-    validateReservationInput({ lake, arrival, departure, requestedSpots, roomIds: normalizedRoomIds, fishingDates, nightFishingDates });
+    validateReservationInput({ lake, arrival, departure, requestedSpots, roomIds: normalizedRoomIds, fishingDates, nightFishingDates, selectedSpotIds: normalizedSpotIds });
 
     const allowedFishingDates = new Set(getAllowedFishingDates(arrival, departure));
     const allowedNightDates = new Set(getAllowedNightDates(arrival, departure));
     if (fishingDates.some((date) => !allowedFishingDates.has(date))) throw new Error("One or more fishing days are outside the selected trip range");
     if (nightFishingDates.some((date) => !allowedNightDates.has(date))) throw new Error("One or more night fishing dates are outside the selected trip range");
+
+    const blockedDates = await getBlockedDateStrings(water_body_id, arrival, departure);
+    const usedDates = new Set([...fishingDates, ...nightFishingDates]);
+    const blockedUsedDates = blockedDates.filter((date) => usedDates.has(date));
+    if (blockedUsedDates.length) throw new Error(`These dates are blocked: ${blockedUsedDates.join(', ')}`);
+
+    if (normalizedSpotIds.length) {
+      await ensureSelectedSpotAvailability({ spotIds: normalizedSpotIds, waterBodyId: water_body_id, arrival, departure });
+    } else {
+      const reservedSpots = await getReservedSpotCount({ waterBodyId: water_body_id, arrival, departure });
+      const maxSpots = Math.max(1, toNumber(lake.spots_count, toNumber(lake.capacity, 1)));
+      if (reservedSpots + requestedSpots > maxSpots) throw new Error("No remaining spot capacity for the selected dates");
+    }
+    await ensureRoomAvailability({ roomIds: normalizedRoomIds, arrival, departure });
+
+    const selectedSpots = await getSelectedSpots(normalizedSpotIds, water_body_id);
 
     const pricing = buildPricing({
       lake,
@@ -392,6 +834,7 @@ const estimateReservation = async (req, res) => {
       fishing_dates: fishingDates,
       night_fishing_dates: nightFishingDates,
       selected_rooms: selectedRooms.map((room) => ({ id: room.id, name: room.name, price_per_night: room.price_per_night })),
+      selected_spots: selectedSpots.map((spot) => ({ id: spot.id, spot_number: spot.spot_number })),
       ...pricing,
     });
   } catch (err) {
@@ -403,7 +846,7 @@ const createReservation = async (req, res) => {
   const client = await pool.connect();
   try {
     await ensureSchema();
-    const { water_body_id, room_ids = [], notes } = req.body;
+    const { water_body_id, room_ids = [], spot_ids = [], notes } = req.body;
     const { arrival, departure } = normalizeTripDates(req.body);
     if (!water_body_id) return res.status(400).json({ error: "water_body_id is required" });
     const lake = await getLakeBookingContext(water_body_id);
@@ -413,11 +856,12 @@ const createReservation = async (req, res) => {
     const fishingDates = normalizeDateList(req.body.fishing_dates);
     const nightFishingDates = normalizeDateList(req.body.night_fishing_dates);
     const normalizedRoomIds = Array.isArray(room_ids) ? [...new Set(room_ids.map((id) => String(id).trim()).filter(Boolean))] : [];
+    const normalizedSpotIds = Array.isArray(spot_ids) ? [...new Set(spot_ids.map((id) => String(id).trim()).filter(Boolean))] : [];
     const selectedRooms = await getRooms(normalizedRoomIds, water_body_id);
     if (normalizedRoomIds.length !== selectedRooms.length) return res.status(400).json({ error: "One or more selected rooms are invalid" });
 
     const requestedSpots = Number(req.body.requested_spots || req.body.people_count || 1);
-    validateReservationInput({ lake, arrival, departure, requestedSpots, roomIds: normalizedRoomIds, fishingDates, nightFishingDates });
+    validateReservationInput({ lake, arrival, departure, requestedSpots, roomIds: normalizedRoomIds, fishingDates, nightFishingDates, selectedSpotIds: normalizedSpotIds });
 
     const allowedFishingDates = new Set(getAllowedFishingDates(arrival, departure));
     const allowedNightDates = new Set(getAllowedNightDates(arrival, departure));
@@ -429,9 +873,14 @@ const createReservation = async (req, res) => {
     const blockedUsedDates = blockedDates.filter((date) => usedDates.has(date));
     if (blockedUsedDates.length) return res.status(400).json({ error: `These dates are blocked: ${blockedUsedDates.join(', ')}` });
 
-    const reservedSpots = await getReservedSpotCount({ waterBodyId: water_body_id, arrival, departure });
-    const maxSpots = Math.max(1, toNumber(lake.spots_count, toNumber(lake.capacity, 1)));
-    if (reservedSpots + requestedSpots > maxSpots) return res.status(400).json({ error: "No remaining spot capacity for the selected dates" });
+    const selectedSpots = await getSelectedSpots(normalizedSpotIds, water_body_id);
+    if (normalizedSpotIds.length) {
+      await ensureSelectedSpotAvailability({ spotIds: normalizedSpotIds, waterBodyId: water_body_id, arrival, departure });
+    } else {
+      const reservedSpots = await getReservedSpotCount({ waterBodyId: water_body_id, arrival, departure });
+      const maxSpots = Math.max(1, toNumber(lake.spots_count, toNumber(lake.capacity, 1)));
+      if (reservedSpots + requestedSpots > maxSpots) return res.status(400).json({ error: "No remaining spot capacity for the selected dates" });
+    }
     await ensureRoomAvailability({ roomIds: normalizedRoomIds, arrival, departure });
 
     const pricing = buildPricing({
@@ -442,6 +891,9 @@ const createReservation = async (req, res) => {
       selectedRooms,
       stayNightCount: getStayNightCount(arrival, departure),
     });
+    const paymentBreakdown = buildPaymentBreakdown(pricing.totalAmount);
+    const snapshotPricePerDay = toNumber(lake.price_per_day, 0);
+    const snapshotNightFishingPrice = toNumber(lake.night_fishing_price, 0);
 
     await client.query("BEGIN");
     const insertReservation = await client.query(`
@@ -460,10 +912,16 @@ const createReservation = async (req, res) => {
         night_fishing_amount,
         rooms_amount,
         total_amount,
+        payment_status,
+        payment_required,
+        platform_fee_amount,
+        owner_amount,
+        snapshot_price_per_day,
+        snapshot_night_fishing_price,
         status,
         updated_at
       )
-      VALUES ($1, $2, $3, $3, $4, $5, $6, $6, $7, $8, $9, $10, $11, $12, 'pending', NOW())
+      VALUES ($1, $2, $3, $3, $4, $5, $6, $6, $7, $8, $9, $10, $11, $12, 'unpaid', FALSE, $13, $14, $15, $16, 'pending', NOW())
       RETURNING id
     `, [
       water_body_id,
@@ -478,6 +936,10 @@ const createReservation = async (req, res) => {
       pricing.nightFishingAmount,
       pricing.roomsAmount,
       pricing.totalAmount,
+      paymentBreakdown.platformFeeAmount,
+      paymentBreakdown.ownerAmount,
+      snapshotPricePerDay,
+      snapshotNightFishingPrice,
     ]);
 
     const reservationId = insertReservation.rows[0].id;
@@ -490,8 +952,15 @@ const createReservation = async (req, res) => {
     for (const roomId of normalizedRoomIds) {
       await client.query(`INSERT INTO lake_reservation_rooms (reservation_id, room_id) VALUES ($1, $2)`, [reservationId, roomId]);
     }
+    for (const spot of selectedSpots) {
+      await client.query(
+        `INSERT INTO reservation_spots (reservation_id, spot_id, price_snapshot) VALUES ($1, $2, $3)`,
+        [reservationId, spot.id, toNumber(lake.price_per_day, 0)]
+      );
+    }
     await client.query("COMMIT");
     const reservation = await getReservationById(reservationId);
+    queueReservationEmail(() => notifyReservationCreated(reservationId), "new reservation notification");
     res.json(reservation);
   } catch (err) {
     await client.query("ROLLBACK");
@@ -505,10 +974,30 @@ const cancelReservation = async (req, res) => {
   try {
     await ensureSchema();
     const { reservationId } = req.params;
-    const existing = await pool.query(`SELECT id FROM lake_reservations WHERE id = $1 AND user_id = $2`, [reservationId, req.user]);
+    const existing = await pool.query(`
+      SELECT
+        id,
+        status,
+        COALESCE(end_date, start_date, reservation_date) AS departure_date
+      FROM lake_reservations
+      WHERE id = $1 AND user_id = $2
+      LIMIT 1
+    `, [reservationId, req.user]);
+
     if (!existing.rows.length) return res.status(404).json({ error: "Reservation not found" });
+
+    const current = existing.rows[0];
+    if (!canUserCancelReservation(current)) {
+      return res.status(400).json({
+        error: isReservationPast(current)
+          ? "Past reservations cannot be cancelled"
+          : "Only pending or approved reservations can be cancelled",
+      });
+    }
+
     await pool.query(`UPDATE lake_reservations SET status = 'cancelled', updated_at = NOW() WHERE id = $1 AND user_id = $2`, [reservationId, req.user]);
     const reservation = await getReservationById(reservationId);
+    queueReservationEmail(() => notifyOwnerReservationCancelled(reservationId), "reservation cancellation notification");
     res.json(reservation);
   } catch (err) {
     res.status(500).json({ error: err.message || "Failed to cancel reservation" });
@@ -523,6 +1012,9 @@ const updateReservationStatus = async (req, res) => {
     if (!MANAGEABLE_STATUSES.includes(status)) return res.status(400).json({ error: "Invalid reservation status" });
     const reservation = await getReservationById(reservationId);
     if (!reservation) return res.status(404).json({ error: "Reservation not found" });
+    if (isReservationPast(reservation)) {
+      return res.status(400).json({ error: "Past reservations cannot be changed" });
+    }
     const lake = await getLakeBookingContext(reservation.water_body_id);
     if (!lake || String(lake.owner_id) !== String(req.user) || !lake.is_private) return res.status(403).json({ error: "Not allowed" });
 
@@ -531,14 +1023,28 @@ const updateReservationStatus = async (req, res) => {
     const blockedUsedDates = blockedDates.filter((date) => usedDates.includes(date));
     if (status === 'approved' && blockedUsedDates.length) return res.status(400).json({ error: `These dates are blocked: ${blockedUsedDates.join(', ')}` });
     if (status === 'approved') {
-      const reservedSpots = await getReservedSpotCount({ waterBodyId: reservation.water_body_id, arrival: reservation.arrival_date, departure: reservation.departure_date, excludedReservationId: reservationId });
-      const maxSpots = Math.max(1, toNumber(lake.spots_count, toNumber(lake.capacity, 1)));
-      if (reservedSpots + Number(reservation.requested_spots || 1) > maxSpots) return res.status(400).json({ error: 'No remaining capacity for the selected dates' });
+      const spotIds = Array.isArray(reservation.spots) ? reservation.spots.map((spot) => spot.id) : [];
+      if (spotIds.length) {
+        await ensureSelectedSpotAvailability({
+          spotIds,
+          waterBodyId: reservation.water_body_id,
+          arrival: reservation.arrival_date,
+          departure: reservation.departure_date,
+          excludedReservationId: reservationId,
+        });
+      } else {
+        const reservedSpots = await getReservedSpotCount({ waterBodyId: reservation.water_body_id, arrival: reservation.arrival_date, departure: reservation.departure_date, excludedReservationId: reservationId });
+        const maxSpots = Math.max(1, toNumber(lake.spots_count, toNumber(lake.capacity, 1)));
+        if (reservedSpots + Number(reservation.requested_spots || 1) > maxSpots) return res.status(400).json({ error: 'No remaining capacity for the selected dates' });
+      }
       const roomIds = Array.isArray(reservation.rooms) ? reservation.rooms.map((room) => room.id) : [];
       await ensureRoomAvailability({ roomIds, arrival: reservation.arrival_date, departure: reservation.departure_date, excludedReservationId: reservationId });
     }
     await pool.query(`UPDATE lake_reservations SET status = $2, updated_at = NOW() WHERE id = $1`, [reservationId, status]);
     const updated = await getReservationById(reservationId);
+    if (status === "approved" || status === "rejected") {
+      queueReservationEmail(() => notifyUserReservationStatusChanged(reservationId, status), `reservation ${status} notification`);
+    }
     res.json(updated);
   } catch (err) {
     res.status(400).json({ error: err.message || 'Failed to update reservation status' });
@@ -546,6 +1052,7 @@ const updateReservationStatus = async (req, res) => {
 };
 
 module.exports = {
+  getReservationBadgeCounts,
   getMyReservations,
   getIncomingReservations,
   getMyReservationStatus,

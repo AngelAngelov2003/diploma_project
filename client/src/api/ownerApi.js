@@ -105,3 +105,15 @@ export const reportOwnerLakeCatch = async (lakeId, catchId, payload) => {
   const { data } = await api.post(`/owner/lakes/${lakeId}/catches/${catchId}/report`, payload);
   return data;
 };
+
+export const getOwnerLakeReservations = async (lakeId) => {
+  const { data } = await api.get(`/owner/lakes/${lakeId}/reservations`);
+  return data;
+};
+
+export const getOwnerLakeSpotAvailability = async (lakeId, date) => {
+  const { data } = await api.get(`/owner/lakes/${lakeId}/spot-availability`, {
+    params: { date },
+  });
+  return data;
+};

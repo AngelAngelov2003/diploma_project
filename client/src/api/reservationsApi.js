@@ -1,5 +1,11 @@
 import api from "./client";
 
+
+export const getReservationBadgeCounts = async () => {
+  const { data } = await api.get("/reservations/badge-counts");
+  return data;
+};
+
 export const getMyReservations = async () => {
   const { data } = await api.get("/reservations/my");
   return data;

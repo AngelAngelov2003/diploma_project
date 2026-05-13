@@ -58,3 +58,8 @@ export const getWaterBodyAvailability = async (id, params) => {
   const { data } = await api.get(`/water-bodies/${id}/availability`, { params });
   return data;
 };
+
+export const getWaterBodyUnavailableDates = async (id, params) => {
+  const { data } = await api.get(`/water-bodies/${id}/unavailable-dates`, { params });
+  return data;
+};

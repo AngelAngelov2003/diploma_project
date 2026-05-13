@@ -3,12 +3,56 @@ from sklearn.ensemble import RandomForestRegressor
 import numpy as np
 import pandas as pd
 import requests
+import os
+from functools import wraps
 import ephem
 from datetime import datetime
 
 app = Flask(__name__)
 
+
+def load_local_env_file():
+    """Load ml-server/.env without requiring python-dotenv."""
+    env_path = os.path.join(os.path.dirname(__file__), ".env")
+
+    if not os.path.exists(env_path):
+        return
+
+    with open(env_path, "r", encoding="utf-8") as env_file:
+        for raw_line in env_file:
+            line = raw_line.strip()
+
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+
+            key, value = line.split("=", 1)
+            key = key.strip()
+            value = value.strip().strip('"').strip("'")
+
+            if key and key not in os.environ:
+                os.environ[key] = value
+
+
+load_local_env_file()
+
 models_cache = {}
+ML_INTERNAL_API_KEY = os.getenv("ML_INTERNAL_API_KEY", "").strip()
+
+
+def require_internal_api_key(fn):
+    @wraps(fn)
+    def wrapper(*args, **kwargs):
+        provided_key = request.headers.get("x-internal-api-key", "").strip()
+
+        if not ML_INTERNAL_API_KEY:
+            return jsonify({"error": "ML internal API key is not configured"}), 503
+
+        if provided_key != ML_INTERNAL_API_KEY:
+            return jsonify({"error": "Unauthorized internal ML request"}), 401
+
+        return fn(*args, **kwargs)
+
+    return wrapper
 
 
 def clamp_score(value):
@@ -64,6 +108,76 @@ def calculate_trend_score(current_pressure, prev_pressure):
         return 30
     return 50
 
+
+
+def get_moon_phase_label(moon_phase):
+    try:
+        phase = float(moon_phase)
+    except Exception:
+        return "unknown moon phase"
+    if phase <= 5 or phase >= 95:
+        return "new moon"
+    if 45 <= phase <= 55:
+        return "full moon"
+    if phase < 45:
+        return "waxing moon"
+    return "waning moon"
+
+
+def build_forecast_explanation(temp, pressure, wind, moon_phase, weather_score, moon_score, total_score, used_model):
+    reasons = []
+    warnings = []
+
+    if 15 <= temp <= 25:
+        reasons.append("Temperature is in a strong fishing range")
+    elif temp < 5:
+        warnings.append("Very cold water conditions may reduce activity")
+    elif temp > 30:
+        warnings.append("High temperature may reduce fish activity during the day")
+    else:
+        reasons.append("Temperature is usable but not ideal")
+
+    if 1012 <= pressure <= 1018:
+        reasons.append("Air pressure is stable and favorable")
+    elif pressure < 1000 or pressure > 1030:
+        warnings.append("Pressure is outside the preferred range")
+    else:
+        reasons.append("Pressure is acceptable")
+
+    if wind < 10:
+        reasons.append("Low wind should make fishing conditions easier")
+    elif wind > 30:
+        warnings.append("Strong wind may make fishing harder")
+    else:
+        reasons.append("Wind is moderate")
+
+    if moon_score >= 80:
+        reasons.append(f"Moon phase is favorable ({get_moon_phase_label(moon_phase)})")
+    elif moon_score <= 30:
+        warnings.append(f"Moon phase is less favorable ({get_moon_phase_label(moon_phase)})")
+    else:
+        reasons.append(f"Moon phase is neutral ({get_moon_phase_label(moon_phase)})")
+
+    if total_score >= 80:
+        summary = "Excellent fishing conditions expected."
+    elif total_score >= 65:
+        summary = "Good fishing conditions expected."
+    elif total_score >= 50:
+        summary = "Average fishing conditions expected."
+    else:
+        summary = "Weak fishing conditions expected."
+
+    return {
+        "summary": summary,
+        "reasons": reasons,
+        "warnings": warnings,
+        "model_note": "Score combines ML prediction with weather and moon factors." if used_model else "ML model was unavailable, so a heuristic forecast was used.",
+        "factors": {
+            "weather_score": clamp_score(weather_score),
+            "moon_score": clamp_score(moon_score),
+            "moon_phase_label": get_moon_phase_label(moon_phase),
+        },
+    }
 
 def calculate_total_score(row):
     w_score = calculate_weather_score(
@@ -175,11 +289,13 @@ def get_or_train_model(lat, lng, force_refresh=False):
 
 
 @app.route("/health", methods=["GET"])
+@require_internal_api_key
 def health():
     return jsonify({"ok": True, "cached_models": len(models_cache)})
 
 
 @app.route("/predict", methods=["POST"])
+@require_internal_api_key
 def predict():
     data = request.json or {}
     try:
@@ -201,6 +317,7 @@ def predict():
         heuristic_score = clamp_score((weather_score * 0.7) + (moon_score * 0.3))
         model = get_or_train_model(lat, lng, force_refresh=False)
 
+        used_model = False
         if model:
             input_df = pd.DataFrame(
                 [[temp, pressure, wind]],
@@ -212,6 +329,7 @@ def predict():
             )
             ai_score = model.predict(input_df)[0]
             total_score = clamp_score((float(ai_score) * 0.8) + (heuristic_score * 0.2))
+            used_model = True
         else:
             total_score = heuristic_score
 
@@ -223,6 +341,16 @@ def predict():
                     "moon_score": moon_score,
                     "moon_phase": round(moon_phase),
                 },
+                "explanation": build_forecast_explanation(
+                    temp,
+                    pressure,
+                    wind,
+                    moon_phase,
+                    weather_score,
+                    moon_score,
+                    total_score,
+                    used_model,
+                ),
             }
         )
     except Exception as e:
@@ -230,6 +358,7 @@ def predict():
 
 
 @app.route("/reset-model", methods=["POST"])
+@require_internal_api_key
 def reset_model():
     data = request.json or {}
     lat = data.get("lat")

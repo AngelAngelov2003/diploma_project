@@ -8,3 +8,9 @@ __pycache__/
 venv/
 .venv/
 *.log
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.pyc
+logs/

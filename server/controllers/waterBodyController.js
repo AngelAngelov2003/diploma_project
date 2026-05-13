@@ -1,6 +1,7 @@
 const pool = require("../db");
 const waterBodyService = require("../services/waterBodyService");
 const { fetchForecastForLatLng } = require("../services/forecastService");
+const { ensureReservationDomainTables } = require("../setup/ensureTables");
 
 const getWaterBodies = async (req, res) => {
   try {
@@ -52,7 +53,11 @@ const getForecastByLatLng = async (req, res) => {
     res.json(result);
   } catch (err) {
     console.error("getForecastByLatLng error:", err);
-    res.status(500).json({ error: "No weather data" });
+    const status = err.status || 500;
+    res.status(status).json({
+      error: err.publicMessage || err.message || "No weather data",
+      code: err.code || "FORECAST_ERROR",
+    });
   }
 };
 
@@ -92,7 +97,11 @@ const getWaterBodyForecast = async (req, res) => {
     res.json(forecast);
   } catch (err) {
     console.error("getWaterBodyForecast error:", err);
-    res.status(500).json({ error: "Failed to load forecast" });
+    const status = err.status || 500;
+    res.status(status).json({
+      error: err.publicMessage || err.message || "Failed to load forecast",
+      code: err.code || "FORECAST_ERROR",
+    });
   }
 };
 
@@ -308,6 +317,7 @@ const deleteMyReview = async (req, res) => {
 
 const getBookingOptions = async (req, res) => {
   try {
+    await ensureReservationDomainTables();
     const { waterBodyId } = req.params;
 
     const lakeQ = await pool.query(`
@@ -348,6 +358,190 @@ const getBookingOptions = async (req, res) => {
   }
 };
 
+
+const getAvailability = async (req, res) => {
+  try {
+    await ensureReservationDomainTables();
+    const { waterBodyId } = req.params;
+    const startDate = String(req.query.start_date || req.query.arrival_date || "").trim();
+    const endDate = String(req.query.end_date || req.query.departure_date || startDate || "").trim();
+
+    if (!startDate || !endDate) {
+      return res.status(400).json({ error: "start_date and end_date are required" });
+    }
+
+    if (new Date(`${endDate}T00:00:00Z`) < new Date(`${startDate}T00:00:00Z`)) {
+      return res.status(400).json({ error: "end_date must be after or equal to start_date" });
+    }
+
+    const lakeQ = await pool.query(`
+      SELECT id, is_private, is_reservable, capacity, spots_count, has_housing
+      FROM water_bodies
+      WHERE id = $1
+      LIMIT 1
+    `, [waterBodyId]);
+
+    if (!lakeQ.rows.length) {
+      return res.status(404).json({ error: "Water body not found" });
+    }
+
+    const lake = lakeQ.rows[0];
+    const activeStatuses = ["pending", "approved"];
+
+    const [spotsQ, reservedSpotsQ, reservedSpotCountQ, roomsQ, reservedRoomsQ, blockedDatesQ] = await Promise.all([
+      pool.query(`
+        SELECT id, spot_number, is_active
+        FROM lake_spots
+        WHERE water_body_id = $1
+        ORDER BY spot_number ASC
+      `, [waterBodyId]),
+      pool.query(`
+        SELECT DISTINCT rs.spot_id::text AS spot_id
+        FROM reservation_spots rs
+        JOIN lake_reservations r ON r.id = rs.reservation_id
+        WHERE r.water_body_id = $1
+          AND daterange(r.start_date::date, (r.end_date::date + 1)::date, '[)') && daterange($2::date, ($3::date + 1)::date, '[)')
+          AND r.status = ANY($4::text[])
+      `, [waterBodyId, startDate, endDate, activeStatuses]),
+      pool.query(`
+        SELECT COALESCE(SUM(r.requested_spots), 0)::int AS reserved_spots
+        FROM lake_reservations r
+        WHERE r.water_body_id = $1
+          AND daterange(r.start_date::date, (r.end_date::date + 1)::date, '[)') && daterange($2::date, ($3::date + 1)::date, '[)')
+          AND r.status = ANY($4::text[])
+      `, [waterBodyId, startDate, endDate, activeStatuses]),
+      pool.query(`
+        SELECT id, name, capacity, price_per_night, is_active, sort_order
+        FROM lake_rooms
+        WHERE water_body_id = $1
+        ORDER BY sort_order ASC, name ASC
+      `, [waterBodyId]),
+      pool.query(`
+        SELECT DISTINCT rrm.room_id::text AS room_id
+        FROM lake_reservation_rooms rrm
+        JOIN lake_reservations r ON r.id = rrm.reservation_id
+        WHERE r.water_body_id = $1
+          AND daterange(r.start_date::date, (r.end_date::date + 1)::date, '[)') && daterange($2::date, ($3::date + 1)::date, '[)')
+          AND r.status = ANY($4::text[])
+      `, [waterBodyId, startDate, endDate, activeStatuses]),
+      pool.query(`
+        SELECT id, blocked_date::text AS blocked_date, reason
+        FROM lake_blocked_dates
+        WHERE water_body_id = $1
+          AND blocked_date BETWEEN $2 AND $3
+        ORDER BY blocked_date ASC
+      `, [waterBodyId, startDate, endDate]),
+    ]);
+
+    const reservedSpotIds = new Set(reservedSpotsQ.rows.map((row) => row.spot_id));
+    const reservedRoomIds = new Set(reservedRoomsQ.rows.map((row) => row.room_id));
+    const totalSpots = Math.max(1, Number(lake.spots_count || lake.capacity || spotsQ.rows.length || 1));
+    const reservedSpotCount = Number(reservedSpotCountQ.rows[0]?.reserved_spots || 0);
+    const remainingSpotCapacity = Math.max(0, totalSpots - reservedSpotCount);
+
+    const spots = spotsQ.rows.map((spot) => ({
+      ...spot,
+      is_reserved: reservedSpotIds.has(String(spot.id)),
+      is_available: Boolean(spot.is_active) && !reservedSpotIds.has(String(spot.id)),
+    }));
+
+    const rooms = roomsQ.rows.map((room) => ({
+      ...room,
+      is_reserved: reservedRoomIds.has(String(room.id)),
+      is_available: Boolean(room.is_active) && !reservedRoomIds.has(String(room.id)),
+    }));
+
+    res.json({
+      lake: {
+        is_private: lake.is_private,
+        is_reservable: lake.is_reservable,
+        total_spots: totalSpots,
+        reserved_spots: reservedSpotCount,
+        remaining_spot_capacity: remainingSpotCapacity,
+      },
+      range: {
+        start_date: startDate,
+        end_date: endDate,
+      },
+      blocked_dates: blockedDatesQ.rows,
+      spots,
+      rooms,
+    });
+  } catch (err) {
+    console.error("getAvailability error:", err);
+    res.status(500).json({ error: "Failed to load availability" });
+  }
+};
+
+
+const getUnavailableDates = async (req, res) => {
+  try {
+    await ensureReservationDomainTables();
+    const { waterBodyId } = req.params;
+    const startDate = String(req.query.start_date || "").trim();
+    const endDate = String(req.query.end_date || "").trim();
+
+    if (!startDate || !endDate) {
+      return res.status(400).json({ error: "start_date and end_date are required" });
+    }
+
+    if (new Date(`${endDate}T00:00:00Z`) < new Date(`${startDate}T00:00:00Z`)) {
+      return res.status(400).json({ error: "end_date must be after or equal to start_date" });
+    }
+
+    const q = await pool.query(`
+      WITH lake AS (
+        SELECT id, GREATEST(1, COALESCE(spots_count, capacity, 1))::int AS total_spots
+        FROM water_bodies
+        WHERE id = $1
+        LIMIT 1
+      ),
+      days AS (
+        SELECT generate_series($2::date, $3::date, interval '1 day')::date AS day
+      ),
+      reserved AS (
+        SELECT
+          d.day,
+          COALESCE(SUM(r.requested_spots), 0)::int AS reserved_spots
+        FROM days d
+        LEFT JOIN lake_reservations r
+          ON r.water_body_id = $1
+         AND r.status = ANY($4::text[])
+         AND daterange(r.start_date::date, (r.end_date::date + 1)::date, '[)') && daterange(d.day, (d.day + 1)::date, '[)')
+        GROUP BY d.day
+      ),
+      blocked AS (
+        SELECT blocked_date::date AS day
+        FROM lake_blocked_dates
+        WHERE water_body_id = $1
+          AND blocked_date BETWEEN $2::date AND $3::date
+      )
+      SELECT
+        d.day::text AS date,
+        CASE
+          WHEN EXISTS (SELECT 1 FROM blocked b WHERE b.day = d.day) THEN true
+          WHEN COALESCE(r.reserved_spots, 0) >= COALESCE((SELECT total_spots FROM lake), 1) THEN true
+          ELSE false
+        END AS unavailable,
+        COALESCE((SELECT total_spots FROM lake), 1)::int AS total_spots,
+        COALESCE(r.reserved_spots, 0)::int AS reserved_spots,
+        GREATEST(0, COALESCE((SELECT total_spots FROM lake), 1) - COALESCE(r.reserved_spots, 0))::int AS remaining_spots
+      FROM days d
+      LEFT JOIN reserved r ON r.day = d.day
+      ORDER BY d.day ASC
+    `, [waterBodyId, startDate, endDate, ["pending", "approved"]]);
+
+    res.json({
+      range: { start_date: startDate, end_date: endDate },
+      dates: q.rows,
+      unavailable_dates: q.rows.filter((row) => row.unavailable).map((row) => row.date),
+    });
+  } catch (err) {
+    console.error("getUnavailableDates error:", err);
+    res.status(500).json({ error: "Failed to load unavailable dates" });
+  }
+};
+
 const getBlockedDates = async (req, res) => {
   try {
     const { waterBodyId } = req.params;
@@ -380,6 +574,8 @@ module.exports = {
   getSpeciesSummary,
   getWaterBodyPhotos,
   getBookingOptions,
+  getAvailability,
+  getUnavailableDates,
   getReviews,
   getReviewsSummary,
   upsertReview,

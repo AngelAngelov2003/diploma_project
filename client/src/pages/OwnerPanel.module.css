@@ -187,6 +187,27 @@
   font-size: 14px;
 }
 
+
+.tabBadge {
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: #ef4444;
+  color: white;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.9);
+}
+
+.tabButtonActive .tabBadge {
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.95);
+}
+
 .tabPanelIntro {
   margin-bottom: 16px;
   color: #64748b;
@@ -831,4 +852,49 @@
   .paginationActions {
     width: 100%;
   }
+}
+
+.filterRow {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+.reservationSpotBadge {
+  align-items: flex-start;
+  flex-direction: column;
+  gap: 4px;
+  border-radius: 14px;
+  max-width: 100%;
+}
+
+.reservationSpotDetails summary {
+  cursor: pointer;
+  color: #2563eb;
+  font-weight: 900;
+  list-style-position: inside;
+}
+
+.reservationSpotList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  max-height: 88px;
+  overflow: auto;
+  margin-top: 6px;
+  padding-right: 4px;
+}
+
+.reservationSpotPill {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid #bfdbfe;
+  background: #eff6ff;
+  color: #1d4ed8;
+  border-radius: 999px;
+  padding: 4px 8px;
+  font-size: 12px;
+  font-weight: 900;
+  white-space: nowrap;
 }

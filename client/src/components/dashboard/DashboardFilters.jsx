@@ -1,5 +1,6 @@
 import React, { useMemo } from "react";
 import styles from "./DashboardFilters.module.css";
+import DatePicker from "../ui/DatePicker";
 
 export default function DashboardFilters({
   loading,
@@ -75,12 +76,12 @@ export default function DashboardFilters({
 
       <div>
         <div className={styles.label}>From</div>
-        <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className={styles.control} />
+        <DatePicker value={dateFrom} onChange={setDateFrom} />
       </div>
 
       <div>
         <div className={styles.label}>To</div>
-        <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className={styles.control} />
+        <DatePicker value={dateTo} onChange={setDateTo} min={dateFrom || undefined} />
       </div>
 
       <div>

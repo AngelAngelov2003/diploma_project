@@ -139,6 +139,168 @@ const updateOwnerLake = async (req, res) => {
   }
 };
 
+
+const formatDateParam = (value) => String(value || '').trim().slice(0, 10);
+
+const getOwnerLakeReservations = async (req, res) => {
+  try {
+    await ensureSchema();
+    const lake = await ensureOwnedLake(req.params.waterBodyId, req.user);
+    if (!lake) return res.status(404).json({ error: 'Lake not found or not owned by you' });
+
+    const q = await pool.query(`
+      SELECT
+        r.id,
+        r.water_body_id,
+        r.user_id,
+        COALESCE(r.start_date, r.reservation_date) AS arrival_date,
+        COALESCE(r.end_date, r.start_date, r.reservation_date) AS departure_date,
+        r.reservation_date,
+        r.notes,
+        COALESCE(r.requested_spots, r.people_count, 1) AS requested_spots,
+        r.people_count,
+        r.includes_night_fishing,
+        r.wants_housing,
+        r.base_amount,
+        r.night_fishing_amount,
+        r.rooms_amount,
+        r.total_amount,
+        r.status,
+        r.created_at,
+        r.updated_at,
+        w.name AS lake_name,
+        u.full_name,
+        u.email,
+        COALESCE((
+          SELECT json_agg(rfd.fishing_date::text ORDER BY rfd.fishing_date)
+          FROM reservation_fishing_days rfd
+          WHERE rfd.reservation_id = r.id
+        ), '[]'::json) AS fishing_dates,
+        COALESCE((
+          SELECT json_agg(rnf.night_date::text ORDER BY rnf.night_date)
+          FROM reservation_night_fishing rnf
+          WHERE rnf.reservation_id = r.id
+        ), '[]'::json) AS night_fishing_dates,
+        COALESCE((
+          SELECT json_agg(rm.name ORDER BY rm.name)
+          FROM lake_reservation_rooms rrm
+          JOIN lake_rooms rm ON rm.id = rrm.room_id
+          WHERE rrm.reservation_id = r.id
+        ), '[]'::json) AS room_names,
+        COALESCE((
+          SELECT json_agg(ls.spot_number ORDER BY ls.spot_number)
+          FROM reservation_spots rs
+          JOIN lake_spots ls ON ls.id = rs.spot_id
+          WHERE rs.reservation_id = r.id
+        ), '[]'::json) AS spot_numbers
+      FROM lake_reservations r
+      JOIN water_bodies w ON w.id = r.water_body_id
+      JOIN users u ON u.id = r.user_id
+      WHERE r.water_body_id = $1
+        AND w.owner_id = $2
+      ORDER BY
+        CASE r.status WHEN 'pending' THEN 1 WHEN 'approved' THEN 2 WHEN 'rejected' THEN 3 WHEN 'cancelled' THEN 4 ELSE 5 END,
+        r.created_at DESC
+    `, [req.params.waterBodyId, req.user]);
+
+    res.json(q.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message || 'Failed to load owner reservations' });
+  }
+};
+
+const getOwnerLakeSpotAvailability = async (req, res) => {
+  try {
+    await ensureSchema();
+    const lake = await ensureOwnedLake(req.params.waterBodyId, req.user);
+    if (!lake) return res.status(404).json({ error: 'Lake not found or not owned by you' });
+
+    const date = formatDateParam(req.query.date);
+    if (!date) return res.status(400).json({ error: 'date is required' });
+
+    const spotsQ = await pool.query(`
+      SELECT id, spot_number, is_active
+      FROM lake_spots
+      WHERE water_body_id = $1
+      ORDER BY spot_number ASC
+    `, [req.params.waterBodyId]);
+
+    const reservationsQ = await pool.query(`
+      SELECT
+        r.id,
+        r.status,
+        r.user_id,
+        COALESCE(r.requested_spots, r.people_count, 1) AS requested_spots,
+        u.full_name,
+        u.email,
+        COALESCE((
+          SELECT json_agg(ls.spot_number ORDER BY ls.spot_number)
+          FROM reservation_spots rs
+          JOIN lake_spots ls ON ls.id = rs.spot_id
+          WHERE rs.reservation_id = r.id
+        ), '[]'::json) AS spot_numbers,
+        COALESCE((
+          SELECT json_agg(rs.spot_id::text ORDER BY ls.spot_number)
+          FROM reservation_spots rs
+          JOIN lake_spots ls ON ls.id = rs.spot_id
+          WHERE rs.reservation_id = r.id
+        ), '[]'::json) AS spot_ids
+      FROM lake_reservations r
+      JOIN users u ON u.id = r.user_id
+      WHERE r.water_body_id = $1
+        AND r.status IN ('pending', 'approved')
+        AND daterange(r.start_date::date, (r.end_date::date + 1)::date, '[)') @> $2::date
+      ORDER BY CASE r.status WHEN 'approved' THEN 1 WHEN 'pending' THEN 2 ELSE 3 END, r.created_at ASC
+    `, [req.params.waterBodyId, date]);
+
+    const blockedQ = await pool.query(`
+      SELECT id, reason
+      FROM lake_blocked_dates
+      WHERE water_body_id = $1 AND blocked_date = $2::date
+      LIMIT 1
+    `, [req.params.waterBodyId, date]);
+
+    const reservationBySpotId = new Map();
+    for (const reservation of reservationsQ.rows) {
+      for (const spotId of reservation.spot_ids || []) {
+        reservationBySpotId.set(String(spotId), reservation);
+      }
+    }
+
+    const spots = spotsQ.rows.map((spot) => {
+      const reservation = reservationBySpotId.get(String(spot.id));
+      if (!spot.is_active) {
+        return { ...spot, status: 'inactive', is_available: false };
+      }
+      if (blockedQ.rows.length) {
+        return { ...spot, status: 'blocked', is_available: false, reason: blockedQ.rows[0].reason || null };
+      }
+      if (reservation) {
+        return {
+          ...spot,
+          status: reservation.status,
+          is_available: false,
+          reservation_id: reservation.id,
+          user_name: reservation.full_name,
+          user_email: reservation.email,
+        };
+      }
+      return { ...spot, status: 'free', is_available: true };
+    });
+
+    const capacityReservations = reservationsQ.rows.filter((reservation) => !Array.isArray(reservation.spot_ids) || reservation.spot_ids.length === 0);
+
+    res.json({
+      date,
+      blocked: blockedQ.rows[0] || null,
+      spots,
+      capacity_reservations: capacityReservations,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message || 'Failed to load spot availability' });
+  }
+};
+
 const getOwnerBlockedDates = async (req, res) => {
   try {
     const lake = await ensureOwnedLake(req.params.waterBodyId, req.user);
@@ -517,6 +679,8 @@ module.exports = {
   getMyClaimRequests,
   createClaimRequest,
   updateOwnerLake,
+  getOwnerLakeReservations,
+  getOwnerLakeSpotAvailability,
   getOwnerBlockedDates,
   createOwnerBlockedDate,
   deleteOwnerBlockedDate,

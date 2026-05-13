@@ -4,9 +4,7 @@ import { useLocation } from "react-router-dom";
 import { notifyError, notifySuccess } from "../ui/toast";
 import {
   cancelReservation,
-  getIncomingReservations,
   getMyReservations,
-  updateReservationStatus,
 } from "../api/reservationsApi";
 import ActionButton from "../components/ui/ActionButton";
 import Pagination from "../components/ui/Pagination";
@@ -31,6 +29,19 @@ const formatDateTime = (value) => {
   return date.toLocaleString();
 };
 
+const getTodayDateString = () => new Date().toISOString().slice(0, 10);
+
+const isReservationPast = (item) => {
+  const departure = String(item?.departure_date || item?.end_date || item?.start_date || item?.reservation_date || "").slice(0, 10);
+  return Boolean(departure && departure < getTodayDateString());
+};
+
+const canCancelReservation = (item) => {
+  if (isReservationPast(item)) return false;
+  if (typeof item?.can_cancel === "boolean") return item.can_cancel;
+  return ["pending", "approved"].includes(String(item?.status || ""));
+};
+
 const getStatusCount = (items, status) => {
   if (status === "all") return items.length;
   return items.filter((item) => item.status === status).length;
@@ -53,6 +64,46 @@ const paginateItems = (items, currentPage, pageSize = PAGE_SIZE) => {
   };
 };
 
+
+const getReservedSpotNumbers = (item) => (
+  Array.isArray(item.spot_numbers)
+    ? item.spot_numbers.filter((value) => value !== null && value !== undefined)
+    : []
+);
+
+const formatReservedSpots = (item) => {
+  const spotNumbers = getReservedSpotNumbers(item);
+
+  if (spotNumbers.length) {
+    return `${spotNumbers.length} selected`;
+  }
+
+  const count = item.requested_spots || item.people_count || 1;
+  return `${count} requested`;
+};
+
+function ReservedSpotsChip({ item }) {
+  const spotNumbers = getReservedSpotNumbers(item);
+
+  return (
+    <div className={`${styles.metaText} ${styles.metaChip} ${spotNumbers.length ? styles.spotChip : ""}`}>
+      <div>Reserved spots: {formatReservedSpots(item)}</div>
+      {spotNumbers.length ? (
+        <details className={styles.spotDetails}>
+          <summary>View spot numbers</summary>
+          <div className={styles.spotNumberList}>
+            {spotNumbers.map((value) => (
+              <span key={value} className={styles.spotNumberPill}>
+                Spot {value}
+              </span>
+            ))}
+          </div>
+        </details>
+      ) : null}
+    </div>
+  );
+}
+
 const filterReservations = (items, statusFilter, query, textFactory) => {
   const normalizedQuery = query.trim().toLowerCase();
   return items.filter((item) => {
@@ -70,31 +121,17 @@ const MY_STATUS_FILTERS = [
   { key: "cancelled", label: "Cancelled" },
 ];
 
-const INCOMING_STATUS_FILTERS = [
-  { key: "all", label: "All" },
-  { key: "pending", label: "Pending" },
-  { key: "approved", label: "Approved" },
-  { key: "rejected", label: "Rejected" },
-];
-
-export default function ReservationsPage({ currentUser }) {
+export default function ReservationsPage() {
   const location = useLocation();
   const [myReservations, setMyReservations] = useState([]);
-  const [incomingReservations, setIncomingReservations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [savingId, setSavingId] = useState("");
 
   const [myStatusFilter, setMyStatusFilter] = useState("all");
-  const [incomingStatusFilter, setIncomingStatusFilter] = useState("pending");
   const [mySearch, setMySearch] = useState("");
-  const [incomingSearch, setIncomingSearch] = useState("");
   const [myPage, setMyPage] = useState(1);
-  const [incomingPage, setIncomingPage] = useState(1);
 
   const mySectionRef = useRef(null);
-  const incomingSectionRef = useRef(null);
-  const normalizedRole = String(currentUser?.role || "").trim().toLowerCase();
-  const canManageIncomingReservations = normalizedRole === "owner" || normalizedRole === "admin";
   const reservationSubmitted = Boolean(location.state?.reservationSubmitted);
 
   const scrollToSectionTop = (ref) => {
@@ -106,27 +143,21 @@ export default function ReservationsPage({ currentUser }) {
   const loadReservations = useCallback(async () => {
     try {
       setLoading(true);
-      const [myReservationsData, incomingReservationsData] = await Promise.all([
-        getMyReservations(),
-        canManageIncomingReservations ? getIncomingReservations() : Promise.resolve([]),
-      ]);
+      const myReservationsData = await getMyReservations();
       setMyReservations(myReservationsData || []);
-      setIncomingReservations(incomingReservationsData || []);
     } catch (error) {
       notifyError(error, "Failed to load reservations");
       setMyReservations([]);
-      setIncomingReservations([]);
     } finally {
       setLoading(false);
     }
-  }, [canManageIncomingReservations]);
+  }, []);
 
   useEffect(() => {
     loadReservations();
   }, [loadReservations]);
 
   useEffect(() => setMyPage(1), [myStatusFilter, mySearch]);
-  useEffect(() => setIncomingPage(1), [incomingStatusFilter, incomingSearch]);
 
   const handleCancelReservation = async (reservationId) => {
     try {
@@ -136,19 +167,6 @@ export default function ReservationsPage({ currentUser }) {
       await loadReservations();
     } catch (error) {
       notifyError(error, "Failed to cancel reservation");
-    } finally {
-      setSavingId("");
-    }
-  };
-
-  const handleUpdateIncomingStatus = async (reservationId, status) => {
-    try {
-      setSavingId(reservationId);
-      await updateReservationStatus(reservationId, status);
-      notifySuccess("Reservation updated");
-      await loadReservations();
-    } catch (error) {
-      notifyError(error, "Failed to update reservation");
     } finally {
       setSavingId("");
     }
@@ -164,19 +182,7 @@ export default function ReservationsPage({ currentUser }) {
     [myReservations, myStatusFilter, mySearch],
   );
 
-  const filteredIncomingReservations = useMemo(
-    () => filterReservations(
-      incomingReservations,
-      incomingStatusFilter,
-      incomingSearch,
-      (item) => [item.lake_name, item.status, item.notes, item.reservation_date, item.created_at, item.people_count, item.full_name, item.email].map((value) => String(value || "")).join(" "),
-    ),
-    [incomingReservations, incomingStatusFilter, incomingSearch],
-  );
-
-
   const paginatedMyReservations = useMemo(() => paginateItems(filteredMyReservations, myPage), [filteredMyReservations, myPage]);
-  const paginatedIncomingReservations = useMemo(() => paginateItems(filteredIncomingReservations, incomingPage), [filteredIncomingReservations, incomingPage]);
 
   if (loading) {
     return <div className={styles.loading}>Loading reservations...</div>;
@@ -190,9 +196,9 @@ export default function ReservationsPage({ currentUser }) {
             <div className={styles.heroIntro}>
               <div className={styles.heroEyebrow}>
                 <FaCalendarCheck />
-                <span>Booking center</span>
+                <span>My bookings</span>
               </div>
-              <h2 className={styles.heroTitle}>Reservations</h2>
+              <h2 className={styles.heroTitle}>My Reservations</h2>
             </div>
             </div>
         </div>
@@ -233,7 +239,7 @@ export default function ReservationsPage({ currentUser }) {
                           <div className={`${styles.metaText} ${styles.metaBlock}`}>Stay: {formatDate(item.arrival_date || item.start_date)} → {formatDate(item.departure_date || item.end_date)}</div>
                           <div className={styles.metaGrid}>
                             <div className={`${styles.metaText} ${styles.metaChip}`}>Created: {formatDateTime(item.created_at)}</div>
-                            <div className={`${styles.metaText} ${styles.metaChip}`}>Spots: {item.requested_spots || item.people_count || 1}</div>
+                            <ReservedSpotsChip item={item} />
                             <div className={`${styles.metaText} ${styles.metaChip}`}>Fishing days: {(item.fishing_dates || []).length || 0}</div>
                             <div className={`${styles.metaText} ${styles.metaChip}`}>Night fishing: {(item.night_fishing_dates || []).length || 0}</div>
                             <div className={`${styles.metaText} ${styles.metaChip}`}>Rooms: {(item.room_names || []).length ? item.room_names.join(", ") : "None"}</div>
@@ -243,7 +249,10 @@ export default function ReservationsPage({ currentUser }) {
                         </div>
                         <div className={styles.actionColumn}>
                           <StatusBadge status={item.status} />
-                          {item.status !== "cancelled" ? (
+                          {isReservationPast(item) ? (
+                            <div className={styles.metaText}>Past reservation</div>
+                          ) : null}
+                          {canCancelReservation(item) ? (
                             <ActionButton type="button" tone="danger" compact disabled={savingId === item.id} onClick={() => handleCancelReservation(item.id)}>
                               Cancel
                             </ActionButton>
@@ -259,63 +268,6 @@ export default function ReservationsPage({ currentUser }) {
             )}
           </div>
 
-          {canManageIncomingReservations ? (
-            <div ref={incomingSectionRef} className={styles.card}>
-              <div className={styles.sectionHeader}>
-                <h3 className={styles.cardTitle}>Incoming reservations</h3>
-                <SearchInput value={incomingSearch} onChange={(event) => setIncomingSearch(event.target.value)} placeholder="Search incoming reservations..." minWidth={260} />
-              </div>
-
-              <div className={styles.filterRow}>
-                {INCOMING_STATUS_FILTERS.map((filter) => (
-                  <TabButton key={filter.key} active={incomingStatusFilter === filter.key} onClick={() => setIncomingStatusFilter(filter.key)} badge={getStatusCount(incomingReservations, filter.key)}>
-                    {filter.label}
-                  </TabButton>
-                ))}
-              </div>
-
-              {filteredIncomingReservations.length === 0 ? (
-                <div className={styles.emptyState}>
-                  {incomingReservations.length === 0 ? "No incoming reservations for your private lakes." : "No incoming reservations match the selected filters."}
-                </div>
-              ) : (
-                <>
-                  <div className={styles.itemList}>
-                    {paginatedIncomingReservations.items.map((item) => (
-                      <div key={item.id} className={styles.itemCard}>
-                        <div className={styles.splitRow}>
-                          <div>
-                            <div className={styles.itemTitle}>{item.lake_name}</div>
-                            <div className={`${styles.metaText} ${styles.metaBlock}`}>User: {item.full_name || "Unknown"} {item.email ? `(${item.email})` : ""}</div>
-                            <div className={`${styles.metaText} ${styles.metaBlockCompact}`}>Stay: {formatDate(item.arrival_date || item.start_date)} → {formatDate(item.departure_date || item.end_date)}</div>
-                            <div className={styles.metaGrid}>
-                              <div className={`${styles.metaText} ${styles.metaChip}`}>Created: {formatDateTime(item.created_at)}</div>
-                              <div className={`${styles.metaText} ${styles.metaChip}`}>Spots: {item.requested_spots || item.people_count || 1}</div>
-                              <div className={`${styles.metaText} ${styles.metaChip}`}>Fishing days: {(item.fishing_dates || []).length || 0}</div>
-                              <div className={`${styles.metaText} ${styles.metaChip}`}>Night fishing: {(item.night_fishing_dates || []).length || 0}</div>
-                              <div className={`${styles.metaText} ${styles.metaChip}`}>Rooms: {(item.room_names || []).length ? item.room_names.join(", ") : "None"}</div>
-                              <div className={`${styles.metaText} ${styles.metaChip}`}>Total: €{Number(item.total_amount || 0).toFixed(2)}</div>
-                            </div>
-                            <div className={`${styles.noteText} ${styles.noteBlock}`}>Notes: {item.notes || "No notes"}</div>
-                          </div>
-                          <div className={styles.actionColumn}>
-                            <StatusBadge status={item.status} />
-                            <div className={styles.buttonRow}>
-                              <ActionButton type="button" tone="success" compact disabled={savingId === item.id} onClick={() => handleUpdateIncomingStatus(item.id, "approved")}>Approve</ActionButton>
-                              <ActionButton type="button" tone="danger" compact disabled={savingId === item.id} onClick={() => handleUpdateIncomingStatus(item.id, "rejected")}>Reject</ActionButton>
-                              <ActionButton type="button" tone="neutral" compact disabled={savingId === item.id} onClick={() => handleUpdateIncomingStatus(item.id, "pending")}>Mark Pending</ActionButton>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  <Pagination currentPage={paginatedIncomingReservations.currentPage} totalPages={paginatedIncomingReservations.totalPages} totalItems={paginatedIncomingReservations.totalItems} startIndex={paginatedIncomingReservations.startIndex} endIndex={paginatedIncomingReservations.endIndex} onPageChange={(page) => { setIncomingPage(page); scrollToSectionTop(incomingSectionRef); }} />
-                </>
-              )}
-            </div>
-          ) : null}
         </div>
       </div>
     </div>
