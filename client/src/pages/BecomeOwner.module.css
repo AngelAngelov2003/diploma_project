@@ -169,3 +169,60 @@
   font-size: 12px;
   font-weight: 800;
 }
+
+@media (max-width: 768px) {
+  .page {
+    padding: 14px 10px;
+  }
+
+  .hero {
+    padding: 16px;
+    border-radius: 18px;
+  }
+
+  .heroTitle {
+    font-size: 22px;
+    line-height: 1.15;
+  }
+
+  .card,
+  .selectedLakeBox,
+  .requestCard {
+    padding: 14px;
+    border-radius: 14px;
+  }
+
+  .actionRow {
+    width: 100%;
+  }
+
+  .submitButton {
+    width: 100%;
+  }
+
+  .requestHeader {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .statusBadge {
+    justify-content: center;
+  }
+}
+
+@media (max-width: 430px) {
+  .page {
+    padding: 10px 8px;
+  }
+
+  .heroTitle {
+    font-size: 20px;
+  }
+
+  .selectedLakeName,
+  .requestTitle {
+    font-size: 16px;
+    line-height: 1.25;
+  }
+}

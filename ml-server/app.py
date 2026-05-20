@@ -223,7 +223,7 @@ def get_or_train_model(lat, lng, force_refresh=False):
         df["score"] = df.apply(calculate_total_score, axis=1)
 
         try:
-            catch_res = requests.get("http://localhost:5000/ml/training-data", timeout=10)
+            catch_res = requests.get("http://localhost:5000/ml/training-data", timeout=10, headers={"x-internal-api-key": ML_INTERNAL_API_KEY})
             catch_res.raise_for_status()
             catch_payload = catch_res.json()
 

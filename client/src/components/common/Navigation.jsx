@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { getReservationBadgeCounts } from "../../api/reservationsApi";
+import { getAdminAnalytics } from "../../api/adminApi";
 import { NavLink, useNavigate } from "react-router-dom";
 import {
   FaFish,
@@ -16,11 +17,14 @@ import {
   FaSignInAlt,
   FaUserPlus,
   FaFileSignature,
+  FaCrown,
 } from "react-icons/fa";
 
 const Navigation = ({ isAuthenticated, onLogout, currentUser }) => {
   const [showMenu, setShowMenu] = useState(false);
   const [reservationBadges, setReservationBadges] = useState({ user_reservation_updates: 0, owner_pending_reservations: 0 });
+  const [adminBadgeCount, setAdminBadgeCount] = useState(0);
+  const [seenOwnerPages, setSeenOwnerPages] = useState(false);
   const menuRef = useRef(null);
   const navigate = useNavigate();
 
@@ -38,6 +42,20 @@ const Navigation = ({ isAuthenticated, onLogout, currentUser }) => {
   const isOwner = currentUser?.role === "owner" || isAdmin;
   const userReservationBadgeCount = Number(reservationBadges.user_reservation_updates || 0);
   const ownerReservationBadgeCount = Number(reservationBadges.owner_pending_reservations || 0);
+  const showOwnerNewBadge = isOwner && !seenOwnerPages;
+
+  useEffect(() => {
+    if (!isAuthenticated || !isOwner || !currentUser?.id) {
+      setSeenOwnerPages(false);
+      return;
+    }
+
+    try {
+      setSeenOwnerPages(window.localStorage.getItem(`fishingAtlasSeenOwnerPages:${currentUser.id}`) === "true");
+    } catch (_error) {
+      setSeenOwnerPages(false);
+    }
+  }, [isAuthenticated, isOwner, currentUser?.id]);
 
   useEffect(() => {
     let cancelled = false;
@@ -72,6 +90,51 @@ const Navigation = ({ isAuthenticated, onLogout, currentUser }) => {
       window.removeEventListener("focus", refreshOnFocus);
     };
   }, [isAuthenticated, currentUser?.id, currentUser?.role]);
+
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadAdminBadge = async () => {
+      if (!isAuthenticated || !isAdmin) {
+        setAdminBadgeCount(0);
+        return;
+      }
+
+      try {
+        const data = await getAdminAnalytics();
+        if (!cancelled) {
+          setAdminBadgeCount(Number(data?.totals?.pending_owner_claims || 0));
+        }
+      } catch (_error) {
+        if (!cancelled) setAdminBadgeCount(0);
+      }
+    };
+
+    loadAdminBadge();
+    const intervalId = window.setInterval(loadAdminBadge, 60000);
+    const refreshOnFocus = () => loadAdminBadge();
+    window.addEventListener("focus", refreshOnFocus);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+      window.removeEventListener("focus", refreshOnFocus);
+    };
+  }, [isAuthenticated, isAdmin, currentUser?.id]);
+
+  const markOwnerPagesSeen = () => {
+    try {
+      if (currentUser?.id) {
+        window.localStorage.setItem(`fishingAtlasSeenOwnerPages:${currentUser.id}`, "true");
+      }
+    } catch (_error) {
+      // Ignore localStorage errors.
+    }
+    setSeenOwnerPages(true);
+  };
+
+  const NewBadge = () => <span className="nav-new-badge">NEW</span>;
 
   const Badge = ({ count }) => {
     if (!count) return null;
@@ -126,17 +189,25 @@ const Navigation = ({ isAuthenticated, onLogout, currentUser }) => {
 
 
               {isOwner && (
-                <NavLink to="/owner" className={(state) => `${linkClassName(state)} secondary-nav-link has-badge`}>
-                  <FaTools />
-                  <span>Owner Panel</span>
-                  <Badge count={ownerReservationBadgeCount} />
-                </NavLink>
+                <>
+                  <NavLink
+                    to="/owner"
+                    onClick={markOwnerPagesSeen}
+                    className={(state) => `${linkClassName(state)} secondary-nav-link has-badge`}
+                  >
+                    <FaTools />
+                    <span>Owner Panel</span>
+                    {showOwnerNewBadge ? <NewBadge /> : null}
+                    <Badge count={ownerReservationBadgeCount} />
+                  </NavLink>
+                </>
               )}
 
               {isAdmin && (
-                <NavLink to="/admin" className={(state) => `${linkClassName(state)} secondary-nav-link`}>
+                <NavLink to="/admin" className={(state) => `${linkClassName(state)} secondary-nav-link has-badge`}>
                   <FaUserShield />
                   <span>Admin</span>
+                  <Badge count={adminBadgeCount} />
                 </NavLink>
               )}
 
@@ -184,6 +255,14 @@ const Navigation = ({ isAuthenticated, onLogout, currentUser }) => {
                     </div>
 
                     <div
+                      onClick={() => closeMenuAndNavigate("/billing")}
+                      className="main-user-dropdown-item"
+                    >
+                      <FaCrown />
+                      <span>Billing / Premium</span>
+                    </div>
+
+                    <div
                       onClick={() => closeMenuAndNavigate("/catches")}
                       className="main-user-dropdown-item responsive-menu-item"
                     >
@@ -217,14 +296,17 @@ const Navigation = ({ isAuthenticated, onLogout, currentUser }) => {
                     </div>
 
                     {isOwner && (
-                      <div
-                        onClick={() => closeMenuAndNavigate("/owner")}
-                        className="main-user-dropdown-item responsive-menu-item"
-                      >
-                        <FaTools />
-                        <span>Owner Panel</span>
-                        <Badge count={ownerReservationBadgeCount} />
-                      </div>
+                      <>
+                        <div
+                          onClick={() => { markOwnerPagesSeen(); closeMenuAndNavigate("/owner"); }}
+                          className="main-user-dropdown-item responsive-menu-item"
+                        >
+                          <FaTools />
+                          <span>Owner Panel</span>
+                          {showOwnerNewBadge ? <NewBadge /> : null}
+                          <Badge count={ownerReservationBadgeCount} />
+                        </div>
+                      </>
                     )}
 
                     {isAdmin && (
@@ -234,6 +316,7 @@ const Navigation = ({ isAuthenticated, onLogout, currentUser }) => {
                       >
                         <FaUserShield />
                         <span>Admin Dashboard</span>
+                        <Badge count={adminBadgeCount} />
                       </div>
                     )}
 
@@ -326,6 +409,27 @@ const Navigation = ({ isAuthenticated, onLogout, currentUser }) => {
         .main-nav-link.has-badge,
         .main-user-dropdown-item {
           position: relative;
+        }
+
+        .nav-new-badge {
+          border-radius: 999px;
+          background: #22c55e;
+          color: white;
+          padding: 3px 7px;
+          font-size: 10px;
+          font-weight: 900;
+          letter-spacing: 0.04em;
+          line-height: 1;
+          box-shadow: 0 0 0 2px rgba(17, 24, 39, 0.92);
+        }
+
+        .main-user-dropdown-item .nav-new-badge {
+          margin-left: auto;
+          box-shadow: none;
+        }
+
+        .main-user-dropdown-item .nav-new-badge + .nav-notification-badge {
+          margin-left: 6px;
         }
 
         .nav-notification-badge {

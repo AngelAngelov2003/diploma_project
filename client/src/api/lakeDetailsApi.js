@@ -10,6 +10,11 @@ export const getWaterBodyForecast = async (id) => {
   return data;
 };
 
+export const getWaterBodyWeeklyForecast = async (id) => {
+  const { data } = await api.get(`/water-bodies/${id}/forecast/weekly`);
+  return data;
+};
+
 export const getWaterBodyCatches = async (id) => {
   const { data } = await api.get(`/water-bodies/${id}/catches`);
   return data;

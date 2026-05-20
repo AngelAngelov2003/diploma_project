@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import DatePicker from "../components/ui/DatePicker";
+import ZoomableImage from "../components/ui/ZoomableImage";
+import PremiumLockedCard from "../components/common/PremiumLockedCard";
 import { GeoJSON, MapContainer, TileLayer, Marker } from "react-leaflet";
 import {
   FaArrowLeft,
@@ -18,6 +20,7 @@ import {
 } from "react-icons/fa";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
+import styles from "./LakeDetails.module.css";
 import { notifyError, notifySuccess } from "../ui/toast";
 import { createLakeIcon, focusLakeOnMap, getDisplayDescription, getLakeGeometry, truncate } from "../features/fishing-map/fishingMap.utils";
 import {
@@ -30,6 +33,7 @@ import {
 import {
   createReservation,
   estimateReservation,
+  startReservationPayment,
 } from "../api/reservationsApi";
 import {
   createWaterBodyReview,
@@ -41,6 +45,7 @@ import {
   getWaterBodyById,
   getWaterBodyCatches,
   getWaterBodyForecast,
+  getWaterBodyWeeklyForecast,
   getWaterBodyPhotos,
   getWaterBodyReviews,
   getWaterBodyReviewsSummary,
@@ -65,6 +70,13 @@ const DEFAULT_ALERT_STATE = {
 const DEFAULT_REVIEWS_SUMMARY = {
   reviews_count: 0,
   average_rating: null,
+};
+
+const formatForecastNumber = (value, decimals = 1) => {
+  if (value === null || value === undefined || value === "") return "-";
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return value;
+  return numeric.toLocaleString(undefined, { maximumFractionDigits: decimals });
 };
 
 const formatAverageRating = (value) => {
@@ -92,6 +104,22 @@ const sectionTitleStyle = {
   fontSize: "18px",
   fontWeight: 800,
   color: "#0f172a",
+};
+
+
+const formatForecastDay = (value) => {
+  if (!value) return "Unknown";
+  const date = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+};
+
+const getForecastScoreTone = (score) => {
+  const numeric = Number(score);
+  if (numeric >= 80) return { background: "#dcfce7", border: "#86efac", color: "#166534" };
+  if (numeric >= 60) return { background: "#ecfeff", border: "#67e8f9", color: "#0f766e" };
+  if (numeric >= 40) return { background: "#fff7ed", border: "#fed7aa", color: "#9a3412" };
+  return { background: "#fef2f2", border: "#fecaca", color: "#991b1b" };
 };
 
 const formatDateTime = (value) => {
@@ -201,6 +229,11 @@ function LakeDetails() {
   const [lake, setLake] = useState(null);
   const [forecast, setForecast] = useState(null);
   const [forecastError, setForecastError] = useState("");
+  const [weeklyForecast, setWeeklyForecast] = useState([]);
+  const [weeklyForecastError, setWeeklyForecastError] = useState("");
+  const [weeklyForecastLoading, setWeeklyForecastLoading] = useState(false);
+  const [showWeeklyForecast, setShowWeeklyForecast] = useState(false);
+  const [selectedWeeklyForecastDate, setSelectedWeeklyForecastDate] = useState("");
   const [catches, setCatches] = useState([]);
   const [speciesSummary, setSpeciesSummary] = useState([]);
   const [photos, setPhotos] = useState([]);
@@ -230,6 +263,7 @@ function LakeDetails() {
   const [nightFishingDates, setNightFishingDates] = useState([]);
   const [selectedRoomIds, setSelectedRoomIds] = useState([]);
   const [reservationNotes, setReservationNotes] = useState("");
+  const [paymentPreference, setPaymentPreference] = useState("online");
   const [reservationQuote, setReservationQuote] = useState(null);
   const [reservationQuoteError, setReservationQuoteError] = useState("");
   const [savingReservation, setSavingReservation] = useState(false);
@@ -348,9 +382,12 @@ function LakeDetails() {
         setForecastError("");
       } else {
         setForecast(null);
+        const forecastErrorCode = forecastData?.error?.response?.data?.code;
         setForecastError(
-          forecastData?.error?.response?.data?.error ||
-            "Forecast temporarily unavailable. Please try again later."
+          forecastErrorCode === "PREMIUM_REQUIRED"
+            ? "Premium subscription required to unlock the full AI fishing forecast."
+            : forecastData?.error?.response?.data?.error ||
+              "Forecast temporarily unavailable. Please try again later."
         );
       }
       setCatches(catchesData || []);
@@ -489,6 +526,43 @@ function LakeDetails() {
 
   const maxRequestableSpots = Math.max(0, availableSpotCapacity);
   const selectedSpotCount = selectedSpotIds.length;
+  const isPremiumRequired = forecastError.toLowerCase().includes("premium");
+  const goToBilling = () => navigate("/billing");
+
+
+  const loadWeeklyForecast = async () => {
+    if (!id || weeklyForecastLoading) return;
+
+    if (showWeeklyForecast) {
+      setShowWeeklyForecast(false);
+      return;
+    }
+
+    setShowWeeklyForecast(true);
+
+    if (weeklyForecast.length) {
+      return;
+    }
+
+    try {
+      setWeeklyForecastLoading(true);
+      setWeeklyForecastError("");
+      const data = await getWaterBodyWeeklyForecast(id);
+      const safeData = Array.isArray(data) ? data.slice(0, 7) : [];
+      setWeeklyForecast(safeData);
+      setSelectedWeeklyForecastDate((current) => current || safeData[0]?.date || "");
+    } catch (error) {
+      const errorCode = error?.response?.data?.code;
+      setWeeklyForecastError(
+        errorCode === "PREMIUM_REQUIRED"
+          ? "Premium subscription required to unlock the weekly forecast."
+          : error?.response?.data?.error ||
+              "Weekly forecast temporarily unavailable. Please try again later."
+      );
+    } finally {
+      setWeeklyForecastLoading(false);
+    }
+  };
 
 
   const paginatedSpecies = useMemo(
@@ -830,7 +904,7 @@ function LakeDetails() {
 
     try {
       setSavingReservation(true);
-      await createReservation({
+      const reservation = await createReservation({
         water_body_id: id,
         arrival_date: arrivalDate,
         departure_date: departureDate,
@@ -840,7 +914,17 @@ function LakeDetails() {
         spot_ids: selectedSpotIds,
         requested_spots: selectedSpotCount,
         notes: reservationNotes.trim(),
+        payment_method: paymentPreference,
       });
+
+      if (paymentPreference === "online") {
+        notifySuccess("Reservation created. Redirecting to secure payment...");
+        const payment = await startReservationPayment(reservation.id);
+        if (payment?.url) {
+          window.location.href = payment.url;
+          return;
+        }
+      }
 
       notifySuccess("Reservation request sent successfully");
       navigate("/reservations", { state: { reservationSubmitted: true } });
@@ -873,6 +957,13 @@ function LakeDetails() {
       </div>
     );
   }
+
+  const selectedWeeklyForecast = weeklyForecast.find((day) => day.date === selectedWeeklyForecastDate) || weeklyForecast[0] || null;
+  const displayedForecast = showWeeklyForecast && selectedWeeklyForecast ? selectedWeeklyForecast : forecast;
+  const displayedForecastBreakdown = displayedForecast?.breakdown || {};
+  const displayedForecastDateLabel = showWeeklyForecast && selectedWeeklyForecast?.date
+    ? formatForecastDay(selectedWeeklyForecast.date)
+    : "Today";
 
   if (!lake) {
     return (
@@ -1255,10 +1346,10 @@ function LakeDetails() {
                         style={{ marginTop: "3px" }}
                       />
                       <span>
-                        <span style={{ display: "block", fontSize: "13px", color: "#0f172a", fontWeight: 800 }}>Request night fishing approval</span>
+                        <span style={{ display: "block", fontSize: "13px", color: "#0f172a", fontWeight: 800 }}>Include night fishing</span>
                         <span style={{ display: "block", fontSize: "12px", color: "#64748b", marginTop: "4px" }}>
-                          Add this only if you want to fish during the night. The owner approves the whole reservation request, including night fishing
-                          {nightFishingPrice ? ` (${formatCurrency(nightFishingPrice)} / night)` : ""}.
+                          Add this if you will fish during the night
+                          {nightFishingPrice ? ` (${formatCurrency(nightFishingPrice)} / night)` : ""}. Online payment creates an instant paid booking; pay-on-arrival requests wait for owner approval.
                         </span>
                       </span>
                     </label>
@@ -1293,29 +1384,69 @@ function LakeDetails() {
                 ) : null}
 
                 {lake.has_housing && Array.isArray(bookingOptions?.rooms) && bookingOptions.rooms.length ? (
-                  <div style={{ gridColumn: isMobile ? "auto" : "1 / -1" }}>
-                    <div style={{ fontSize: "12px", color: "#555", marginBottom: "8px" }}>
-                      Rooms for the stay
+                  <div className={styles.accommodationSection}>
+                    <div className={styles.bookingSectionHeader}>
+                      <div>
+                        <h3>Accommodation</h3>
+                        <p>Choose optional rooms or cabins for your selected stay.</p>
+                      </div>
+                      <span>{selectedRoomIds.length} selected</span>
                     </div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+
+                    <div className={styles.roomList}>
                       {bookingOptions.rooms.map((room) => {
                         const liveRoom = (availability?.rooms || []).find((item) => String(item.id) === String(room.id));
                         const isAvailable = liveRoom ? liveRoom.is_available : true;
+                        const selected = selectedRoomIds.includes(room.id);
                         return (
-                          <label key={room.id} style={{ display: "flex", alignItems: "center", gap: "10px", fontSize: "14px", color: isAvailable ? "#334155" : "#94a3b8" }}>
-                            <input
-                              type="checkbox"
-                              disabled={!isAvailable}
-                              checked={selectedRoomIds.includes(room.id)}
-                              onChange={() => setSelectedRoomIds((prev) => prev.includes(room.id) ? prev.filter((item) => item !== room.id) : [...prev, room.id])}
-                            />
-                            <span>{room.name} · {formatCurrency(room.price_per_night)} / night{isAvailable ? "" : " · booked"}</span>
-                          </label>
+                          <button
+                            key={room.id}
+                            type="button"
+                            disabled={!isAvailable || savingReservation || !lake.is_reservable}
+                            className={`${styles.roomOptionCard} ${selected ? styles.roomOptionCardSelected : ""}`}
+                            onClick={() => setSelectedRoomIds((prev) => prev.includes(room.id) ? prev.filter((item) => item !== room.id) : [...prev, room.id])}
+                          >
+                            <span className={styles.roomOptionMain}>
+                              <strong>{room.name}</strong>
+                              <small>Capacity: {room.capacity || 1} guest{Number(room.capacity || 1) === 1 ? "" : "s"}</small>
+                              <b>{formatCurrency(room.price_per_night)} / night</b>
+                            </span>
+                            <span className={styles.roomOptionAction}>
+                              {!isAvailable ? "Booked" : selected ? "Selected" : "Select"}
+                            </span>
+                          </button>
                         );
                       })}
                     </div>
                   </div>
                 ) : null}
+
+                <div className={styles.paymentChoiceSection}>
+                  <div className={styles.bookingSectionHeader}>
+                    <div>
+                      <h3>Payment option</h3>
+                      <p>Pay online for an instant paid booking, or pay at the lake and wait for owner approval.</p>
+                    </div>
+                  </div>
+                  <div className={styles.paymentChoiceGrid}>
+                    <button
+                      type="button"
+                      className={`${styles.paymentChoiceCard} ${paymentPreference === "online" ? styles.paymentChoiceCardActive : ""}`}
+                      onClick={() => setPaymentPreference("online")}
+                    >
+                      <strong>Pay online now</strong>
+                      <span>Secure Stripe checkout. No owner approval step if payment is available.</span>
+                    </button>
+                    <button
+                      type="button"
+                      className={`${styles.paymentChoiceCard} ${paymentPreference === "on_arrival" ? styles.paymentChoiceCardActive : ""}`}
+                      onClick={() => setPaymentPreference("on_arrival")}
+                    >
+                      <strong>Pay at the lake</strong>
+                      <span>Sends a request first. The owner must approve it before it is confirmed.</span>
+                    </button>
+                  </div>
+                </div>
 
                 <div style={{ gridColumn: isMobile ? "auto" : "1 / -1" }}>
                   <div style={{ fontSize: "12px", color: "#555", marginBottom: "6px" }}>
@@ -1357,7 +1488,7 @@ function LakeDetails() {
                 disabled={savingReservation || !lake.is_reservable || !arrivalDate || !departureDate || maxRequestableSpots <= 0 || selectedSpotCount <= 0 || selectedSpotCount > maxRequestableSpots}
                 style={{ marginTop: "14px", border: "none", background: lake.is_reservable && maxRequestableSpots > 0 && selectedSpotCount > 0 && selectedSpotCount <= maxRequestableSpots ? "#16a34a" : "#94a3b8", color: "white", borderRadius: "10px", padding: "10px 14px", cursor: savingReservation || !lake.is_reservable || maxRequestableSpots <= 0 || selectedSpotCount <= 0 || selectedSpotCount > maxRequestableSpots ? "not-allowed" : "pointer", fontWeight: 700 }}
               >
-                {savingReservation ? "Sending..." : "Send reservation request"}
+                {savingReservation ? "Sending..." : paymentPreference === "online" ? "Continue to payment" : "Send reservation request"}
               </button>
             </form>
           </div>
@@ -1372,9 +1503,7 @@ function LakeDetails() {
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: isMobile
-                ? "1fr"
-                : "repeat(4, minmax(0, 1fr))",
+              gridTemplateColumns: isMobile ? "1fr" : isPremiumRequired ? "minmax(220px, 0.8fr) minmax(0, 1.4fr)" : "repeat(4, minmax(0, 1fr))",
               gap: "12px",
               alignItems: "end",
             }}
@@ -1408,120 +1537,134 @@ function LakeDetails() {
               </button>
             </div>
 
-            <div>
-              <div
-                style={{
-                  fontSize: "12px",
-                  color: "#555",
-                  marginBottom: "6px",
-                }}
-              >
-                Alert Status
+            {isPremiumRequired ? (
+              <div style={{ gridColumn: isMobile ? "auto" : "span 1" }}>
+                <PremiumLockedCard
+                  compact
+                  title="Smart alerts are Premium"
+                  message="Favorites stay free, but automatic forecast alerts require Premium access."
+                  bullets={["Daily or weekly forecast emails", "Minimum score alert threshold", "Premium lake notifications"]}
+                  onUpgrade={goToBilling}
+                />
               </div>
-              <button
-                type="button"
-                disabled={savingAlertState}
-                onClick={() =>
-                  saveAlertSettings(
-                    { ...alertState, enabled: !alertState.enabled },
-                    alertState.enabled ? "Alert disabled" : "Alert enabled",
-                  )
-                }
-                style={{
-                  width: "100%",
-                  background: alertState.enabled ? "#343a40" : "#16a34a",
-                  color: "white",
-                  border: "none",
-                  padding: "10px 12px",
-                  borderRadius: 10,
-                  cursor: savingAlertState ? "not-allowed" : "pointer",
-                  fontWeight: 700,
-                }}
-              >
-                {alertState.enabled ? "Disable Alert" : "Enable Alert"}
-              </button>
-            </div>
+            ) : (
+              <>
+                <div>
+                  <div
+                    style={{
+                      fontSize: "12px",
+                      color: "#555",
+                      marginBottom: "6px",
+                    }}
+                  >
+                    Alert Status
+                  </div>
+                  <button
+                    type="button"
+                    disabled={savingAlertState}
+                    onClick={() =>
+                      saveAlertSettings(
+                        { ...alertState, enabled: !alertState.enabled },
+                        alertState.enabled ? "Alert disabled" : "Alert enabled",
+                      )
+                    }
+                    style={{
+                      width: "100%",
+                      background: alertState.enabled ? "#343a40" : "#16a34a",
+                      color: "white",
+                      border: "none",
+                      padding: "10px 12px",
+                      borderRadius: 10,
+                      cursor: savingAlertState ? "not-allowed" : "pointer",
+                      fontWeight: 700,
+                    }}
+                  >
+                    {alertState.enabled ? "Disable Alert" : "Enable Alert"}
+                  </button>
+                </div>
 
-            <div>
-              <div
-                style={{
-                  fontSize: "12px",
-                  color: "#555",
-                  marginBottom: "6px",
-                }}
-              >
-                Frequency
-              </div>
-              <select
-                value={alertState.notification_frequency || "daily"}
-                disabled={savingAlertState}
-                onChange={(event) =>
-                  saveAlertSettings(
-                    {
-                      ...alertState,
-                      notification_frequency: event.target.value,
-                    },
-                    "Frequency updated",
-                  )
-                }
-                style={{
-                  width: "100%",
-                  padding: "10px",
-                  borderRadius: 10,
-                  border: "1px solid #ddd",
-                  boxSizing: "border-box",
-                  background: "white",
-                }}
-              >
-                <option value="daily">Daily</option>
-                <option value="weekly">Weekly</option>
-              </select>
-            </div>
+                <div>
+                  <div
+                    style={{
+                      fontSize: "12px",
+                      color: "#555",
+                      marginBottom: "6px",
+                    }}
+                  >
+                    Frequency
+                  </div>
+                  <select
+                    value={alertState.notification_frequency || "daily"}
+                    disabled={savingAlertState}
+                    onChange={(event) =>
+                      saveAlertSettings(
+                        {
+                          ...alertState,
+                          notification_frequency: event.target.value,
+                        },
+                        "Frequency updated",
+                      )
+                    }
+                    style={{
+                      width: "100%",
+                      padding: "10px",
+                      borderRadius: 10,
+                      border: "1px solid #ddd",
+                      boxSizing: "border-box",
+                      background: "white",
+                    }}
+                  >
+                    <option value="daily">Daily</option>
+                    <option value="weekly">Weekly</option>
+                  </select>
+                </div>
 
-            <div>
-              <div
-                style={{
-                  fontSize: "12px",
-                  color: "#555",
-                  marginBottom: "6px",
-                }}
-              >
-                Minimum Score
-              </div>
-              <input
-                type="number"
-                min="0"
-                max="100"
-                value={Number(alertState.min_score || 0)}
-                disabled={savingAlertState}
-                onChange={(event) =>
-                  setAlertState((prev) => ({
-                    ...prev,
-                    min_score: Math.max(
-                      0,
-                      Math.min(100, Number(event.target.value || 0)),
-                    ),
-                  }))
-                }
-                onBlur={() =>
-                  saveAlertSettings(
-                    {
-                      ...alertState,
-                      min_score: Number(alertState.min_score || 0),
-                    },
-                    "Minimum score updated",
-                  )
-                }
-                style={{
-                  width: "100%",
-                  padding: "10px",
-                  borderRadius: 10,
-                  border: "1px solid #ddd",
-                  boxSizing: "border-box",
-                  background: "white",
-                }}
-              />
-            </div>
+                <div>
+                  <div
+                    style={{
+                      fontSize: "12px",
+                      color: "#555",
+                      marginBottom: "6px",
+                    }}
+                  >
+                    Minimum Score
+                  </div>
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={Number(alertState.min_score || 0)}
+                    disabled={savingAlertState}
+                    onChange={(event) =>
+                      setAlertState((prev) => ({
+                        ...prev,
+                        min_score: Math.max(
+                          0,
+                          Math.min(100, Number(event.target.value || 0)),
+                        ),
+                      }))
+                    }
+                    onBlur={() =>
+                      saveAlertSettings(
+                        {
+                          ...alertState,
+                          min_score: Number(alertState.min_score || 0),
+                        },
+                        "Minimum score updated",
+                      )
+                    }
+                    style={{
+                      width: "100%",
+                      padding: "10px",
+                      borderRadius: 10,
+                      border: "1px solid #ddd",
+                      boxSizing: "border-box",
+                      background: "white",
+                    }}
+                  />
+                </div>
+              </>
+            )}
           </div>
         </div>
 
@@ -1584,13 +1727,92 @@ function LakeDetails() {
           </div>
 
           <div style={cardStyle}>
-            <h2 style={sectionTitleStyle}>
-              <FaCloudSun />
-              Forecast and fishing index
-            </h2>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", flexWrap: "wrap", marginBottom: "14px" }}>
+              <h2 style={{ ...sectionTitleStyle, margin: 0 }}>
+                <FaCloudSun />
+                Forecast and fishing index
+                <span style={{ fontSize: 12, fontWeight: 900, color: "#2563eb", background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 999, padding: "4px 9px" }}>
+                  {displayedForecastDateLabel}
+                </span>
+              </h2>
+              <button
+                type="button"
+                onClick={loadWeeklyForecast}
+                disabled={weeklyForecastLoading || isPremiumRequired}
+                style={{
+                  border: "none",
+                  background: showWeeklyForecast ? "#0f172a" : "#2563eb",
+                  color: "white",
+                  borderRadius: "999px",
+                  padding: "9px 13px",
+                  fontWeight: 800,
+                  cursor: weeklyForecastLoading || isPremiumRequired ? "not-allowed" : "pointer",
+                  opacity: weeklyForecastLoading || isPremiumRequired ? 0.65 : 1,
+                }}
+              >
+                {weeklyForecastLoading ? "Loading week..." : showWeeklyForecast ? "Hide weekly" : "Show weekly"}
+              </button>
+            </div>
 
             {forecast ? (
               <>
+                {showWeeklyForecast && (
+                  <div
+                    style={{
+                      background: "#f8fafc",
+                      border: "1px solid #e2e8f0",
+                      borderRadius: "14px",
+                      padding: "14px",
+                      marginTop: "12px",
+                      marginBottom: "14px",
+                    }}
+                  >
+                    <div style={{ fontWeight: 900, color: "#0f172a", marginBottom: "10px" }}>
+                      Pick forecast date
+                    </div>
+
+                    {weeklyForecastError ? (
+                      <div style={{ color: "#9a3412", fontWeight: 700 }}>{weeklyForecastError}</div>
+                    ) : weeklyForecastLoading ? (
+                      <div style={{ color: "#64748b", fontWeight: 700 }}>Loading forecast dates...</div>
+                    ) : weeklyForecast.length ? (
+                      <div
+                        style={{
+                          display: "grid",
+                          gridTemplateColumns: isMobile ? "repeat(2, minmax(0, 1fr))" : "repeat(7, minmax(0, 1fr))",
+                          gap: "8px",
+                        }}
+                      >
+                        {weeklyForecast.slice(0, 7).map((day) => {
+                          const isActive = day.date === displayedForecast?.date;
+                          return (
+                            <button
+                              type="button"
+                              key={day.date}
+                              onClick={() => setSelectedWeeklyForecastDate(day.date)}
+                              style={{
+                                border: isActive ? "1px solid #2563eb" : "1px solid #dbe3ef",
+                                background: isActive ? "#2563eb" : "#fff",
+                                color: isActive ? "#fff" : "#0f172a",
+                                borderRadius: "12px",
+                                padding: "10px 8px",
+                                cursor: "pointer",
+                                fontWeight: 900,
+                                textAlign: "center",
+                                boxShadow: isActive ? "0 10px 22px rgba(37, 99, 235, 0.22)" : "none",
+                              }}
+                            >
+                              <span style={{ display: "block", fontSize: "12px" }}>{formatForecastDay(day.date)}</span>
+                              <span style={{ display: "block", fontSize: "16px", marginTop: 3 }}>{day.total_score ?? 0}%</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div style={{ color: "#64748b", fontWeight: 700 }}>No forecast dates available.</div>
+                    )}
+                  </div>
+                )}
                 <div
                   style={{
                     display: "grid",
@@ -1623,7 +1845,7 @@ function LakeDetails() {
                         color: "#0f172a",
                       }}
                     >
-                      {forecast.desc || "Not available"}
+                      {displayedForecast?.desc || "Not available"}
                     </div>
                   </div>
 
@@ -1651,7 +1873,7 @@ function LakeDetails() {
                         color: "#0f766e",
                       }}
                     >
-                      {forecast.total_score ?? 0}%
+                      {displayedForecast?.total_score ?? 0}%
                     </div>
                   </div>
                 </div>
@@ -1689,7 +1911,7 @@ function LakeDetails() {
                       }}
                     >
                       <FaTemperatureHigh style={{ marginRight: "8px" }} />
-                      {forecast.temp ?? "-"} °C
+                      {formatForecastNumber(displayedForecast?.temp, 1)} °C
                     </div>
                   </div>
 
@@ -1718,7 +1940,7 @@ function LakeDetails() {
                       }}
                     >
                       <FaWind style={{ marginRight: "8px" }} />
-                      {forecast.wind ?? "-"} m/s
+                      {formatForecastNumber(displayedForecast?.wind, 1)} m/s
                     </div>
                   </div>
 
@@ -1746,7 +1968,7 @@ function LakeDetails() {
                         color: "#0f172a",
                       }}
                     >
-                      {forecast.pressure ?? "-"} hPa
+                      {formatForecastNumber(displayedForecast?.pressure, 0)} hPa
                     </div>
                   </div>
 
@@ -1775,12 +1997,12 @@ function LakeDetails() {
                       }}
                     >
                       <FaWater style={{ marginRight: "8px" }} />
-                      {forecast.location || "Unknown"}
+                      {displayedForecast?.location || forecast?.location || "Unknown"}
                     </div>
                   </div>
                 </div>
 
-                {forecast.breakdown && (
+                {displayedForecast?.breakdown && (
                   <div
                     style={{
                       background: "#f8fafc",
@@ -1805,14 +2027,14 @@ function LakeDetails() {
                         lineHeight: 1.8,
                       }}
                     >
-                      Weather score: {forecast.breakdown.weather_score ?? "-"} / 100
+                      Weather score: {displayedForecastBreakdown.weather_score ?? "-"} / 100
                       <br />
-                      Moon score: {forecast.breakdown.moon_score ?? "-"} / 100
+                      Moon score: {displayedForecastBreakdown.moon_score ?? "-"} / 100
                     </div>
                   </div>
                 )}
 
-                {forecast.explanation && (
+                {displayedForecast?.explanation && (
                   <div
                     style={{
                       background: "#f0fdf4",
@@ -1825,19 +2047,32 @@ function LakeDetails() {
                     <div style={{ fontWeight: 800, color: "#14532d", marginBottom: "8px" }}>
                       Why this score?
                     </div>
-                    {forecast.explanation.summary ? (
+                    {displayedForecast.explanation.summary ? (
                       <div style={{ fontSize: "14px", color: "#166534", fontWeight: 700, marginBottom: "8px" }}>
-                        {forecast.explanation.summary}
+                        {displayedForecast.explanation.summary}
                       </div>
                     ) : null}
                     <ul style={{ margin: 0, paddingLeft: "18px", color: "#166534", fontSize: "14px", lineHeight: 1.7 }}>
-                      {[...(forecast.explanation.reasons || []), ...(forecast.explanation.warnings || [])].slice(0, 5).map((reason, reasonIndex) => (
+                      {[...(displayedForecast.explanation.reasons || []), ...(displayedForecast.explanation.warnings || [])].slice(0, 5).map((reason, reasonIndex) => (
                         <li key={`${reason}-${reasonIndex}`}>{reason}</li>
                       ))}
                     </ul>
                   </div>
                 )}
+
+
               </>
+            ) : isPremiumRequired ? (
+              <PremiumLockedCard
+                title="Forecast Score: Premium Required"
+                message="Unlock the full AI fishing forecast for this lake, including the score, weather conditions, and explanation."
+                bullets={[
+                  "Full fishing index and forecast score",
+                  "Daily prediction details",
+                  "AI explanation and smart alert access",
+                ]}
+                onUpgrade={goToBilling}
+              />
             ) : forecastError ? (
               <div
                 style={{
@@ -2004,17 +2239,10 @@ function LakeDetails() {
                       )}
 
                       {item.image_url && (
-                        <img
+                        <ZoomableImage
                           src={`http://localhost:5000/uploads/${item.image_url}`}
                           alt={item.species || "Catch"}
-                          style={{
-                            width: "100%",
-                            maxHeight: "280px",
-                            objectFit: "cover",
-                            borderRadius: "12px",
-                            marginTop: "12px",
-                            border: "1px solid #e5e7eb",
-                          }}
+                          imageClassName={styles.catchImage}
                         />
                       )}
                     </div>
@@ -2061,15 +2289,10 @@ function LakeDetails() {
                       background: "#fff",
                     }}
                   >
-                    <img
+                    <ZoomableImage
                       src={`http://localhost:5000/uploads/${photo.image_url}`}
                       alt={photo.caption || "Lake photo"}
-                      style={{
-                        width: "100%",
-                        height: "180px",
-                        objectFit: "cover",
-                        display: "block",
-                      }}
+                      imageClassName={styles.galleryImage}
                     />
                     <div style={{ padding: "12px" }}>
                       <div

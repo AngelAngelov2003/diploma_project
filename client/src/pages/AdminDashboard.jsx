@@ -9,13 +9,19 @@ import {
   FaSave,
   FaFileAlt,
   FaShieldAlt,
+  FaFish,
+  FaImages,
 } from "react-icons/fa";
 import {
+  deleteAdminCatchLog,
+  deleteAdminGalleryPhoto,
   deleteAdminOwnerClaimRequest,
   deleteAdminReview,
   deleteAdminUser,
   deleteAdminWaterBody,
   getAdminAnalytics,
+  getAdminCatchLogs,
+  getAdminGalleryPhotos,
   getAdminOwnerClaimRequests,
   getAdminReviews,
   getAdminUsers,
@@ -35,6 +41,7 @@ import SearchInput from "../components/ui/SearchInput";
 import SectionHeader from "../components/ui/SectionHeader";
 import StatCard from "../components/ui/StatCard";
 import StatusBadge from "../components/ui/StatusBadge";
+import ZoomableImage from "../components/ui/ZoomableImage";
 import TabButton from "../components/ui/TabButton";
 import { formatDateTime } from "../utils/date";
 
@@ -105,23 +112,38 @@ const getUploadUrl = (proofDocumentUrl) => {
 
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState("overview");
+  const [isMobile, setIsMobile] = useState(() =>
+    typeof window !== "undefined" ? window.innerWidth <= 768 : false,
+  );
+
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth <= 768);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
 
   const [analytics, setAnalytics] = useState(null);
   const [waterBodies, setWaterBodies] = useState([]);
   const [users, setUsers] = useState([]);
   const [reviews, setReviews] = useState([]);
+  const [catchLogs, setCatchLogs] = useState([]);
+  const [galleryPhotos, setGalleryPhotos] = useState([]);
   const [ownerClaimRequests, setOwnerClaimRequests] = useState([]);
 
   const [loadingOverview, setLoadingOverview] = useState(false);
   const [loadingWaterBodies, setLoadingWaterBodies] = useState(false);
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [loadingReviews, setLoadingReviews] = useState(false);
+  const [loadingCatchLogs, setLoadingCatchLogs] = useState(false);
+  const [loadingGalleryPhotos, setLoadingGalleryPhotos] = useState(false);
   const [loadingOwnerClaims, setLoadingOwnerClaims] = useState(false);
 
   const [overviewError, setOverviewError] = useState("");
   const [waterBodiesError, setWaterBodiesError] = useState("");
   const [usersError, setUsersError] = useState("");
   const [reviewsError, setReviewsError] = useState("");
+  const [catchLogsError, setCatchLogsError] = useState("");
+  const [galleryPhotosError, setGalleryPhotosError] = useState("");
   const [ownerClaimsError, setOwnerClaimsError] = useState("");
 
   const [savingWaterBodyId, setSavingWaterBodyId] = useState("");
@@ -132,17 +154,23 @@ export default function AdminDashboard() {
   const [lakeSearch, setLakeSearch] = useState("");
   const [userSearch, setUserSearch] = useState("");
   const [reviewSearch, setReviewSearch] = useState("");
+  const [catchSearch, setCatchSearch] = useState("");
+  const [photoSearch, setPhotoSearch] = useState("");
   const [ownerClaimSearch, setOwnerClaimSearch] = useState("");
   const [ownerClaimStatusFilter, setOwnerClaimStatusFilter] = useState("pending");
 
   const [waterBodiesPage, setWaterBodiesPage] = useState(1);
   const [usersPage, setUsersPage] = useState(1);
   const [reviewsPage, setReviewsPage] = useState(1);
+  const [catchLogsPage, setCatchLogsPage] = useState(1);
+  const [galleryPhotosPage, setGalleryPhotosPage] = useState(1);
   const [ownerClaimsPage, setOwnerClaimsPage] = useState(1);
 
   const waterBodiesSectionRef = useRef(null);
   const usersSectionRef = useRef(null);
   const reviewsSectionRef = useRef(null);
+  const catchLogsSectionRef = useRef(null);
+  const galleryPhotosSectionRef = useRef(null);
   const ownerClaimsSectionRef = useRef(null);
 
   const scrollToSectionTop = (ref) => {
@@ -216,6 +244,36 @@ export default function AdminDashboard() {
     }
   };
 
+  const loadCatchLogs = async () => {
+    try {
+      setLoadingCatchLogs(true);
+      setCatchLogsError("");
+      const data = await getAdminCatchLogs();
+      setCatchLogs(data || []);
+    } catch (error) {
+      setCatchLogsError(error?.response?.data?.error || "Failed to load catch logs");
+      notifyError(error, "Failed to load catch logs");
+      setCatchLogs([]);
+    } finally {
+      setLoadingCatchLogs(false);
+    }
+  };
+
+  const loadGalleryPhotos = async () => {
+    try {
+      setLoadingGalleryPhotos(true);
+      setGalleryPhotosError("");
+      const data = await getAdminGalleryPhotos();
+      setGalleryPhotos(data || []);
+    } catch (error) {
+      setGalleryPhotosError(error?.response?.data?.error || "Failed to load gallery photos");
+      notifyError(error, "Failed to load gallery photos");
+      setGalleryPhotos([]);
+    } finally {
+      setLoadingGalleryPhotos(false);
+    }
+  };
+
   const loadOwnerClaims = async () => {
     try {
       setLoadingOwnerClaims(true);
@@ -238,6 +296,8 @@ export default function AdminDashboard() {
     loadWaterBodies();
     loadUsers();
     loadReviews();
+    loadCatchLogs();
+    loadGalleryPhotos();
     loadOwnerClaims();
   }, []);
 
@@ -293,6 +353,28 @@ export default function AdminDashboard() {
     );
   }, [reviews, reviewSearch]);
 
+  const filteredCatchLogs = useMemo(() => {
+    const query = catchSearch.trim().toLowerCase();
+    if (!query) return catchLogs;
+    return catchLogs.filter((item) =>
+      [item.species, item.notes, item.lake_name, item.full_name, item.email, item.weight_kg, item.catch_time, item.created_at]
+        .map((value) => String(value || "").toLowerCase())
+        .join(" ")
+        .includes(query),
+    );
+  }, [catchLogs, catchSearch]);
+
+  const filteredGalleryPhotos = useMemo(() => {
+    const query = photoSearch.trim().toLowerCase();
+    if (!query) return galleryPhotos;
+    return galleryPhotos.filter((item) =>
+      [item.caption, item.image_url, item.lake_name, item.uploaded_by_name, item.uploaded_by_email, item.created_at]
+        .map((value) => String(value || "").toLowerCase())
+        .join(" ")
+        .includes(query),
+    );
+  }, [galleryPhotos, photoSearch]);
+
   const filteredOwnerClaims = useMemo(() => {
     const query = ownerClaimSearch.trim().toLowerCase();
 
@@ -333,6 +415,14 @@ export default function AdminDashboard() {
   }, [reviewSearch, reviews.length]);
 
   useEffect(() => {
+    setCatchLogsPage(1);
+  }, [catchSearch, catchLogs.length]);
+
+  useEffect(() => {
+    setGalleryPhotosPage(1);
+  }, [photoSearch, galleryPhotos.length]);
+
+  useEffect(() => {
     setOwnerClaimsPage(1);
   }, [ownerClaimSearch, ownerClaimStatusFilter, ownerClaimRequests.length]);
 
@@ -349,6 +439,16 @@ export default function AdminDashboard() {
   const paginatedReviews = useMemo(
     () => paginateItems(filteredReviews, reviewsPage),
     [filteredReviews, reviewsPage],
+  );
+
+  const paginatedCatchLogs = useMemo(
+    () => paginateItems(filteredCatchLogs, catchLogsPage),
+    [filteredCatchLogs, catchLogsPage],
+  );
+
+  const paginatedGalleryPhotos = useMemo(
+    () => paginateItems(filteredGalleryPhotos, galleryPhotosPage),
+    [filteredGalleryPhotos, galleryPhotosPage],
   );
 
   const paginatedOwnerClaims = useMemo(
@@ -494,6 +594,37 @@ export default function AdminDashboard() {
     }
   };
 
+  const deleteCatchLog = async (catchId) => {
+    try {
+      setDeletingId(catchId);
+      await deleteAdminCatchLog(catchId);
+      notifySuccess("Catch log deleted");
+      await loadCatchLogs();
+      await loadOverview();
+    } catch (error) {
+      notifyError(error, "Failed to delete catch log");
+    } finally {
+      setDeletingId("");
+    }
+  };
+
+  const deleteGalleryPhoto = async (photoId) => {
+    try {
+      setDeletingId(photoId);
+      await deleteAdminGalleryPhoto(photoId);
+      notifySuccess("Gallery photo deleted");
+      await loadGalleryPhotos();
+    } catch (error) {
+      notifyError(error, "Failed to delete gallery photo");
+    } finally {
+      setDeletingId("");
+    }
+  };
+
+  const toggleUserBan = async (user) => {
+    await saveUser({ ...user, is_active: !user.is_active });
+  };
+
   const reviewOwnerClaim = async (requestId, status) => {
     try {
       setSavingOwnerClaimId(requestId);
@@ -555,7 +686,7 @@ export default function AdminDashboard() {
           </h1>
         </div>
 
-        <div className={ui.tabRow}>
+        <div className={`${ui.tabRow} ${styles.adminTabRow}`}>
           <TabButton
             active={activeTab === "overview"}
             onClick={() => setActiveTab("overview")}
@@ -589,6 +720,22 @@ export default function AdminDashboard() {
           </TabButton>
 
           <TabButton
+            active={activeTab === "catches"}
+            onClick={() => setActiveTab("catches")}
+            icon={<FaFish />}
+          >
+            Catch Logs
+          </TabButton>
+
+          <TabButton
+            active={activeTab === "gallery-photos"}
+            onClick={() => setActiveTab("gallery-photos")}
+            icon={<FaImages />}
+          >
+            Gallery Photos
+          </TabButton>
+
+          <TabButton
             active={activeTab === "owner-claims"}
             onClick={() => setActiveTab("owner-claims")}
             icon={<FaFileAlt />}
@@ -618,7 +765,7 @@ export default function AdminDashboard() {
                 <div
                   style={{
                     display: "grid",
-                    gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
+                    gridTemplateColumns: isMobile ? "1fr" : "repeat(auto-fit, minmax(300px, 1fr))",
                     gap: 16,
                   }}
                 >
@@ -766,7 +913,7 @@ export default function AdminDashboard() {
                       <div
                         style={{
                           display: "grid",
-                          gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+                          gridTemplateColumns: isMobile ? "1fr" : "repeat(auto-fit, minmax(220px, 1fr))",
                           gap: 12,
                         }}
                       >
@@ -999,7 +1146,7 @@ export default function AdminDashboard() {
                       <div
                         style={{
                           display: "grid",
-                          gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+                          gridTemplateColumns: isMobile ? "1fr" : "repeat(auto-fit, minmax(220px, 1fr))",
                           gap: 12,
                         }}
                       >
@@ -1091,6 +1238,15 @@ export default function AdminDashboard() {
                           >
                             <FaSave className={ui.buttonIcon} />
                             {savingUserId === user.id ? "Saving..." : "Save"}
+                          </ActionButton>
+
+                          <ActionButton
+                            type="button"
+                            disabled={savingUserId === user.id}
+                            onClick={() => toggleUserBan(user)}
+                            tone={user.is_active ? "danger" : "neutral"}
+                          >
+                            {user.is_active ? "Ban user" : "Unban user"}
                           </ActionButton>
 
                           <ActionButton
@@ -1246,6 +1402,165 @@ export default function AdminDashboard() {
                   onPageChange={(page) => {
                     setReviewsPage(page);
                     scrollToSectionTop(reviewsSectionRef);
+                  }}
+                />
+              </>
+            )}
+          </div>
+        )}
+
+
+        {activeTab === "catches" && (
+          <div ref={catchLogsSectionRef} className={styles.card}>
+            <SectionHeader
+              title="Moderate Catch Logs"
+              action={
+                <SearchInput
+                  value={catchSearch}
+                  onChange={(e) => setCatchSearch(e.target.value)}
+                  placeholder="Search by user, email, lake, species, notes..."
+                />
+              }
+            />
+
+            <div className={styles.muted} style={{ marginBottom: 12 }}>
+              Search supports user name, email, lake, species, notes, weight, and date.
+            </div>
+
+            {catchLogsError ? (
+              renderError(catchLogsError, loadCatchLogs)
+            ) : loadingCatchLogs ? (
+              <div className={styles.muted}>Loading catch logs...</div>
+            ) : !filteredCatchLogs.length ? (
+              <div className={styles.muted}>No catch logs found.</div>
+            ) : (
+              <>
+                <div style={{ display: "grid", gap: 12 }}>
+                  {paginatedCatchLogs.items.map((item) => {
+                    const imageUrl = item.image_url ? getUploadUrl(item.image_url) : null;
+                    return (
+                      <div key={item.id} style={{ border: "1px solid #e5e7eb", borderRadius: 14, padding: 14, background: "#fff", display: "grid", gridTemplateColumns: isMobile ? "1fr" : "120px 1fr auto", gap: 12, alignItems: "start" }}>
+                        {imageUrl ? (
+                          <ZoomableImage src={imageUrl} alt={item.species || "Catch photo"} imageClassName={styles.adminThumb} />
+                        ) : (
+                          <div className={styles.adminThumbPlaceholder}><FaFish /></div>
+                        )}
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontWeight: 900, color: "#0f172a" }}>{item.species || "Unknown species"} · {item.weight_kg ?? "-"} kg</div>
+                          <div className={ui.metaText}>Lake: {item.lake_name || "Unknown lake"}</div>
+                          <div className={ui.metaText}>User: {item.full_name || "Unknown user"} {item.email ? `(${item.email})` : ""}</div>
+                          <div className={ui.metaText}>Created: {formatDateTime(item.catch_time || item.created_at)}</div>
+                          {item.notes ? <div style={{ marginTop: 8, color: "#334155", lineHeight: 1.5 }}>{item.notes}</div> : null}
+                        </div>
+                        <div className={ui.buttonRow}>
+                          <ActionButton type="button" disabled={deletingId === item.id} onClick={() => deleteCatchLog(item.id)} tone="danger">
+                            <FaTrash className={ui.buttonIcon} />
+                            {deletingId === item.id ? "Deleting..." : "Delete"}
+                          </ActionButton>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <Pagination
+                  currentPage={paginatedCatchLogs.currentPage}
+                  totalPages={paginatedCatchLogs.totalPages}
+                  totalItems={paginatedCatchLogs.totalItems}
+                  startIndex={paginatedCatchLogs.startIndex}
+                  endIndex={paginatedCatchLogs.endIndex}
+                  onPageChange={(page) => {
+                    setCatchLogsPage(page);
+                    scrollToSectionTop(catchLogsSectionRef);
+                  }}
+                />
+              </>
+            )}
+          </div>
+        )}
+
+        {activeTab === "gallery-photos" && (
+          <div ref={galleryPhotosSectionRef} className={styles.card}>
+            <SectionHeader
+              title="Moderate Gallery Photos"
+              action={
+                <SearchInput
+                  value={photoSearch}
+                  onChange={(e) => setPhotoSearch(e.target.value)}
+                  placeholder="Search by lake, uploader, email, caption..."
+                />
+              }
+            />
+
+            <div className={styles.muted} style={{ marginBottom: 12 }}>
+              Search supports lake name, uploader name, uploader email, caption, file path, and date.
+            </div>
+
+            {galleryPhotosError ? (
+              renderError(galleryPhotosError, loadGalleryPhotos)
+            ) : loadingGalleryPhotos ? (
+              <div className={styles.muted}>Loading gallery photos...</div>
+            ) : !filteredGalleryPhotos.length ? (
+              <div className={styles.muted}>No gallery photos found.</div>
+            ) : (
+              <>
+                <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(auto-fill, minmax(240px, 1fr))", gap: 14 }}>
+                  {paginatedGalleryPhotos.items.map((photo) => {
+                    const imageUrl = photo.image_url ? getUploadUrl(photo.image_url) : null;
+                    return (
+                      <div key={photo.id} style={{ border: "1px solid #e5e7eb", borderRadius: 14, overflow: "hidden", background: "#fff", position: "relative" }}>
+                        <button
+                          type="button"
+                          disabled={deletingId === photo.id}
+                          onClick={() => deleteGalleryPhoto(photo.id)}
+                          title="Delete photo"
+                          style={{
+                            position: "absolute",
+                            top: 10,
+                            right: 10,
+                            zIndex: 2,
+                            border: 0,
+                            borderRadius: 999,
+                            background: "rgba(220, 38, 38, 0.92)",
+                            color: "white",
+                            width: 36,
+                            height: 36,
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            cursor: deletingId === photo.id ? "not-allowed" : "pointer",
+                            boxShadow: "0 10px 24px rgba(15, 23, 42, 0.22)",
+                          }}
+                        >
+                          <FaTrash />
+                        </button>
+                        {imageUrl ? (
+                          <ZoomableImage src={imageUrl} alt={photo.caption || "Gallery photo"} imageClassName={styles.adminPhoto} />
+                        ) : null}
+                        <div style={{ padding: 12, display: "grid", gap: 6 }}>
+                          <div style={{ fontWeight: 900, color: "#0f172a" }}>{photo.caption || "Lake photo"}</div>
+                          <div className={ui.metaText}>Lake: {photo.lake_name || "Unknown lake"}</div>
+                          <div className={ui.metaText}>Uploaded by: {photo.uploaded_by_name || "Unknown"}</div>
+                          <div className={ui.metaText}>{formatDateTime(photo.created_at)}</div>
+                          <ActionButton type="button" disabled={deletingId === photo.id} onClick={() => deleteGalleryPhoto(photo.id)} tone="danger">
+                            <FaTrash className={ui.buttonIcon} />
+                            {deletingId === photo.id ? "Deleting..." : "Delete photo"}
+                          </ActionButton>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <Pagination
+                  currentPage={paginatedGalleryPhotos.currentPage}
+                  totalPages={paginatedGalleryPhotos.totalPages}
+                  totalItems={paginatedGalleryPhotos.totalItems}
+                  startIndex={paginatedGalleryPhotos.startIndex}
+                  endIndex={paginatedGalleryPhotos.endIndex}
+                  onPageChange={(page) => {
+                    setGalleryPhotosPage(page);
+                    scrollToSectionTop(galleryPhotosSectionRef);
                   }}
                 />
               </>

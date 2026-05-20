@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import Pagination from "../components/ui/Pagination";
+import PremiumLockedCard from "../components/common/PremiumLockedCard";
 import { useNavigate } from "react-router-dom";
 import {
   FaBell,
@@ -99,6 +100,7 @@ export default function SavedLakesPage({ initialTab = "all" }) {
   const [savingId, setSavingId] = useState("");
   const [search, setSearch] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
+  const [premiumPromptItem, setPremiumPromptItem] = useState(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -213,7 +215,12 @@ export default function SavedLakesPage({ initialTab = "all" }) {
       });
       notifySuccess("Alert enabled");
     } catch (error) {
-      notifyError(error, "Failed to enable alert");
+      if (error?.response?.data?.code === "PREMIUM_REQUIRED") {
+        setPremiumPromptItem(item);
+        notifyError(null, "Premium subscription required for smart alerts. Open Billing / Premium from the menu.");
+      } else {
+        notifyError(error, "Failed to enable alert");
+      }
     } finally {
       setSavingId("");
     }
@@ -386,6 +393,19 @@ export default function SavedLakesPage({ initialTab = "all" }) {
             </div>
           </div>
         </section>
+
+        {premiumPromptItem ? (
+          <PremiumLockedCard
+            className={styles.premiumLockPanel}
+            title="Smart alerts are Premium"
+            message={`Upgrade to enable automatic forecast alerts for${
+              premiumPromptItem?.lake_name ? ` ${premiumPromptItem.lake_name}` : " saved lakes"
+            }.`}
+            bullets={["Daily or weekly forecast emails", "Minimum score alert thresholds", "Smart notifications for saved lakes"]}
+            onUpgrade={() => navigate("/billing")}
+            onClose={() => setPremiumPromptItem(null)}
+          />
+        ) : null}
 
         {!visibleItems.length ? (
           <div className={styles.emptyState}>

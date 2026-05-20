@@ -23,10 +23,12 @@ import OwnerPanel from "./pages/OwnerPanel";
 import BecomeOwner from "./pages/BecomeOwner";
 import AdminDashboard from "./pages/AdminDashboard";
 import Profile from "./pages/Profile";
+import BillingPage from "./pages/BillingPage";
 import { getCurrentUser } from "./api/authApi";
 import { AUTH_EXPIRED_EVENT } from "./api/client";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+import { notifyInfo } from "./ui/toast";
 
 const shouldResetToMapOnReload = () => {
   if (typeof window === "undefined") {
@@ -118,6 +120,23 @@ function App() {
     loadCurrentUser();
   }, [isAuthenticated, currentUser]);
 
+  useEffect(() => {
+    if (!authChecked || !isAuthenticated || !currentUser?.id || !currentUser?.role) {
+      return;
+    }
+
+    const storageKey = `fishing-atlas-last-role-${currentUser.id}`;
+    const previousRole = localStorage.getItem(storageKey);
+    const currentRole = String(currentUser.role).toLowerCase();
+
+    if (previousRole && previousRole !== "owner" && currentRole === "owner") {
+      notifyInfo("Your owner request was approved. Owner Panel is now available.");
+      sessionStorage.setItem(`fishing-atlas-owner-new-${currentUser.id}`, "1");
+    }
+
+    localStorage.setItem(storageKey, currentRole);
+  }, [authChecked, isAuthenticated, currentUser?.id, currentUser?.role]);
+
   const handleLogout = () => {
     localStorage.removeItem("token");
     setCurrentUser(null);
@@ -169,6 +188,7 @@ function App() {
         <Route element={<ProtectedRoute isAuthenticated={isAuthenticated} />}>
           <Route path="/" element={<FishingMap />} />
           <Route path="/profile" element={<Profile setCurrentUser={setCurrentUser} />} />
+          <Route path="/billing" element={<BillingPage />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/catches" element={<MyCatches />} />
           <Route path="/saved-lakes" element={<SavedLakesPage />} />
@@ -190,6 +210,7 @@ function App() {
           }
         >
           <Route path="/owner" element={<OwnerPanel />} />
+          <Route path="/owner/billing" element={<Navigate to="/owner" replace />} />
         </Route>
 
         <Route

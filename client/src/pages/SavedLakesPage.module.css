@@ -608,3 +608,145 @@
     justify-content: flex-start;
   }
 }
+
+.premiumLockPanel {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(135deg, #eff6ff 0%, #f8fafc 48%, #fff7ed 100%);
+  border: 1px solid #bfdbfe;
+  border-radius: 24px;
+  padding: 20px;
+  box-shadow: 0 18px 42px rgba(37, 99, 235, 0.14);
+}
+
+.premiumLockPanel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at top right, rgba(37, 99, 235, 0.18), transparent 35%),
+    radial-gradient(circle at bottom left, rgba(245, 158, 11, 0.16), transparent 32%);
+  pointer-events: none;
+}
+
+.premiumLockPanel > * {
+  position: relative;
+  z-index: 1;
+}
+
+.premiumCloseButton {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  color: #64748b;
+  cursor: pointer;
+  font-size: 22px;
+  line-height: 1;
+}
+
+.premiumBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: #1d4ed8;
+  color: white;
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 900;
+  margin-bottom: 14px;
+}
+
+.premiumLockContent {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.premiumLockIcon {
+  width: 48px;
+  height: 48px;
+  border-radius: 16px;
+  background: rgba(37, 99, 235, 0.12);
+  color: #1d4ed8;
+  display: grid;
+  place-items: center;
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
+.premiumLockContent h3 {
+  margin: 0 0 8px;
+  color: #0f172a;
+  font-size: 20px;
+}
+
+.premiumLockContent p {
+  margin: 0 0 10px;
+  color: #475569;
+  line-height: 1.55;
+  font-weight: 650;
+}
+
+.premiumLockContent ul {
+  margin: 0 0 14px;
+  padding-left: 18px;
+  color: #334155;
+  font-weight: 750;
+  line-height: 1.7;
+}
+
+.premiumUpgradeButton {
+  border: none;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  color: white;
+  padding: 12px 16px;
+  font-weight: 900;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  box-shadow: 0 12px 24px rgba(37, 99, 235, 0.24);
+}
+
+/* Compact mobile saved-lake filters */
+@media (max-width: 640px) {
+  .panel {
+    padding: 14px;
+    border-radius: 18px;
+  }
+
+  .searchInput {
+    padding: 12px 14px;
+    border-radius: 14px;
+  }
+
+  .filterRow {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .filterButton,
+  .refreshButton {
+    min-height: 40px;
+    padding: 9px 10px;
+    border-radius: 12px;
+    font-size: 0.86rem;
+  }
+
+  .refreshButton {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 360px) {
+  .filterRow {
+    grid-template-columns: 1fr;
+  }
+}

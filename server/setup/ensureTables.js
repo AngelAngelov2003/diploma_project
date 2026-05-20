@@ -5,6 +5,62 @@ const ensureUserNotificationPreferencesTable = async () => {};
 const ensureLakeOwnerClaimRequestsTable = async () => {};
 const ensureSubscriptionDeliveriesTable = async () => {};
 
+
+const ensureBillingTables = async () => {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS user_billing_profiles (
+      user_id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+      stripe_customer_id TEXT UNIQUE,
+      stripe_subscription_id TEXT,
+      subscription_tier TEXT NOT NULL DEFAULT 'free',
+      subscription_status TEXT NOT NULL DEFAULT 'inactive',
+      current_period_end TIMESTAMP,
+      created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+    )
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS owner_billing_profiles (
+      owner_id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+      stripe_customer_id TEXT UNIQUE,
+      stripe_subscription_id TEXT,
+      owner_plan TEXT NOT NULL DEFAULT 'free',
+      subscription_status TEXT NOT NULL DEFAULT 'inactive',
+      current_period_end TIMESTAMP,
+      stripe_connected_account_id TEXT UNIQUE,
+      connect_onboarding_status TEXT NOT NULL DEFAULT 'not_started',
+      charges_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+      payouts_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+      details_submitted BOOLEAN NOT NULL DEFAULT FALSE,
+      created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+    )
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS stripe_webhook_events (
+      stripe_event_id TEXT PRIMARY KEY,
+      type TEXT NOT NULL,
+      payload JSONB,
+      processed_at TIMESTAMP NOT NULL DEFAULT NOW()
+    )
+  `);
+
+  await pool.query(`
+    INSERT INTO user_billing_profiles (user_id)
+    SELECT id FROM users
+    ON CONFLICT (user_id) DO NOTHING
+  `);
+
+  await pool.query(`
+    INSERT INTO owner_billing_profiles (owner_id)
+    SELECT id FROM users
+    WHERE LOWER(COALESCE(role, '')) IN ('owner', 'admin')
+    ON CONFLICT (owner_id) DO NOTHING
+  `);
+};
+
 const ensureReservationDomainTables = async () => {
   await pool.query(`
     ALTER TABLE water_bodies
@@ -108,6 +164,17 @@ const ensureReservationDomainTables = async () => {
 
   await pool.query(`
     ALTER TABLE lake_reservations
+    DROP CONSTRAINT IF EXISTS lake_reservations_status_check
+  `);
+
+  await pool.query(`
+    ALTER TABLE lake_reservations
+    ADD CONSTRAINT lake_reservations_status_check
+    CHECK (status IN ('pending', 'approved', 'approved_waiting_payment', 'rejected', 'cancelled', 'canceled'))
+  `);
+
+  await pool.query(`
+    ALTER TABLE lake_reservations
     ADD COLUMN IF NOT EXISTS start_date DATE,
     ADD COLUMN IF NOT EXISTS end_date DATE,
     ADD COLUMN IF NOT EXISTS sector_id UUID REFERENCES lake_sectors(id) ON DELETE SET NULL,
@@ -119,11 +186,15 @@ const ensureReservationDomainTables = async () => {
     ADD COLUMN IF NOT EXISTS rooms_amount NUMERIC(10,2) NOT NULL DEFAULT 0,
     ADD COLUMN IF NOT EXISTS total_amount NUMERIC(10,2) NOT NULL DEFAULT 0,
     ADD COLUMN IF NOT EXISTS payment_status TEXT NOT NULL DEFAULT 'unpaid',
+    ADD COLUMN IF NOT EXISTS payment_method TEXT NOT NULL DEFAULT 'on_arrival',
     ADD COLUMN IF NOT EXISTS payment_required BOOLEAN NOT NULL DEFAULT FALSE,
     ADD COLUMN IF NOT EXISTS platform_fee_amount NUMERIC(10,2) NOT NULL DEFAULT 0,
     ADD COLUMN IF NOT EXISTS owner_amount NUMERIC(10,2) NOT NULL DEFAULT 0,
     ADD COLUMN IF NOT EXISTS snapshot_price_per_day NUMERIC(10,2) NOT NULL DEFAULT 0,
-    ADD COLUMN IF NOT EXISTS snapshot_night_fishing_price NUMERIC(10,2) NOT NULL DEFAULT 0
+    ADD COLUMN IF NOT EXISTS snapshot_night_fishing_price NUMERIC(10,2) NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS stripe_checkout_session_id TEXT,
+    ADD COLUMN IF NOT EXISTS stripe_payment_intent_id TEXT,
+    ADD COLUMN IF NOT EXISTS paid_at TIMESTAMP
   `);
 
   await pool.query(`
@@ -188,6 +259,44 @@ const ensureReservationDomainTables = async () => {
     )
   `);
 
+
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS reservation_payments (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      reservation_id UUID NOT NULL REFERENCES lake_reservations(id) ON DELETE CASCADE,
+      user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      owner_id UUID REFERENCES users(id) ON DELETE SET NULL,
+      water_body_id UUID NOT NULL REFERENCES water_bodies(id) ON DELETE CASCADE,
+      stripe_checkout_session_id TEXT UNIQUE,
+      stripe_payment_intent_id TEXT,
+      stripe_connected_account_id TEXT,
+      currency TEXT NOT NULL DEFAULT 'eur',
+      amount_total NUMERIC(10,2) NOT NULL DEFAULT 0,
+      platform_fee_amount NUMERIC(10,2) NOT NULL DEFAULT 0,
+      owner_amount NUMERIC(10,2) NOT NULL DEFAULT 0,
+      status TEXT NOT NULL DEFAULT 'pending',
+      created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+      paid_at TIMESTAMP
+    )
+  `);
+
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_reservation_payments_reservation_id
+    ON reservation_payments (reservation_id)
+  `);
+
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_reservation_payments_owner_id
+    ON reservation_payments (owner_id)
+  `);
+
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_reservation_payments_status
+    ON reservation_payments (status)
+  `);
+
   await pool.query(`
     CREATE INDEX IF NOT EXISTS idx_lake_sectors_water_body_id
     ON lake_sectors (water_body_id)
@@ -249,5 +358,6 @@ module.exports = {
   ensureUserNotificationPreferencesTable,
   ensureLakeOwnerClaimRequestsTable,
   ensureSubscriptionDeliveriesTable,
+  ensureBillingTables,
   ensureReservationDomainTables,
 };

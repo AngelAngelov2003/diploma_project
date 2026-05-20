@@ -72,3 +72,104 @@
     font-size: 16px;
   }
 }
+
+/* Extra phone polish for admin cards and tables */
+@media (max-width: 768px) {
+  .statsGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .card,
+  .statCard {
+    padding: 14px;
+  }
+}
+
+@media (max-width: 480px) {
+  .page {
+    padding: 10px 8px;
+  }
+}
+
+.adminThumb,
+.adminPhoto {
+  width: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.adminThumb {
+  height: 110px;
+  border-radius: 12px;
+}
+
+.adminPhoto {
+  height: 170px;
+}
+
+.adminThumbPlaceholder {
+  width: 100%;
+  min-height: 110px;
+  border-radius: 12px;
+  background: #f1f5f9;
+  color: #64748b;
+  display: grid;
+  place-items: center;
+  font-size: 28px;
+}
+
+@media (max-width: 640px) {
+  .adminThumb {
+    height: 180px;
+  }
+}
+
+/* More compact admin overview on phones */
+@media (max-width: 768px) {
+  .statsGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .statCard {
+    padding: 12px;
+    border-radius: 14px;
+  }
+}
+
+@media (max-width: 360px) {
+  .statsGrid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* Admin tabs need to stay touch-friendly, but not consume a full phone screen. */
+@media (max-width: 768px) {
+  .adminTabRow {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+
+  .adminTabRow :global(button) {
+    min-height: 38px;
+    padding: 8px 10px;
+    border-radius: 13px;
+    font-size: 13px;
+    line-height: 1.15;
+    gap: 6px;
+  }
+
+  .adminTabRow :global(svg) {
+    width: 13px;
+    height: 13px;
+    flex: 0 0 auto;
+  }
+}
+
+@media (max-width: 380px) {
+  .adminTabRow {
+    grid-template-columns: 1fr;
+  }
+}

@@ -1,8 +1,13 @@
-.filtersGrid {
+.filtersBlock {
   margin-top: 14px;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 12px;
+}
+
+.filtersGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
   align-items: end;
 }
 .filtersGridDisabled {
@@ -23,9 +28,20 @@
   box-sizing: border-box;
   background: white;
 }
+
+.dateRangeField {
+  min-width: 0;
+}
+
+.actionsRow {
+  display: flex;
+  justify-content: flex-end;
+}
+
 .clearButton {
-  width: 100%;
-  padding: 10px 12px;
+  width: auto;
+  min-width: 150px;
+  padding: 10px 16px;
   border-radius: 10px;
   border: 1px solid #d1d5db;
   background: white;
@@ -35,4 +51,25 @@
 }
 .clearButton:disabled {
   cursor: not-allowed;
+}
+
+
+@media (max-width: 1050px) {
+  .filtersGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .filtersGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .actionsRow {
+    justify-content: stretch;
+  }
+
+  .clearButton {
+    width: 100%;
+  }
 }

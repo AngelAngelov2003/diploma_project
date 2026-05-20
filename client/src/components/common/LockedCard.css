@@ -1,0 +1,227 @@
+.locked-card {
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  border-radius: 16px;
+  padding: 20px;
+}
+
+.locked-card--compact {
+  padding: 16px;
+}
+
+.locked-card--premium {
+  border: 1px solid #bfdbfe;
+  background: linear-gradient(135deg, #eff6ff 0%, #f8fafc 48%, #fff7ed 100%);
+  box-shadow: 0 16px 36px rgba(37, 99, 235, 0.12);
+}
+
+.locked-card--owner {
+  border: 1px solid #bbf7d0;
+  background: linear-gradient(135deg, #f0fdf4 0%, #f8fafc 52%, #ecfeff 100%);
+  box-shadow: 0 16px 36px rgba(22, 163, 74, 0.13);
+}
+
+.locked-card__glow {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.locked-card__glow--premium {
+  background: radial-gradient(circle at top right, rgba(37,99,235,0.18), transparent 32%), radial-gradient(circle at bottom left, rgba(245,158,11,0.16), transparent 30%);
+}
+
+.locked-card__glow--owner {
+  background: radial-gradient(circle at top right, rgba(34,197,94,0.18), transparent 32%), radial-gradient(circle at bottom left, rgba(14,165,233,0.14), transparent 30%);
+}
+
+.locked-card__close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 2;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.84);
+  color: #64748b;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.12);
+}
+
+.locked-card__content {
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+}
+
+.locked-card__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: white;
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+  margin-bottom: 12px;
+}
+
+.locked-card__badge--premium {
+  background: #1d4ed8;
+}
+
+.locked-card__badge--owner {
+  background: #15803d;
+}
+
+.locked-card__layout {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.locked-card--compact .locked-card__layout {
+  grid-template-columns: 1fr;
+}
+
+.locked-card__icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  font-size: 20px;
+  flex: 0 0 auto;
+}
+
+.locked-card__icon--premium {
+  background: rgba(37,99,235,0.12);
+  color: #1d4ed8;
+}
+
+.locked-card__icon--owner {
+  background: rgba(22,163,74,0.12);
+  color: #15803d;
+}
+
+.locked-card__body {
+  min-width: 0;
+}
+
+.locked-card__title {
+  margin: 0 0 8px;
+  color: #0f172a;
+  font-size: 22px;
+  line-height: 1.2;
+}
+
+.locked-card--compact .locked-card__title {
+  font-size: 18px;
+}
+
+.locked-card__message {
+  margin: 0 0 12px;
+  color: #475569;
+  line-height: 1.6;
+  font-weight: 600;
+}
+
+.locked-card__list {
+  list-style: none;
+  margin: 0 0 16px;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+  color: #334155;
+  font-weight: 700;
+}
+
+.locked-card__list li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+}
+
+.locked-card__check {
+  color: #16a34a;
+  flex: 0 0 auto;
+  margin-top: 2px;
+}
+
+.locked-card__button {
+  border: none;
+  border-radius: 12px;
+  color: white;
+  padding: 11px 16px;
+  font-weight: 900;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  max-width: 100%;
+}
+
+.locked-card__button--premium {
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  box-shadow: 0 12px 24px rgba(37, 99, 235, 0.24);
+}
+
+.locked-card__button--owner {
+  background: linear-gradient(135deg, #15803d, #22c55e);
+  box-shadow: 0 12px 24px rgba(22, 163, 74, 0.24);
+}
+
+@media (max-width: 640px) {
+  .locked-card {
+    padding: 16px;
+    border-radius: 14px;
+  }
+
+  .locked-card__layout {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .locked-card__icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+  }
+
+  .locked-card__title {
+    font-size: 18px;
+  }
+
+  .locked-card__message,
+  .locked-card__list {
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  .locked-card__button {
+    width: 100%;
+    padding: 12px 14px;
+  }
+}
+
+@media (max-width: 380px) {
+  .locked-card {
+    padding: 14px;
+  }
+
+  .locked-card__badge {
+    font-size: 11px;
+    padding: 6px 9px;
+  }
+}

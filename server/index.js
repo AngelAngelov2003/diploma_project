@@ -12,6 +12,8 @@ const waterBodyRoutes = require("./routes/waterBodyRoutes");
 const reservationRoutes = require("./routes/reservationRoutes");
 const ownerRoutes = require("./routes/ownerRoutes");
 const adminRoutes = require("./routes/adminRoutes");
+const billingRoutes = require("./routes/billingRoutes");
+const { stripeWebhook } = require("./controllers/stripeWebhookController");
 
 const {
   ensureAlertJobRunsTable,
@@ -19,6 +21,7 @@ const {
   ensureLakeOwnerClaimRequestsTable,
   ensureSubscriptionDeliveriesTable,
   ensureReservationDomainTables,
+  ensureBillingTables,
 } = require("./setup/ensureTables");
 
 const {
@@ -27,12 +30,31 @@ const {
   runStartupCatchUp,
 } = require("./services/alertService");
 
+const securityHeaders = require("./middleware/securityHeaders");
+const { createRateLimiter } = require("./middleware/rateLimit");
+
 const app = express();
 const PORT = Number(process.env.PORT || 5000);
 
-app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+const allowedOrigins = (process.env.CORS_ORIGIN || process.env.CLIENT_URL || "http://localhost:3000")
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
+app.set("trust proxy", 1);
+app.use(securityHeaders);
+app.use(cors({
+  origin(origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
+    return callback(new Error("Not allowed by CORS"));
+  },
+  credentials: true,
+}));
+
+app.use(createRateLimiter({ windowMs: 60_000, max: 180 }));
+app.post("/stripe/webhook", express.raw({ type: "application/json" }), stripeWebhook);
+app.use(express.json({ limit: "1mb" }));
+app.use(express.urlencoded({ extended: true, limit: "1mb" }));
 
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
@@ -49,14 +71,18 @@ app.use(waterBodyRoutes);
 app.use(reservationRoutes);
 app.use(ownerRoutes);
 app.use(adminRoutes);
+app.use(billingRoutes);
 
 app.use((req, res) => {
   res.status(404).json({ error: "Route not found" });
 });
 
 app.use((err, req, res, next) => {
+  const isUploadError = err?.name === "MulterError" || String(err?.message || "").includes("uploads are allowed") || String(err?.message || "").includes("Owner proof");
+  const status = err.status || (isUploadError ? 400 : 500);
+
   console.error(err);
-  res.status(err.status || 500).json({
+  res.status(status).json({
     error: err.message || "Internal server error",
   });
 });
@@ -67,6 +93,7 @@ const startServer = async () => {
   await ensureLakeOwnerClaimRequestsTable();
   await ensureSubscriptionDeliveriesTable();
   await ensureReservationDomainTables();
+  await ensureBillingTables();
 
   startDailyCron();
   startWeeklyCron();

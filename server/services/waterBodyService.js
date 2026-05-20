@@ -309,8 +309,12 @@ const getWaterBodyById = async (waterBodyId) => {
         dedupe_key,
         price_per_day,
         capacity,
+        spots_count,
         is_reservable,
         availability_notes,
+        allows_night_fishing,
+        night_fishing_price,
+        has_housing,
         created_at,
         updated_at,
         CASE

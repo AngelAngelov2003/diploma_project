@@ -5,6 +5,7 @@ import { notifyError, notifySuccess } from "../ui/toast";
 import {
   cancelReservation,
   getMyReservations,
+  startReservationPayment,
 } from "../api/reservationsApi";
 import ActionButton from "../components/ui/ActionButton";
 import Pagination from "../components/ui/Pagination";
@@ -40,6 +41,18 @@ const canCancelReservation = (item) => {
   if (isReservationPast(item)) return false;
   if (typeof item?.can_cancel === "boolean") return item.can_cancel;
   return ["pending", "approved"].includes(String(item?.status || ""));
+};
+
+const canPayReservation = (item) => {
+  if (isReservationPast(item)) return false;
+  return item?.status === "approved_waiting_payment" && item?.payment_status !== "paid" && Number(item?.total_amount || 0) > 0;
+};
+
+const getPaymentLabel = (item) => {
+  if (item?.payment_status === "paid") return "Paid";
+  if (item?.status === "approved_waiting_payment") return "Waiting payment";
+  if (item?.payment_status === "checkout_started") return "Checkout started";
+  return item?.payment_status || "Manual / unpaid";
 };
 
 const getStatusCount = (items, status) => {
@@ -126,6 +139,7 @@ export default function ReservationsPage() {
   const [myReservations, setMyReservations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [savingId, setSavingId] = useState("");
+  const [payingId, setPayingId] = useState("");
 
   const [myStatusFilter, setMyStatusFilter] = useState("all");
   const [mySearch, setMySearch] = useState("");
@@ -133,6 +147,8 @@ export default function ReservationsPage() {
 
   const mySectionRef = useRef(null);
   const reservationSubmitted = Boolean(location.state?.reservationSubmitted);
+  const paymentSuccess = new URLSearchParams(location.search).get("payment") === "success";
+  const paymentCancelled = new URLSearchParams(location.search).get("payment") === "cancelled";
 
   const scrollToSectionTop = (ref) => {
     setTimeout(() => {
@@ -169,6 +185,22 @@ export default function ReservationsPage() {
       notifyError(error, "Failed to cancel reservation");
     } finally {
       setSavingId("");
+    }
+  };
+
+  const handlePayReservation = async (reservationId) => {
+    try {
+      setPayingId(reservationId);
+      const result = await startReservationPayment(reservationId);
+      if (result?.url) {
+        window.location.href = result.url;
+        return;
+      }
+      notifyError(null, "Stripe checkout URL was not returned");
+    } catch (error) {
+      notifyError(error, "Failed to start payment");
+    } finally {
+      setPayingId("");
     }
   };
 
@@ -209,6 +241,18 @@ export default function ReservationsPage() {
           </div>
         ) : null}
 
+        {paymentSuccess ? (
+          <div className={styles.card} style={{ marginBottom: "16px" }}>
+            Payment completed. If the status has not updated yet, refresh after the Stripe webhook finishes.
+          </div>
+        ) : null}
+
+        {paymentCancelled ? (
+          <div className={styles.card} style={{ marginBottom: "16px" }}>
+            Payment was cancelled. You can start checkout again from the reservation card.
+          </div>
+        ) : null}
+
         <div className={styles.stack}>
           <div ref={mySectionRef} className={styles.card}>
             <div className={styles.sectionHeader}>
@@ -218,7 +262,13 @@ export default function ReservationsPage() {
 
             <div className={styles.filterRow}>
               {MY_STATUS_FILTERS.map((filter) => (
-                <TabButton key={filter.key} active={myStatusFilter === filter.key} onClick={() => setMyStatusFilter(filter.key)} badge={getStatusCount(myReservations, filter.key)}>
+                <TabButton
+                  key={filter.key}
+                  active={myStatusFilter === filter.key}
+                  activeClassName={styles.reservationFilterActive}
+                  onClick={() => setMyStatusFilter(filter.key)}
+                  badge={getStatusCount(myReservations, filter.key)}
+                >
                   {filter.label}
                 </TabButton>
               ))}
@@ -244,6 +294,7 @@ export default function ReservationsPage() {
                             <div className={`${styles.metaText} ${styles.metaChip}`}>Night fishing: {(item.night_fishing_dates || []).length || 0}</div>
                             <div className={`${styles.metaText} ${styles.metaChip}`}>Rooms: {(item.room_names || []).length ? item.room_names.join(", ") : "None"}</div>
                             <div className={`${styles.metaText} ${styles.metaChip}`}>Total: €{Number(item.total_amount || 0).toFixed(2)}</div>
+                            <div className={`${styles.metaText} ${styles.metaChip}`}>Payment: {getPaymentLabel(item)}</div>
                           </div>
                           <div className={`${styles.noteText} ${styles.noteBlock}`}>Notes: {item.notes || "No notes"}</div>
                         </div>
@@ -251,6 +302,11 @@ export default function ReservationsPage() {
                           <StatusBadge status={item.status} />
                           {isReservationPast(item) ? (
                             <div className={styles.metaText}>Past reservation</div>
+                          ) : null}
+                          {canPayReservation(item) ? (
+                            <ActionButton type="button" compact disabled={payingId === item.id} onClick={() => handlePayReservation(item.id)}>
+                              {payingId === item.id ? "Opening..." : "Pay now"}
+                            </ActionButton>
                           ) : null}
                           {canCancelReservation(item) ? (
                             <ActionButton type="button" tone="danger" compact disabled={savingId === item.id} onClick={() => handleCancelReservation(item.id)}>

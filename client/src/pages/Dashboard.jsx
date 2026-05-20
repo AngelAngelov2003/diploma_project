@@ -86,7 +86,7 @@ const StatCard = ({ icon, label, value, subvalue }) => (
       background: "white",
       border: "1px solid #e5e7eb",
       borderRadius: "16px",
-      padding: "18px",
+      padding: "clamp(12px, 3vw, 18px)",
       boxShadow: "0 6px 16px rgba(15,23,42,0.05)",
     }}
   >
@@ -99,10 +99,10 @@ const StatCard = ({ icon, label, value, subvalue }) => (
         marginBottom: "10px",
       }}
     >
-      <div style={{ fontSize: "18px" }}>{icon}</div>
+      <div style={{ fontSize: "clamp(15px, 4vw, 18px)" }}>{icon}</div>
       <div
         style={{
-          fontSize: "13px",
+          fontSize: "clamp(11px, 3vw, 13px)",
           fontWeight: 700,
           color: "#475569",
           textTransform: "uppercase",
@@ -115,7 +115,7 @@ const StatCard = ({ icon, label, value, subvalue }) => (
 
     <div
       style={{
-        fontSize: "28px",
+        fontSize: "clamp(22px, 7vw, 28px)",
         fontWeight: 800,
         color: "#0f172a",
         lineHeight: 1.1,
@@ -125,7 +125,7 @@ const StatCard = ({ icon, label, value, subvalue }) => (
     </div>
 
     {subvalue ? (
-      <div style={{ marginTop: "8px", fontSize: "13px", color: "#64748b" }}>
+      <div style={{ marginTop: "6px", fontSize: "clamp(12px, 3vw, 13px)", color: "#64748b" }}>
         {subvalue}
       </div>
     ) : null}
@@ -138,11 +138,11 @@ const InsightCard = ({ title, children }) => (
       background: "white",
       border: "1px solid #e5e7eb",
       borderRadius: "16px",
-      padding: "18px",
+      padding: "clamp(12px, 3vw, 18px)",
       boxShadow: "0 6px 16px rgba(15,23,42,0.05)",
     }}
   >
-    <h3 style={{ margin: "0 0 14px 0", color: "#0f172a", fontSize: "18px" }}>
+    <h3 style={{ margin: "0 0 12px 0", color: "#0f172a", fontSize: "clamp(16px, 4vw, 18px)" }}>
       {title}
     </h3>
     {children}
@@ -552,8 +552,8 @@ export default function Dashboard() {
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(auto-fit, minmax(220px, 1fr))",
-            gap: "14px",
+            gridTemplateColumns: isMobile ? "repeat(2, minmax(0, 1fr))" : "repeat(auto-fit, minmax(220px, 1fr))",
+            gap: isMobile ? "10px" : "14px",
             marginBottom: "18px",
           }}
         >
@@ -601,7 +601,7 @@ export default function Dashboard() {
           style={{
             display: "grid",
             gridTemplateColumns: isMobile ? "1fr" : "repeat(auto-fit, minmax(300px, 1fr))",
-            gap: "14px",
+            gap: isMobile ? "10px" : "14px",
             marginBottom: "18px",
           }}
         >
@@ -617,7 +617,7 @@ export default function Dashboard() {
                     background: "#eff6ff",
                     border: "1px solid #bfdbfe",
                     borderRadius: "14px",
-                    padding: "14px",
+                    padding: isMobile ? "11px" : "14px",
                   }}
                 >
                   <div
@@ -633,7 +633,7 @@ export default function Dashboard() {
 
                   <div
                     style={{
-                      fontSize: "22px",
+                      fontSize: isMobile ? "19px" : "22px",
                       fontWeight: 800,
                       color: "#0f172a",
                     }}
@@ -671,7 +671,7 @@ export default function Dashboard() {
                       background: "#f8fafc",
                       border: "1px solid #e2e8f0",
                       borderRadius: "12px",
-                      padding: "12px",
+                      padding: isMobile ? "10px" : "12px",
                     }}
                   >
                     <div
@@ -686,7 +686,7 @@ export default function Dashboard() {
                     </div>
                     <div
                       style={{
-                        fontSize: "22px",
+                        fontSize: isMobile ? "19px" : "22px",
                         fontWeight: 800,
                         color: "#0f172a",
                       }}
@@ -700,7 +700,7 @@ export default function Dashboard() {
                       background: "#f8fafc",
                       border: "1px solid #e2e8f0",
                       borderRadius: "12px",
-                      padding: "12px",
+                      padding: isMobile ? "10px" : "12px",
                     }}
                   >
                     <div
@@ -715,7 +715,7 @@ export default function Dashboard() {
                     </div>
                     <div
                       style={{
-                        fontSize: "16px",
+                        fontSize: isMobile ? "15px" : "16px",
                         fontWeight: 800,
                         color: "#0f172a",
                       }}
@@ -754,7 +754,7 @@ export default function Dashboard() {
                     style={{
                       border: "1px solid #e5e7eb",
                       borderRadius: "12px",
-                      padding: "12px",
+                      padding: isMobile ? "10px" : "12px",
                       background: "#fff",
                     }}
                   >
@@ -820,7 +820,7 @@ export default function Dashboard() {
                     style={{
                       border: "1px solid #e5e7eb",
                       borderRadius: "12px",
-                      padding: "12px",
+                      padding: isMobile ? "10px" : "12px",
                       background: "#fff",
                     }}
                   >
@@ -905,9 +905,10 @@ export default function Dashboard() {
           <h2
             style={{
               margin: 0,
+              fontSize: isMobile ? "22px" : "26px",
               display: "flex",
               alignItems: "center",
-              gap: "10px",
+              gap: isMobile ? "8px" : "10px",
               color: "#0f172a",
             }}
           >
@@ -940,7 +941,7 @@ export default function Dashboard() {
               border: "1px solid #f5c6cb",
               padding: "10px 12px",
               borderRadius: "10px",
-              marginBottom: "10px",
+              marginBottom: "clamp(6px, 2vw, 10px)",
               display: "flex",
               alignItems: "center",
               gap: "10px",

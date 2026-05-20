@@ -165,6 +165,13 @@ const getOwnerLakeReservations = async (req, res) => {
         r.night_fishing_amount,
         r.rooms_amount,
         r.total_amount,
+        r.payment_status,
+        r.payment_required,
+        r.platform_fee_amount,
+        r.owner_amount,
+        r.stripe_checkout_session_id,
+        r.stripe_payment_intent_id,
+        r.paid_at,
         r.status,
         r.created_at,
         r.updated_at,
@@ -206,6 +213,85 @@ const getOwnerLakeReservations = async (req, res) => {
     res.json(q.rows);
   } catch (err) {
     res.status(500).json({ error: err.message || 'Failed to load owner reservations' });
+  }
+};
+
+
+const getOwnerLakeEarnings = async (req, res) => {
+  try {
+    await ensureSchema();
+    const lake = await ensureOwnedLake(req.params.waterBodyId, req.user);
+    if (!lake) return res.status(404).json({ error: 'Lake not found or not owned by you' });
+
+    const monthStart = new Date();
+    monthStart.setDate(1);
+    monthStart.setHours(0, 0, 0, 0);
+
+    const summaryQ = await pool.query(`
+      SELECT
+        COALESCE(SUM(total_amount), 0)::numeric AS total_revenue,
+        COALESCE(SUM(platform_fee_amount), 0)::numeric AS platform_fee,
+        COALESCE(SUM(owner_amount), 0)::numeric AS owner_earnings,
+        COUNT(*)::int AS paid_reservations,
+        COALESCE(SUM(CASE WHEN payment_status = 'paid' THEN owner_amount ELSE 0 END), 0)::numeric AS pending_payouts
+      FROM lake_reservations
+      WHERE water_body_id = $1
+        AND payment_status = 'paid'
+        AND COALESCE(paid_at, updated_at, created_at) >= $2
+    `, [req.params.waterBodyId, monthStart]);
+
+    const transactionsQ = await pool.query(`
+      SELECT
+        r.id,
+        r.total_amount,
+        r.platform_fee_amount,
+        r.owner_amount,
+        r.payment_status,
+        r.status,
+        r.paid_at,
+        r.created_at,
+        w.name AS lake_name,
+        u.full_name AS customer_name,
+        u.email AS customer_email
+      FROM lake_reservations r
+      JOIN water_bodies w ON w.id = r.water_body_id
+      JOIN users u ON u.id = r.user_id
+      WHERE r.water_body_id = $1
+        AND w.owner_id = $2
+        AND r.payment_status = 'paid'
+      ORDER BY COALESCE(r.paid_at, r.created_at) DESC
+      LIMIT 50
+    `, [req.params.waterBodyId, req.user]);
+
+    const reportsQ = await pool.query(`
+      SELECT
+        TO_CHAR(DATE_TRUNC('month', COALESCE(paid_at, updated_at, created_at)), 'YYYY-MM') AS month_key,
+        TO_CHAR(DATE_TRUNC('month', COALESCE(paid_at, updated_at, created_at)), 'FMMonth YYYY') AS month_label,
+        COALESCE(SUM(total_amount), 0)::numeric AS total_revenue,
+        COALESCE(SUM(platform_fee_amount), 0)::numeric AS platform_fee,
+        COALESCE(SUM(owner_amount), 0)::numeric AS owner_earnings,
+        COUNT(*)::int AS paid_reservations
+      FROM lake_reservations
+      WHERE water_body_id = $1
+        AND payment_status = 'paid'
+      GROUP BY DATE_TRUNC('month', COALESCE(paid_at, updated_at, created_at))
+      ORDER BY DATE_TRUNC('month', COALESCE(paid_at, updated_at, created_at)) DESC
+      LIMIT 12
+    `, [req.params.waterBodyId]);
+
+    res.json({
+      current_month: summaryQ.rows[0] || {
+        total_revenue: 0,
+        platform_fee: 0,
+        owner_earnings: 0,
+        paid_reservations: 0,
+        pending_payouts: 0,
+      },
+      transactions: transactionsQ.rows,
+      monthly_reports: reportsQ.rows,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message || 'Failed to load owner earnings' });
   }
 };
 
@@ -680,6 +766,7 @@ module.exports = {
   createClaimRequest,
   updateOwnerLake,
   getOwnerLakeReservations,
+  getOwnerLakeEarnings,
   getOwnerLakeSpotAvailability,
   getOwnerBlockedDates,
   createOwnerBlockedDate,

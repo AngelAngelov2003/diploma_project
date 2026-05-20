@@ -25,8 +25,8 @@ const getAdminAnalytics = async () => {
     pool.query(`SELECT COUNT(*)::int AS count FROM catch_logs`),
     pool.query(`SELECT COUNT(*)::int AS count FROM water_body_reviews`),
     pool.query(`SELECT COUNT(*)::int AS count FROM lake_reservations`),
-    pool.query(`SELECT COUNT(*)::int AS count FROM lake_reservations WHERE status = 'pending'`),
-    pool.query(`SELECT COUNT(*)::int AS count FROM lake_reservations WHERE status = 'approved'`),
+    pool.query(`SELECT COUNT(*)::int AS count FROM lake_reservations WHERE status = 'pending' AND COALESCE(end_date, start_date, reservation_date)::date >= CURRENT_DATE`),
+    pool.query(`SELECT COUNT(*)::int AS count FROM lake_reservations WHERE status = 'approved' AND COALESCE(end_date, start_date, reservation_date)::date >= CURRENT_DATE`),
     pool.query(`SELECT COUNT(*)::int AS count FROM lake_subscriptions`),
     pool.query(`SELECT COUNT(*)::int AS count FROM lake_owner_claim_requests WHERE status = 'pending'`),
     pool.query(`

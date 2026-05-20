@@ -11,6 +11,8 @@ import {
 } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
 import useMyCatches from "../hooks/useMyCatches";
+import { deleteMyCatch, updateMyCatch } from "../api/myCatchesApi";
+import { notifyError, notifySuccess } from "../ui/toast";
 import DashboardFilters from "../components/dashboard/DashboardFilters";
 import CatchLogList from "../components/dashboard/CatchLogList";
 
@@ -115,6 +117,7 @@ export default function MyCatches() {
   const [sortBy, setSortBy] = useState("newest");
   const [pageSize, setPageSize] = useState(8);
   const [page, setPage] = useState(1);
+  const [savingCatchId, setSavingCatchId] = useState("");
   const listSectionRef = useRef(null);
   const didMountRef = useRef(false);
   const [isMobile, setIsMobile] = useState(() =>
@@ -300,6 +303,34 @@ export default function MyCatches() {
     setDateTo("");
     setSearchTerm("");
     setSortBy("newest");
+  };
+
+
+  const handleUpdateCatch = async (catchId, payload) => {
+    try {
+      setSavingCatchId(catchId);
+      await updateMyCatch(catchId, payload);
+      notifySuccess("Catch log updated");
+      await reload();
+    } catch (error) {
+      notifyError(error, "Failed to update catch log");
+    } finally {
+      setSavingCatchId("");
+    }
+  };
+
+  const handleDeleteCatch = async (catchId) => {
+    if (!window.confirm("Delete this catch log?")) return;
+    try {
+      setSavingCatchId(catchId);
+      await deleteMyCatch(catchId);
+      notifySuccess("Catch log deleted");
+      await reload();
+    } catch (error) {
+      notifyError(error, "Failed to delete catch log");
+    } finally {
+      setSavingCatchId("");
+    }
   };
 
   const exportCsv = () => {
@@ -711,6 +742,9 @@ export default function MyCatches() {
               loading={loading}
               hasAnyCatches={hasAnyCatches}
               onLakeClick={goToLakeOnMap}
+              onUpdate={handleUpdateCatch}
+              onDelete={handleDeleteCatch}
+              savingId={savingCatchId}
             />
           )}
 

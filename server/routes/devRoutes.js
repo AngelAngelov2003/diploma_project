@@ -1,11 +1,12 @@
 const express = require("express");
 const authorize = require("../middleware/authorize");
 const devOnly = require("../middleware/devOnly");
+const requireInternalApiKey = require("../middleware/requireInternalApiKey");
 const devController = require("../controllers/devController");
 
 const router = express.Router();
 
-router.get("/ml/training-data", devController.getMlTrainingData);
+router.get("/ml/training-data", requireInternalApiKey, devController.getMlTrainingData);
 router.post("/dev/run-alerts-now", authorize, devOnly, devController.runAlertsNow);
 router.get("/dev/run-alerts-now", authorize, devOnly, devController.runAlertsNow);
 

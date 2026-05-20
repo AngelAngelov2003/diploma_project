@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { FaUserCog } from "react-icons/fa";
+import { FaChartLine, FaExternalLinkAlt, FaMoneyBillWave, FaPlug, FaUserCog } from "react-icons/fa";
 import {
   addBlockedDate,
   createLakeRoom,
@@ -10,6 +10,7 @@ import {
   getOwnerLakeCatches,
   getOwnerLakeReservations,
   getOwnerLakeSpotAvailability,
+  getOwnerLakeEarnings,
   reportOwnerLakeCatch,
   getBlockedDates,
   getLakePhotos,
@@ -22,10 +23,13 @@ import {
   updateOwnerLake,
   uploadLakePhoto,
 } from "../api/ownerApi";
+import { getOwnerBillingStatus } from "../api/billingApi";
 import { updateReservationStatus } from "../api/reservationsApi";
+import OwnerProLockedCard from "../components/common/OwnerProLockedCard";
 import { notifyError, notifySuccess } from "../ui/toast";
 import { formatCurrency } from "../utils/formatCurrency";
 import DatePicker from "../components/ui/DatePicker";
+import ZoomableImage from "../components/ui/ZoomableImage";
 import styles from "./OwnerPanel.module.css";
 
 const DEFAULT_ROOM_FORM = {
@@ -37,6 +41,8 @@ const DEFAULT_ROOM_FORM = {
 };
 
 const SPOTS_PAGE_SIZE = 12;
+const BILLING_TRANSACTIONS_PAGE_SIZE = 8;
+const MONTHLY_REPORTS_PAGE_SIZE = 4;
 
 const getUploadUrl = (imageUrl) => {
   if (!imageUrl) return "";
@@ -53,6 +59,7 @@ const TAB_ITEMS = [
   { key: "rooms", label: "Housing / Rooms" },
   { key: "gallery", label: "Gallery & Media" },
   { key: "blocked", label: "Blocked Dates" },
+  { key: "billing", label: "Billing & Earnings" },
 ];
 
 const normalizeLakePayload = (lake) => ({
@@ -106,6 +113,13 @@ const formatReservedSpots = (item) => {
   return `${count} requested`;
 };
 
+const getReservationPaymentLabel = (reservation) => {
+  if (reservation?.payment_status === "paid") return "Paid";
+  if (reservation?.status === "approved_waiting_payment") return "Waiting for user payment";
+  if (reservation?.payment_status === "checkout_started") return "Checkout started";
+  return reservation?.payment_required ? "Payment required" : "Manual / unpaid";
+};
+
 function ReservedSpotsBadge({ reservation }) {
   const numbers = getReservedSpotNumbers(reservation);
 
@@ -128,7 +142,7 @@ function ReservedSpotsBadge({ reservation }) {
   );
 }
 
-const OWNER_RESERVATION_FILTERS = ["pending", "approved", "rejected", "cancelled", "all"];
+const OWNER_RESERVATION_FILTERS = ["pending", "approved_waiting_payment", "approved", "rejected", "cancelled", "all"];
 
 const getLakeModeLabel = (lake) => {
   if (lake.is_private && lake.is_reservable) return "Private & reservable";
@@ -153,7 +167,10 @@ const getTabDescription = (tabKey) => {
   if (tabKey === "gallery") {
     return "Upload and manage the media shown for this lake.";
   }
-  return "Prevent reservations on dates reserved for maintenance, events, or private use.";
+  if (tabKey === "blocked") {
+    return "Prevent reservations on dates reserved for maintenance, events, or private use.";
+  }
+  return "Track lake revenue, platform fees, owner earnings, monthly reports, and Stripe payout readiness.";
 };
 
 const LabeledInput = ({ label, children, hint }) => (
@@ -188,6 +205,7 @@ export default function OwnerPanel() {
   const [photosByLake, setPhotosByLake] = useState({});
   const [catchPhotosByLake, setCatchPhotosByLake] = useState({});
   const [reservationsByLake, setReservationsByLake] = useState({});
+  const [earningsByLake, setEarningsByLake] = useState({});
   const [reservationFilterByLake, setReservationFilterByLake] = useState({});
   const [spotAvailabilityDateByLake, setSpotAvailabilityDateByLake] = useState({});
   const [spotAvailabilityByLake, setSpotAvailabilityByLake] = useState({});
@@ -199,18 +217,25 @@ export default function OwnerPanel() {
   const [roomModalByLake, setRoomModalByLake] = useState({});
   const [roomDraftByLake, setRoomDraftByLake] = useState({});
   const [spotPageByLake, setSpotPageByLake] = useState({});
+  const [billingTransactionPageByLake, setBillingTransactionPageByLake] = useState({});
+  const [monthlyReportPageByLake, setMonthlyReportPageByLake] = useState({});
   const [loading, setLoading] = useState(true);
   const [savingId, setSavingId] = useState("");
   const [busyLakeId, setBusyLakeId] = useState("");
+  const [ownerBilling, setOwnerBilling] = useState(null);
 
   const loadOwnerPanel = async () => {
     try {
       setLoading(true);
-      const owned = await getOwnerLakes();
+      const [owned, billingStatus] = await Promise.all([
+        getOwnerLakes(),
+        getOwnerBillingStatus().catch(() => null),
+      ]);
       const normalizedLakes = Array.isArray(owned) ? owned : [];
       setLakes(normalizedLakes);
+      setOwnerBilling(billingStatus);
 
-      const [blockedEntries, spotEntries, roomEntries, photoEntries, catchPhotoEntries, reservationEntries] = await Promise.all([
+      const [blockedEntries, spotEntries, roomEntries, photoEntries, catchPhotoEntries, reservationEntries, earningsEntries] = await Promise.all([
         Promise.all(
           normalizedLakes.map(async (lake) => [
             lake.id,
@@ -247,6 +272,12 @@ export default function OwnerPanel() {
             await getOwnerLakeReservations(lake.id).catch(() => []),
           ])
         ),
+        Promise.all(
+          normalizedLakes.map(async (lake) => [
+            lake.id,
+            await getOwnerLakeEarnings(lake.id).catch(() => null),
+          ])
+        ),
       ]);
 
       setBlockedDatesByLake(Object.fromEntries(blockedEntries));
@@ -255,15 +286,42 @@ export default function OwnerPanel() {
       setPhotosByLake(Object.fromEntries(photoEntries));
       setCatchPhotosByLake(Object.fromEntries(catchPhotoEntries));
       setReservationsByLake(Object.fromEntries(reservationEntries));
+      setEarningsByLake(Object.fromEntries(earningsEntries));
       setNewRoomByLake(
         Object.fromEntries(
           normalizedLakes.map((lake) => [lake.id, { ...DEFAULT_ROOM_FORM }])
         )
       );
+      const params = new URLSearchParams(window.location.search);
+      const shouldOpenBilling = ["success", "cancelled"].includes(params.get("checkout")) ||
+        ["return", "refresh"].includes(params.get("connect"));
+
       setActiveTabByLake(
-        Object.fromEntries(normalizedLakes.map((lake) => [lake.id, "overview"]))
+        Object.fromEntries(normalizedLakes.map((lake, index) => [
+          lake.id,
+          shouldOpenBilling && index === 0 ? "billing" : "overview",
+        ]))
       );
+
+      if (shouldOpenBilling) {
+        if (params.get("checkout") === "success") {
+          notifySuccess("Owner Pro checkout completed. Stripe will confirm the subscription shortly.");
+        }
+        if (params.get("connect") === "return") {
+          notifySuccess("Stripe Connect onboarding returned. Refresh payout status to confirm the latest state.");
+        }
+        if (params.get("connect") === "refresh") {
+          notifyError("Stripe onboarding link expired. Please start onboarding again.");
+        }
+        window.history.replaceState({}, "", "/owner");
+      }
       setSpotPageByLake(
+        Object.fromEntries(normalizedLakes.map((lake) => [lake.id, 1]))
+      );
+      setBillingTransactionPageByLake(
+        Object.fromEntries(normalizedLakes.map((lake) => [lake.id, 1]))
+      );
+      setMonthlyReportPageByLake(
         Object.fromEntries(normalizedLakes.map((lake) => [lake.id, 1]))
       );
       setReservationFilterByLake(
@@ -639,6 +697,25 @@ export default function OwnerPanel() {
     }
   };
 
+  const hasOwnerPro = Boolean(ownerBilling?.has_owner_pro_access);
+
+  const goToOwnerBilling = () => {
+    setActiveTabByLake((prev) => {
+      const firstLakeId = lakes[0]?.id;
+      return firstLakeId ? { ...prev, [firstLakeId]: "billing" } : prev;
+    });
+  };
+
+  const renderOwnerProLock = ({ title, message, bullets, compact = false } = {}) => (
+    <OwnerProLockedCard
+      title={title}
+      message={message}
+      bullets={bullets}
+      compact={compact}
+      onUpgrade={goToOwnerBilling}
+    />
+  );
+
   const handleReportCatchUser = async (lakeId, catchItem) => {
     const reason = window.prompt("Why do you want to report this user/catch photo?");
     if (!reason || !reason.trim()) return;
@@ -649,6 +726,47 @@ export default function OwnerPanel() {
       notifySuccess("Report sent to admin");
     } catch (error) {
       notifyError(error, "Failed to report user");
+    } finally {
+      setBusyLakeId("");
+    }
+  };
+
+  const handleRefreshLakeEarnings = async (lakeId) => {
+    try {
+      setBusyLakeId(lakeId);
+      const earnings = await getOwnerLakeEarnings(lakeId);
+      setEarningsByLake((prev) => ({ ...prev, [lakeId]: earnings }));
+      setBillingTransactionPageByLake((prev) => ({ ...prev, [lakeId]: 1 }));
+      setMonthlyReportPageByLake((prev) => ({ ...prev, [lakeId]: 1 }));
+      notifySuccess("Earnings refreshed");
+    } catch (error) {
+      notifyError(error, "Failed to refresh earnings");
+    } finally {
+      setBusyLakeId("");
+    }
+  };
+
+  const handleOwnerConnect = async (action) => {
+    try {
+      setBusyLakeId("billing-action");
+      const billingApi = await import("../api/billingApi");
+      if (action === "refresh") {
+        const state = await billingApi.refreshOwnerConnectStatus();
+        setOwnerBilling(state);
+        notifySuccess("Payout status refreshed");
+        return;
+      }
+      if (action === "portal") {
+        const data = await billingApi.openOwnerBillingPortal();
+        if (data?.url) window.location.href = data.url;
+        return;
+      }
+      const data = action === "upgrade"
+        ? await billingApi.startOwnerProCheckout()
+        : await billingApi.startOwnerConnectOnboarding();
+      if (data?.url) window.location.href = data.url;
+    } catch (error) {
+      notifyError(error, "Billing action failed");
     } finally {
       setBusyLakeId("");
     }
@@ -701,6 +819,23 @@ export default function OwnerPanel() {
               );
               const spotTotalPages = Math.max(1, Math.ceil(sortedSpots.length / SPOTS_PAGE_SIZE));
               const spotPage = Math.min(spotPageByLake[lake.id] || 1, spotTotalPages);
+              const lakeEarnings = earningsByLake[lake.id] || {};
+              const currentMonth = lakeEarnings.current_month || {};
+              const monthlyReports = Array.isArray(lakeEarnings.monthly_reports) ? lakeEarnings.monthly_reports : [];
+              const billingTransactions = Array.isArray(lakeEarnings.transactions) ? lakeEarnings.transactions : [];
+              const monthlyReportTotalPages = Math.max(1, Math.ceil(monthlyReports.length / MONTHLY_REPORTS_PAGE_SIZE));
+              const monthlyReportPage = Math.min(monthlyReportPageByLake[lake.id] || 1, monthlyReportTotalPages);
+              const visibleMonthlyReports = monthlyReports.slice(
+                (monthlyReportPage - 1) * MONTHLY_REPORTS_PAGE_SIZE,
+                monthlyReportPage * MONTHLY_REPORTS_PAGE_SIZE
+              );
+              const billingTransactionTotalPages = Math.max(1, Math.ceil(billingTransactions.length / BILLING_TRANSACTIONS_PAGE_SIZE));
+              const billingTransactionPage = Math.min(billingTransactionPageByLake[lake.id] || 1, billingTransactionTotalPages);
+              const visibleBillingTransactions = billingTransactions.slice(
+                (billingTransactionPage - 1) * BILLING_TRANSACTIONS_PAGE_SIZE,
+                billingTransactionPage * BILLING_TRANSACTIONS_PAGE_SIZE
+              );
+              const payoutStatus = ownerBilling?.connect_ready ? "Connected" : (ownerBilling?.stripe_connected_account_id ? "Restricted" : "Not set up");
               const visibleSpots = sortedSpots.slice(
                 (spotPage - 1) * SPOTS_PAGE_SIZE,
                 spotPage * SPOTS_PAGE_SIZE
@@ -775,9 +910,63 @@ export default function OwnerPanel() {
 
                   <div className={styles.tabPanelIntro}>{getTabDescription(activeTab)}</div>
 
+                  {!hasOwnerPro ? (
+                    <div className={styles.ownerProNotice}>
+                      <div>
+                        <strong>Owner Free plan</strong>
+                        <span> Lake setup stays available. Revenue tools, online payment preparation, and payout features are locked behind Owner Pro.</span>
+                      </div>
+                      <button type="button" onClick={goToOwnerBilling}>Upgrade</button>
+                    </div>
+                  ) : null}
+
                   <div className={styles.lakeSections}>
                     {activeTab === "overview" ? (
                       <>
+                        {!hasOwnerPro ? (
+                          <SectionCard
+                            title="Owner Pro business tools"
+                            subtitle="These tools are visible to Free owners as locked upgrade cards."
+                          >
+                            <div className={styles.ownerProLockGrid}>
+                              {renderOwnerProLock({
+                                title: "Revenue Analytics",
+                                message: "Unlock revenue charts, reservation insights, and an earnings dashboard for this lake.",
+                                bullets: ["Revenue charts", "Reservation insights", "Earnings dashboard"],
+                                compact: true,
+                              })}
+                              {renderOwnerProLock({
+                                title: "Online paid bookings",
+                                message: "Prepare this lake for Stripe-powered paid reservations and future automatic payment splitting.",
+                                bullets: ["Online payment flow", "Payment status tracking", "Future platform commission support"],
+                                compact: true,
+                              })}
+                            </div>
+                          </SectionCard>
+                        ) : (
+                          <SectionCard
+                            title="Owner Pro business tools"
+                            subtitle="Your Owner Pro tools are active for this lake."
+                          >
+                            <div className={styles.ownerProActiveGrid}>
+                              <div className={styles.ownerProActiveTile}>
+                                <FaChartLine />
+                                <div>
+                                  <strong>Revenue analytics active</strong>
+                                  <span>Reservation and earnings dashboards are ready for the next payment phase.</span>
+                                </div>
+                              </div>
+                              <div className={styles.ownerProActiveTile}>
+                                <FaMoneyBillWave />
+                                <div>
+                                  <strong>Paid booking foundation active</strong>
+                                  <span>This lake can use Stripe reservation checkout after payout onboarding is complete.</span>
+                                </div>
+                              </div>
+                            </div>
+                          </SectionCard>
+                        )}
+
                         <SectionCard
                           title="Booking settings"
                           subtitle="High-impact controls for reservations, night fishing, and housing."
@@ -979,9 +1168,17 @@ export default function OwnerPanel() {
 
                     {activeTab === "reservations" ? (
                       <>
+                        {!hasOwnerPro ? (
+                          renderOwnerProLock({
+                            title: "Online reservation payments",
+                            message: "Free owners can still review manual reservation requests. Upgrade to Owner Pro to approve paid online reservations, use payout setup, and track revenue.",
+                            bullets: ["Paid reservation checkout", "Payout preparation", "Revenue tracking"],
+                          })
+                        ) : null}
+
                         <SectionCard
                           title="Reservation requests"
-                          subtitle="Approve, reject, or return booking requests to pending for this lake."
+                          subtitle="Approve, reject, or return booking requests to pending. Owner Pro + completed payouts turns approval into paid checkout for the user."
                         >
                           <div className={styles.filterRow}>
                             {OWNER_RESERVATION_FILTERS.map((filter) => (
@@ -1011,7 +1208,7 @@ export default function OwnerPanel() {
                             <div className={styles.itemList}>
                               {filteredOwnerReservations.map((reservation) => (
                                 <div key={reservation.id} className={styles.itemCardCompact} style={{ alignItems: "flex-start" }}>
-                                  <div style={{ minWidth: 0, flex: "1 1 420px" }}>
+                                  <div className={styles.ownerReservationDetails}>
                                     <div className={styles.itemTitle}>{reservation.lake_name || lake.name}</div>
                                     <div className={styles.metaText}>
                                       User: {reservation.full_name || "Unknown"}{reservation.email ? ` (${reservation.email})` : ""}
@@ -1019,24 +1216,27 @@ export default function OwnerPanel() {
                                     <div className={styles.metaText}>
                                       Stay: {formatDate(reservation.arrival_date || reservation.start_date)} → {formatDate(reservation.departure_date || reservation.end_date)}
                                     </div>
-                                    <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginTop: "10px" }}>
+                                    <div className={styles.ownerReservationBadges}>
                                       <span className={styles.mutedBadge}>Created: {formatDateTime(reservation.created_at)}</span>
                                       <ReservedSpotsBadge reservation={reservation} />
                                       <span className={styles.mutedBadge}>Fishing days: {(reservation.fishing_dates || []).length || 0}</span>
                                       <span className={styles.mutedBadge}>Night fishing: {(reservation.night_fishing_dates || []).length || 0}</span>
                                       <span className={styles.mutedBadge}>Rooms: {(reservation.room_names || []).length ? reservation.room_names.join(", ") : "None"}</span>
                                       <span className={styles.mutedBadge}>Total: {formatCurrency(reservation.total_amount || 0)}</span>
+                                      <span className={styles.mutedBadge}>Payment: {getReservationPaymentLabel(reservation)}</span>
+                                      <span className={styles.mutedBadge}>Platform fee: {formatCurrency(reservation.platform_fee_amount || 0)}</span>
+                                      <span className={styles.mutedBadge}>Owner amount: {formatCurrency(reservation.owner_amount || 0)}</span>
                                     </div>
                                     <div className={styles.metaText} style={{ marginTop: "10px" }}>
                                       Notes: {reservation.notes || "No notes"}
                                     </div>
                                   </div>
 
-                                  <div style={{ display: "grid", gap: "8px", justifyItems: "end" }}>
+                                  <div className={styles.ownerReservationActions}>
                                     <span className={
                                       reservation.status === "approved"
                                         ? styles.successBadge
-                                        : reservation.status === "pending"
+                                        : reservation.status === "pending" || reservation.status === "approved_waiting_payment"
                                           ? styles.warningBadge
                                           : styles.mutedBadge
                                     }>
@@ -1045,14 +1245,14 @@ export default function OwnerPanel() {
                                     {isReservationPast(reservation) ? (
                                       <span className={styles.mutedBadge}>Past reservation</span>
                                     ) : (
-                                      <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", justifyContent: "flex-end" }}>
+                                      <div className={styles.ownerReservationButtonRow}>
                                         <button
                                           type="button"
                                           className={styles.secondaryButton}
                                           disabled={busyLakeId === lake.id}
                                           onClick={() => handleUpdateReservationStatus(lake.id, reservation.id, "approved")}
                                         >
-                                          Approve
+                                          {hasOwnerPro ? "Approve / request payment" : "Approve"}
                                         </button>
                                         <button
                                           type="button"
@@ -1522,7 +1722,7 @@ export default function OwnerPanel() {
                             <div className={styles.itemList}>
                               {(photoPreviewsByLake[lake.id] || []).map((preview, index) => (
                                 <div key={`${preview.name}-${index}`} className={styles.photoManagerCard}>
-                                  <img className={styles.photoThumb} src={preview.url} alt={preview.name} />
+                                  <ZoomableImage src={preview.url} alt={preview.name} imageClassName={styles.photoThumb} />
                                   <div className={styles.photoManagerBody}>
                                     <div className={styles.blockedDate}>{preview.name}</div>
                                     <div className={styles.metaText}>Ready to upload</div>
@@ -1552,10 +1752,10 @@ export default function OwnerPanel() {
                           <div className={styles.itemList}>
                             {photosByLake[lake.id].map((photo) => (
                               <div key={photo.id} className={styles.photoManagerCard}>
-                                <img
-                                  className={styles.photoThumb}
+                                <ZoomableImage
                                   src={getUploadUrl(photo.image_url)}
                                   alt={photo.caption || "Lake photo"}
+                                  imageClassName={styles.photoThumb}
                                 />
                                 <div className={styles.photoManagerBody}>
                                   <div className={styles.blockedDate}>
@@ -1591,10 +1791,10 @@ export default function OwnerPanel() {
                             <div className={styles.itemList}>
                               {catchPhotosByLake[lake.id].map((item) => (
                                 <div key={item.id} className={styles.photoManagerCard}>
-                                  <img
-                                    className={styles.photoThumb}
+                                  <ZoomableImage
                                     src={getUploadUrl(item.image_url)}
                                     alt={item.species || "User catch"}
+                                    imageClassName={styles.photoThumb}
                                   />
                                   <div className={styles.photoManagerBody}>
                                     <div className={styles.blockedDate}>
@@ -1628,6 +1828,207 @@ export default function OwnerPanel() {
                             </div>
                           )}
                         </SectionCard>
+                      </SectionCard>
+                    ) : null}
+
+
+                    {activeTab === "billing" ? (
+                      <SectionCard
+                        title="Billing & Earnings"
+                        subtitle="Revenue belongs inside the owner management workflow because it comes from reservations, spots, night fishing, and rooms."
+                        actions={
+                          <button
+                            type="button"
+                            className={styles.secondaryButton}
+                            disabled={busyLakeId === lake.id}
+                            onClick={() => handleRefreshLakeEarnings(lake.id)}
+                          >
+                            {busyLakeId === lake.id ? "Refreshing..." : "Refresh earnings"}
+                          </button>
+                        }
+                      >
+                        <div className={styles.earningsSummaryGrid}>
+                          <div className={styles.earningsCard}>
+                            <span>This month revenue</span>
+                            <strong>{formatCurrency(currentMonth.total_revenue || 0)}</strong>
+                          </div>
+                          <div className={styles.earningsCard}>
+                            <span>Platform fee</span>
+                            <strong>{formatCurrency(currentMonth.platform_fee || 0)}</strong>
+                          </div>
+                          <div className={styles.earningsCard}>
+                            <span>Net owner earnings</span>
+                            <strong>{formatCurrency(currentMonth.owner_earnings || 0)}</strong>
+                          </div>
+                          <div className={styles.earningsCard}>
+                            <span>Paid reservations</span>
+                            <strong>{currentMonth.paid_reservations || 0}</strong>
+                          </div>
+                          <div className={styles.earningsCard}>
+                            <span>Pending payouts</span>
+                            <strong>{formatCurrency(currentMonth.pending_payouts || 0)}</strong>
+                          </div>
+                        </div>
+
+                        <div className={styles.billingSubgrid}>
+                          <div className={styles.editorCard}>
+                            <div className={styles.editorHeader}>
+                              <h5 className={styles.editorTitle}>Stripe payout setup</h5>
+                              <span className={ownerBilling?.connect_ready ? styles.successBadge : styles.warningBadge}>
+                                {payoutStatus}
+                              </span>
+                            </div>
+                            <div className={styles.metaText}>
+                              Account: {ownerBilling?.stripe_connected_account_id || "not created"} · Onboarding: {ownerBilling?.connect_onboarding_status || "not_started"}
+                            </div>
+                            <div className={styles.billingActions}>
+                              {!hasOwnerPro ? (
+                                <button type="button" className={styles.primaryButton} onClick={() => handleOwnerConnect("upgrade")}>
+                                  Upgrade Owner Pro
+                                </button>
+                              ) : (
+                                <>
+                                  <button type="button" className={styles.primaryButton} onClick={() => handleOwnerConnect("connect")}>
+                                    <FaPlug /> {ownerBilling?.stripe_connected_account_id ? "Continue payouts" : "Set up payouts"}
+                                  </button>
+                                  <button type="button" className={styles.filterButton} onClick={() => handleOwnerConnect("refresh")}>
+                                    Refresh status
+                                  </button>
+                                  {ownerBilling?.subscription_status !== "inactive" ? (
+                                    <button type="button" className={styles.filterButton} onClick={() => handleOwnerConnect("portal")}>
+                                      Manage plan <FaExternalLinkAlt />
+                                    </button>
+                                  ) : null}
+                                </>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className={styles.editorCard}>
+                            <div className={styles.editorHeader}>
+                              <h5 className={styles.editorTitle}>Monthly reports</h5>
+                            </div>
+                            {!monthlyReports.length ? (
+                              <div className={styles.emptyState}>No paid monthly reports yet.</div>
+                            ) : (
+                              <>
+                                <div className={styles.reportList}>
+                                  {visibleMonthlyReports.map((report) => (
+                                    <div key={report.month_key} className={styles.reportRow}>
+                                      <strong>{report.month_label} report</strong>
+                                      <span>{formatCurrency(report.owner_earnings || 0)} owner earnings</span>
+                                    </div>
+                                  ))}
+                                </div>
+                                {monthlyReportTotalPages > 1 ? (
+                                  <div className={`${styles.paginationBar} ${styles.compactPagination}`}>
+                                    <span>
+                                      Page {monthlyReportPage} of {monthlyReportTotalPages} · {monthlyReports.length} reports
+                                    </span>
+                                    <div className={styles.paginationActions}>
+                                      <button
+                                        type="button"
+                                        className={styles.filterButton}
+                                        disabled={monthlyReportPage <= 1}
+                                        onClick={() =>
+                                          setMonthlyReportPageByLake((prev) => ({
+                                            ...prev,
+                                            [lake.id]: Math.max(1, monthlyReportPage - 1),
+                                          }))
+                                        }
+                                      >
+                                        Previous
+                                      </button>
+                                      <button
+                                        type="button"
+                                        className={styles.primaryButton}
+                                        disabled={monthlyReportPage >= monthlyReportTotalPages}
+                                        onClick={() =>
+                                          setMonthlyReportPageByLake((prev) => ({
+                                            ...prev,
+                                            [lake.id]: Math.min(monthlyReportTotalPages, monthlyReportPage + 1),
+                                          }))
+                                        }
+                                      >
+                                        Next
+                                      </button>
+                                    </div>
+                                  </div>
+                                ) : null}
+                              </>
+                            )}
+                          </div>
+                        </div>
+
+                        {!billingTransactions.length ? (
+                          <div className={styles.emptyState}>No paid reservation transactions yet.</div>
+                        ) : (
+                          <>
+                            <div className={styles.earningsTableWrap}>
+                              <table className={styles.earningsTable}>
+                                <thead>
+                                  <tr>
+                                    <th>Date</th>
+                                    <th>Lake</th>
+                                    <th>Customer</th>
+                                    <th>Reservation total</th>
+                                    <th>Platform fee</th>
+                                    <th>Owner amount</th>
+                                    <th>Status</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {visibleBillingTransactions.map((item) => (
+                                    <tr key={item.id}>
+                                      <td>{formatDate(item.paid_at || item.created_at)}</td>
+                                      <td>{item.lake_name || lake.name}</td>
+                                      <td>{item.customer_name || item.customer_email || "Customer"}</td>
+                                      <td>{formatCurrency(item.total_amount || 0)}</td>
+                                      <td>{formatCurrency(item.platform_fee_amount || 0)}</td>
+                                      <td>{formatCurrency(item.owner_amount || 0)}</td>
+                                      <td><span className={styles.successBadge}>{item.payment_status || "paid"}</span></td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                            {billingTransactionTotalPages > 1 ? (
+                              <div className={styles.paginationBar}>
+                                <span>
+                                  Page {billingTransactionPage} of {billingTransactionTotalPages} · {billingTransactions.length} transactions
+                                </span>
+                                <div className={styles.paginationActions}>
+                                  <button
+                                    type="button"
+                                    className={styles.filterButton}
+                                    disabled={billingTransactionPage <= 1}
+                                    onClick={() =>
+                                      setBillingTransactionPageByLake((prev) => ({
+                                        ...prev,
+                                        [lake.id]: Math.max(1, billingTransactionPage - 1),
+                                      }))
+                                    }
+                                  >
+                                    Previous
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className={styles.primaryButton}
+                                    disabled={billingTransactionPage >= billingTransactionTotalPages}
+                                    onClick={() =>
+                                      setBillingTransactionPageByLake((prev) => ({
+                                        ...prev,
+                                        [lake.id]: Math.min(billingTransactionTotalPages, billingTransactionPage + 1),
+                                      }))
+                                    }
+                                  >
+                                    Next
+                                  </button>
+                                </div>
+                              </div>
+                            ) : null}
+                          </>
+                        )}
                       </SectionCard>
                     ) : null}
 

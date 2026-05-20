@@ -1,5 +1,6 @@
 const bcrypt = require("bcrypt");
 const pool = require("../db");
+const billingService = require("../services/billingService");
 
 const getProfile = async (req, res) => {
   try {
@@ -16,7 +17,8 @@ const getProfile = async (req, res) => {
       return res.status(404).json({ error: "User not found" });
     }
 
-    res.json(q.rows[0]);
+    const billing = await billingService.getUserPremiumState(req.user, q.rows[0].role);
+    res.json({ ...q.rows[0], billing });
   } catch (err) {
     res.status(500).json({ error: "Failed to load profile" });
   }

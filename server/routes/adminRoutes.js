@@ -26,6 +26,10 @@ router.delete(
 );
 
 router.get("/admin/reviews", authorize, requireAdmin, adminController.getReviews);
+router.get("/admin/catches", authorize, requireAdmin, adminController.getCatchLogs);
+router.delete("/admin/catches/:catchId", authorize, requireAdmin, adminController.deleteCatchLog);
+router.get("/admin/gallery-photos", authorize, requireAdmin, adminController.getGalleryPhotos);
+router.delete("/admin/gallery-photos/:photoId", authorize, requireAdmin, adminController.deleteGalleryPhoto);
 router.delete("/admin/reviews/:reviewId", authorize, requireAdmin, adminController.deleteReview);
 
 router.get(

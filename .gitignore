@@ -1,16 +1,39 @@
-data/bulgaria-shp/
-server/uploads/
+# Environment
+.env
+.env.*
+!.env.example
+
+# Python cache
+__pycache__/
+*.pyc
+*.py[cod]
+
+# Node
 node_modules/
 dist/
 build/
-.env
-__pycache__/
+
+# Uploads
+server/uploads/
+
+# Logs
+*.log
+logs/
+
+# Virtual env
 venv/
 .venv/
-*.log
+
+# IDE
 .vscode/
 .idea/
+
+# OS
 .DS_Store
 Thumbs.db
-*.pyc
-logs/
+
+# GIS/raw data
+data/bulgaria-shp/
+
+# ML cache
+ml-server/__pycache__/

@@ -111,22 +111,22 @@
 
 @media (max-width: 640px) {
   .item {
-    grid-template-columns: 1fr;
+    grid-template-columns: 128px minmax(0, 1fr);
     gap: 10px;
-    padding: 12px;
+    padding: 11px;
     border-radius: 14px;
   }
 
   .imageBox {
-    width: 100%;
-    max-width: 180px;
-    height: 180px;
+    width: 128px;
+    max-width: 128px;
+    height: 128px;
     border-radius: 14px;
   }
 
   .headerRow {
     flex-direction: column;
-    gap: 8px;
+    gap: 7px;
   }
 
   .title {
@@ -148,6 +148,95 @@
   .metaChip {
     width: 100%;
     border-radius: 12px;
-    padding: 7px 9px;
+    padding: 6px 8px;
+  }
+}
+
+@media (max-width: 420px) {
+  .item {
+    grid-template-columns: 1fr;
+  }
+
+  .imageBox {
+    width: 100%;
+    max-width: 150px;
+    height: 150px;
+  }
+}
+
+.actionRow {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
+.secondaryButton,
+.saveButton,
+.deleteButton {
+  border: 1px solid #dbe3ef;
+  border-radius: 10px;
+  padding: 9px 12px;
+  font-weight: 800;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: #fff;
+  color: #334155;
+}
+
+.saveButton {
+  border-color: #2563eb;
+  background: #2563eb;
+  color: #fff;
+}
+
+.deleteButton {
+  border-color: #fecaca;
+  background: #fff1f2;
+  color: #b91c1c;
+}
+
+.editGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 10px;
+}
+
+.editGrid label {
+  display: grid;
+  gap: 5px;
+  font-size: 12px;
+  color: #64748b;
+  font-weight: 800;
+}
+
+.editGrid input,
+.editGrid textarea {
+  width: 100%;
+  border: 1px solid #dbe3ef;
+  border-radius: 10px;
+  padding: 9px 10px;
+  color: #0f172a;
+  font: inherit;
+}
+
+.notesField {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 640px) {
+  .actionRow {
+    gap: 7px;
+    margin-top: 10px;
+  }
+
+  .actionRow > button {
+    flex: 1 1 96px;
+    justify-content: center;
+    padding: 8px 10px;
+    border-radius: 10px;
+    font-size: 13px;
   }
 }

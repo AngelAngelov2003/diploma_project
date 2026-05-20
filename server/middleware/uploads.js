@@ -8,35 +8,48 @@ if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
 }
 
+const safeExtension = (originalName = "", fallback = ".bin") => {
+  const ext = path.extname(originalName).toLowerCase();
+  return /^[.][a-z0-9]{1,8}$/.test(ext) ? ext : fallback;
+};
+
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, uploadDir);
-  },
+  destination: (req, file, cb) => cb(null, uploadDir),
   filename: (req, file, cb) => {
-    cb(null, `${Date.now()}-${Math.round(Math.random() * 1e9)}${path.extname(file.originalname)}`);
+    const ext = safeExtension(file.originalname, file.mimetype === "application/pdf" ? ".pdf" : ".jpg");
+    const unique = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+    cb(null, `${unique}${ext}`);
   },
 });
 
 const imageOnly = (req, file, cb) => {
-  if (file.mimetype && file.mimetype.startsWith("image/")) {
-    cb(null, true);
-    return;
-  }
-
-  cb(new Error("Only image uploads are allowed"));
+  const allowedMimeTypes = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
+  if (allowedMimeTypes.has(file.mimetype)) return cb(null, true);
+  return cb(new Error("Only JPG, PNG, WEBP, or GIF image uploads are allowed"));
 };
 
-const upload = multer({ storage });
+const proofDocumentOnly = (req, file, cb) => {
+  const allowedMimeTypes = new Set(["image/jpeg", "image/png", "image/webp", "application/pdf"]);
+  if (allowedMimeTypes.has(file.mimetype)) return cb(null, true);
+  return cb(new Error("Owner proof must be a JPG, PNG, WEBP, or PDF file"));
+};
+
+const upload = multer({
+  storage,
+  fileFilter: imageOnly,
+  limits: { fileSize: 5 * 1024 * 1024, files: 1 },
+});
 
 const claimUpload = multer({
   storage,
-  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: proofDocumentOnly,
+  limits: { fileSize: 10 * 1024 * 1024, files: 1 },
 });
 
 const lakePhotoUpload = multer({
   storage,
   fileFilter: imageOnly,
-  limits: { fileSize: 8 * 1024 * 1024 },
+  limits: { fileSize: 5 * 1024 * 1024, files: 12 },
 });
 
 module.exports = {

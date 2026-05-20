@@ -117,3 +117,8 @@ export const getOwnerLakeSpotAvailability = async (lakeId, date) => {
   });
   return data;
 };
+
+export const getOwnerLakeEarnings = async (lakeId) => {
+  const { data } = await api.get(`/owner/lakes/${lakeId}/earnings`);
+  return data;
+};

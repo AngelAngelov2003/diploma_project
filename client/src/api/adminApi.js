@@ -62,3 +62,23 @@ export const deleteAdminOwnerClaimRequest = async (requestId) => {
   const { data } = await api.delete(`/admin/owner-claim-requests/${requestId}`);
   return data;
 };
+
+export const getAdminCatchLogs = async () => {
+  const { data } = await api.get("/admin/catches");
+  return data;
+};
+
+export const deleteAdminCatchLog = async (catchId) => {
+  const { data } = await api.delete(`/admin/catches/${catchId}`);
+  return data;
+};
+
+export const getAdminGalleryPhotos = async () => {
+  const { data } = await api.get("/admin/gallery-photos");
+  return data;
+};
+
+export const deleteAdminGalleryPhoto = async (photoId) => {
+  const { data } = await api.delete(`/admin/gallery-photos/${photoId}`);
+  return data;
+};

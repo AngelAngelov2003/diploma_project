@@ -1,8 +1,10 @@
 const pool = require("../db");
 const { ensureReservationDomainTables } = require("../setup/ensureTables");
 const { sendEmail, getSmtpSummary } = require("../services/emailService");
+const billingService = require("../services/billingService");
+const { requireStripe, getAppUrl } = require("../services/stripeService");
 
-const ACTIVE_RESERVATION_STATUSES = ["pending", "approved"];
+const ACTIVE_RESERVATION_STATUSES = ["pending", "approved", "approved_waiting_payment"];
 const MANAGEABLE_STATUSES = ["approved", "approved_waiting_payment", "rejected", "pending"];
 
 let schemaEnsured = false;
@@ -29,6 +31,23 @@ const buildPaymentBreakdown = (totalAmount) => {
   const ownerAmount = Number((total - platformFeeAmount).toFixed(2));
   return { platformFeeAmount, ownerAmount };
 };
+
+const getReservationCurrency = () => String(process.env.STRIPE_RESERVATION_CURRENCY || "eur").toLowerCase();
+
+const toStripeAmount = (value) => Math.max(0, Math.round(toNumber(value, 0) * 100));
+
+const canUseOnlinePayments = async (ownerId) => {
+  if (!ownerId) return { enabled: false, reason: "Lake owner is missing" };
+  const ownerState = await billingService.getOwnerBillingState(ownerId, "owner");
+  if (!ownerState.has_owner_pro_access) {
+    return { enabled: false, reason: "Owner Pro subscription is required" };
+  }
+  if (!ownerState.connect_ready || !ownerState.stripe_connected_account_id) {
+    return { enabled: false, reason: "Owner Stripe payout setup is not complete" };
+  }
+  return { enabled: true, ownerState };
+};
+
 
 const normalizeDate = (value) => String(value || "").trim();
 
@@ -62,7 +81,7 @@ const isReservationPast = (reservation) => {
 };
 
 const canUserCancelReservation = (reservation) => {
-  return ["pending", "approved"].includes(String(reservation?.status || "")) && !isReservationPast(reservation);
+  return ["pending", "approved", "approved_waiting_payment"].includes(String(reservation?.status || "")) && !isReservationPast(reservation);
 };
 
 
@@ -408,11 +427,15 @@ const getReservationById = async (reservationId) => {
       r.rooms_amount,
       r.total_amount,
       r.payment_status,
+      r.payment_method,
       r.payment_required,
       r.platform_fee_amount,
       r.owner_amount,
       r.snapshot_price_per_day,
       r.snapshot_night_fishing_price,
+      r.stripe_checkout_session_id,
+      r.stripe_payment_intent_id,
+      r.paid_at,
       r.status,
       r.created_at,
       r.updated_at,
@@ -660,10 +683,18 @@ const getMyReservations = async (req, res) => {
         r.night_fishing_amount,
         r.rooms_amount,
         r.total_amount,
+        r.payment_status,
+        r.payment_method,
+        r.payment_required,
+        r.platform_fee_amount,
+        r.owner_amount,
+        r.stripe_checkout_session_id,
+        r.stripe_payment_intent_id,
+        r.paid_at,
         r.status,
         r.created_at,
         r.updated_at,
-        ((COALESCE(r.end_date, r.start_date, r.reservation_date)::date >= CURRENT_DATE) AND r.status IN ('pending', 'approved')) AS can_cancel,
+        ((COALESCE(r.end_date, r.start_date, r.reservation_date)::timestamp >= CURRENT_TIMESTAMP) AND r.status IN ('pending', 'approved', 'approved_waiting_payment')) AS can_cancel,
         (COALESCE(r.end_date, r.start_date, r.reservation_date)::date < CURRENT_DATE) AS is_past,
         w.name AS lake_name,
         COALESCE((SELECT json_agg(fishing_date::text ORDER BY fishing_date) FROM reservation_fishing_days WHERE reservation_id = r.id), '[]'::json) AS fishing_dates,
@@ -699,6 +730,14 @@ const getIncomingReservations = async (req, res) => {
         r.night_fishing_amount,
         r.rooms_amount,
         r.total_amount,
+        r.payment_status,
+        r.payment_method,
+        r.payment_required,
+        r.platform_fee_amount,
+        r.owner_amount,
+        r.stripe_checkout_session_id,
+        r.stripe_payment_intent_id,
+        r.paid_at,
         r.status,
         r.created_at,
         r.updated_at,
@@ -741,6 +780,7 @@ const getReservationBadgeCounts = async (req, res) => {
       FROM lake_reservations
       WHERE user_id = $1
         AND status IN ('approved', 'rejected')
+        AND COALESCE(end_date, start_date, reservation_date)::timestamp >= CURRENT_TIMESTAMP
     `, [req.user]);
 
     const ownerCountQ = await pool.query(`
@@ -750,6 +790,7 @@ const getReservationBadgeCounts = async (req, res) => {
       WHERE w.owner_id = $1
         AND w.is_private = TRUE
         AND r.status = 'pending'
+        AND COALESCE(r.end_date, r.start_date, r.reservation_date)::timestamp >= CURRENT_TIMESTAMP
     `, [req.user]);
 
     res.json({
@@ -853,6 +894,10 @@ const createReservation = async (req, res) => {
     if (!lake) return res.status(404).json({ error: "Lake not found" });
     if (String(lake.owner_id) === String(req.user)) return res.status(400).json({ error: "Owner cannot reserve own lake" });
 
+    const paymentMethod = String(req.body.payment_method || req.body.payment_preference || "on_arrival").trim().toLowerCase() === "online"
+      ? "online"
+      : "on_arrival";
+
     const fishingDates = normalizeDateList(req.body.fishing_dates);
     const nightFishingDates = normalizeDateList(req.body.night_fishing_dates);
     const normalizedRoomIds = Array.isArray(room_ids) ? [...new Set(room_ids.map((id) => String(id).trim()).filter(Boolean))] : [];
@@ -892,6 +937,22 @@ const createReservation = async (req, res) => {
       stayNightCount: getStayNightCount(arrival, departure),
     });
     const paymentBreakdown = buildPaymentBreakdown(pricing.totalAmount);
+    let initialStatus = "pending";
+    let initialPaymentRequired = false;
+    let initialPaymentStatus = "unpaid";
+
+    if (paymentMethod === "online" && pricing.totalAmount > 0) {
+      const onlinePayment = await canUseOnlinePayments(lake.owner_id);
+      if (!onlinePayment.enabled) {
+        return res.status(400).json({
+          error: onlinePayment.reason || "Online payment is not available for this lake. Choose pay at the lake instead.",
+        });
+      }
+      initialStatus = "approved_waiting_payment";
+      initialPaymentRequired = true;
+      initialPaymentStatus = "unpaid";
+    }
+
     const snapshotPricePerDay = toNumber(lake.price_per_day, 0);
     const snapshotNightFishingPrice = toNumber(lake.night_fishing_price, 0);
 
@@ -913,6 +974,7 @@ const createReservation = async (req, res) => {
         rooms_amount,
         total_amount,
         payment_status,
+        payment_method,
         payment_required,
         platform_fee_amount,
         owner_amount,
@@ -921,7 +983,7 @@ const createReservation = async (req, res) => {
         status,
         updated_at
       )
-      VALUES ($1, $2, $3, $3, $4, $5, $6, $6, $7, $8, $9, $10, $11, $12, 'unpaid', FALSE, $13, $14, $15, $16, 'pending', NOW())
+      VALUES ($1, $2, $3, $3, $4, $5, $6, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, NOW())
       RETURNING id
     `, [
       water_body_id,
@@ -936,10 +998,14 @@ const createReservation = async (req, res) => {
       pricing.nightFishingAmount,
       pricing.roomsAmount,
       pricing.totalAmount,
+      initialPaymentStatus,
+      paymentMethod,
+      initialPaymentRequired,
       paymentBreakdown.platformFeeAmount,
       paymentBreakdown.ownerAmount,
       snapshotPricePerDay,
       snapshotNightFishingPrice,
+      initialStatus,
     ]);
 
     const reservationId = insertReservation.rows[0].id;
@@ -995,7 +1061,8 @@ const cancelReservation = async (req, res) => {
       });
     }
 
-    await pool.query(`UPDATE lake_reservations SET status = 'cancelled', updated_at = NOW() WHERE id = $1 AND user_id = $2`, [reservationId, req.user]);
+    await pool.query(`UPDATE lake_reservations SET status = 'cancelled', payment_required = FALSE, updated_at = NOW() WHERE id = $1 AND user_id = $2`, [reservationId, req.user]);
+    await pool.query(`UPDATE reservation_payments SET status = 'cancelled', updated_at = NOW() WHERE reservation_id = $1 AND status = 'pending'`, [reservationId]);
     const reservation = await getReservationById(reservationId);
     queueReservationEmail(() => notifyOwnerReservationCancelled(reservationId), "reservation cancellation notification");
     res.json(reservation);
@@ -1040,14 +1107,148 @@ const updateReservationStatus = async (req, res) => {
       const roomIds = Array.isArray(reservation.rooms) ? reservation.rooms.map((room) => room.id) : [];
       await ensureRoomAvailability({ roomIds, arrival: reservation.arrival_date, departure: reservation.departure_date, excludedReservationId: reservationId });
     }
-    await pool.query(`UPDATE lake_reservations SET status = $2, updated_at = NOW() WHERE id = $1`, [reservationId, status]);
+    let nextStatus = status;
+    let paymentRequired = false;
+    let paymentStatus = reservation.payment_status || "unpaid";
+
+    if (status === "approved" && toNumber(reservation.total_amount, 0) > 0) {
+      const onlinePayment = await canUseOnlinePayments(lake.owner_id);
+      if (onlinePayment.enabled) {
+        nextStatus = "approved_waiting_payment";
+        paymentRequired = true;
+        paymentStatus = "unpaid";
+      }
+    }
+
+    if (status === "rejected") {
+      paymentRequired = false;
+      await pool.query(`UPDATE reservation_payments SET status = 'cancelled', updated_at = NOW() WHERE reservation_id = $1 AND status = 'pending'`, [reservationId]);
+    }
+
+    await pool.query(`
+      UPDATE lake_reservations
+      SET status = $2,
+          payment_required = $3,
+          payment_status = $4,
+          updated_at = NOW()
+      WHERE id = $1
+    `, [reservationId, nextStatus, paymentRequired, paymentStatus]);
     const updated = await getReservationById(reservationId);
     if (status === "approved" || status === "rejected") {
-      queueReservationEmail(() => notifyUserReservationStatusChanged(reservationId, status), `reservation ${status} notification`);
+      queueReservationEmail(() => notifyUserReservationStatusChanged(reservationId, nextStatus), `reservation ${nextStatus} notification`);
     }
     res.json(updated);
   } catch (err) {
     res.status(400).json({ error: err.message || 'Failed to update reservation status' });
+  }
+};
+
+
+const createReservationPaymentCheckout = async (req, res) => {
+  try {
+    await ensureSchema();
+    const { reservationId } = req.params;
+    const reservation = await getReservationById(reservationId);
+    if (!reservation) return res.status(404).json({ error: "Reservation not found" });
+    if (String(reservation.user_id) !== String(req.user)) return res.status(403).json({ error: "Not allowed" });
+    if (isReservationPast(reservation)) return res.status(400).json({ error: "Past reservations cannot be paid" });
+    if (reservation.status !== "approved_waiting_payment") {
+      return res.status(400).json({ error: "This reservation is not waiting for online payment" });
+    }
+    if (reservation.payment_status === "paid") {
+      return res.status(400).json({ error: "This reservation is already paid" });
+    }
+    if (toNumber(reservation.total_amount, 0) <= 0) {
+      return res.status(400).json({ error: "This reservation has no online payment amount" });
+    }
+
+    const lake = await getLakeBookingContext(reservation.water_body_id);
+    if (!lake?.owner_id) return res.status(400).json({ error: "Lake owner is missing" });
+    const onlinePayment = await canUseOnlinePayments(lake.owner_id);
+    if (!onlinePayment.enabled) {
+      return res.status(403).json({ error: onlinePayment.reason || "Owner online payments are not available" });
+    }
+
+    const stripe = requireStripe();
+    const currency = getReservationCurrency();
+    const appUrl = getAppUrl();
+    const totalCents = toStripeAmount(reservation.total_amount);
+    const platformFeeCents = toStripeAmount(reservation.platform_fee_amount);
+
+    const paymentIntentData = {
+      transfer_data: {
+        destination: onlinePayment.ownerState.stripe_connected_account_id,
+      },
+      metadata: {
+        reservation_id: String(reservation.id),
+        user_id: String(req.user),
+        owner_id: String(lake.owner_id),
+        water_body_id: String(reservation.water_body_id),
+        billing_type: "reservation_payment",
+      },
+    };
+    if (platformFeeCents > 0) {
+      paymentIntentData.application_fee_amount = platformFeeCents;
+    }
+
+    const session = await stripe.checkout.sessions.create({
+      mode: "payment",
+      line_items: [
+        {
+          price_data: {
+            currency,
+            product_data: {
+              name: `Reservation at ${reservation.lake_name || "Fishing lake"}`,
+              description: `Stay: ${reservation.arrival_date} → ${reservation.departure_date}`,
+            },
+            unit_amount: totalCents,
+          },
+          quantity: 1,
+        },
+      ],
+      success_url: `${appUrl}/reservations?payment=success`,
+      cancel_url: `${appUrl}/reservations?payment=cancelled`,
+      payment_intent_data: paymentIntentData,
+      metadata: {
+        reservation_id: String(reservation.id),
+        user_id: String(req.user),
+        owner_id: String(lake.owner_id),
+        water_body_id: String(reservation.water_body_id),
+        billing_type: "reservation_payment",
+      },
+    });
+
+    await pool.query(`
+      INSERT INTO reservation_payments (
+        reservation_id, user_id, owner_id, water_body_id, stripe_checkout_session_id,
+        stripe_connected_account_id, currency, amount_total, platform_fee_amount, owner_amount, status
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'pending')
+      ON CONFLICT (stripe_checkout_session_id) DO UPDATE
+      SET status = 'pending', updated_at = NOW()
+    `, [
+      reservation.id,
+      req.user,
+      lake.owner_id,
+      reservation.water_body_id,
+      session.id,
+      onlinePayment.ownerState.stripe_connected_account_id,
+      currency,
+      reservation.total_amount,
+      reservation.platform_fee_amount,
+      reservation.owner_amount,
+    ]);
+
+    await pool.query(`
+      UPDATE lake_reservations
+      SET stripe_checkout_session_id = $2,
+          payment_status = 'checkout_started',
+          updated_at = NOW()
+      WHERE id = $1
+    `, [reservation.id, session.id]);
+
+    res.json({ url: session.url });
+  } catch (err) {
+    res.status(400).json({ error: err.message || "Failed to start reservation payment" });
   }
 };
 
@@ -1058,6 +1259,7 @@ module.exports = {
   getMyReservationStatus,
   estimateReservation,
   createReservation,
+  createReservationPaymentCheckout,
   cancelReservation,
   updateReservationStatus,
 };

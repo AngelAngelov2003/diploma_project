@@ -1,6 +1,6 @@
 const pool = require("../db");
 const waterBodyService = require("../services/waterBodyService");
-const { fetchForecastForLatLng } = require("../services/forecastService");
+const { fetchForecastForLatLng, fetchWeeklyForecastForLatLng } = require("../services/forecastService");
 const { ensureReservationDomainTables } = require("../setup/ensureTables");
 
 const getWaterBodies = async (req, res) => {
@@ -56,6 +56,50 @@ const getForecastByLatLng = async (req, res) => {
     const status = err.status || 500;
     res.status(status).json({
       error: err.publicMessage || err.message || "No weather data",
+      code: err.code || "FORECAST_ERROR",
+    });
+  }
+};
+
+const getWeeklyForecastByLatLng = async (req, res) => {
+  const { lat, lng } = req.params;
+
+  try {
+    const result = await fetchWeeklyForecastForLatLng(lat, lng);
+    res.json(result);
+  } catch (err) {
+    console.error("getWeeklyForecastByLatLng error:", err);
+    const status = err.status || 500;
+    res.status(status).json({
+      error: err.publicMessage || err.message || "Failed to load weekly forecast",
+      code: err.code || "FORECAST_ERROR",
+    });
+  }
+};
+
+const getWaterBodyWeeklyForecast = async (req, res) => {
+  try {
+    const { waterBodyId } = req.params;
+    const coords = await waterBodyService.getWaterBodyCentroid(waterBodyId);
+
+    if (!coords) {
+      return res.status(404).json({ error: "Water body not found" });
+    }
+
+    const lat = Number(coords.latitude);
+    const lng = Number(coords.longitude);
+
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      return res.status(400).json({ error: "Water body coordinates not available" });
+    }
+
+    const forecast = await fetchWeeklyForecastForLatLng(lat, lng);
+    res.json(forecast);
+  } catch (err) {
+    console.error("getWaterBodyWeeklyForecast error:", err);
+    const status = err.status || 500;
+    res.status(status).json({
+      error: err.publicMessage || err.message || "Failed to load weekly forecast",
       code: err.code || "FORECAST_ERROR",
     });
   }
@@ -568,8 +612,10 @@ module.exports = {
   getWaterBodiesInBounds,
   searchWaterBodies,
   getForecastByLatLng,
+  getWeeklyForecastByLatLng,
   getWaterBodyById,
   getWaterBodyForecast,
+  getWaterBodyWeeklyForecast,
   getWaterBodyCatches,
   getSpeciesSummary,
   getWaterBodyPhotos,

@@ -8,8 +8,11 @@ import {
   FaStar,
   FaBell,
   FaMapMarkedAlt,
+  FaCalendarAlt,
 } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
+import PremiumLockedCard from "../common/PremiumLockedCard";
+import ZoomableImage from "../ui/ZoomableImage";
 import api from "../../api/client";
 import { getWaterBodyById } from "../../api/waterBodiesApi";
 import { notifyError, notifySuccess } from "../../ui/toast";
@@ -28,10 +31,39 @@ const toLocalDateTimeValue = (date) => {
   )}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 };
 
+const formatForecastDay = (value) => {
+  if (!value) return "Unknown";
+  const date = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+};
+
+const getForecastScoreClass = (score) => {
+  const numeric = Number(score);
+  if (numeric >= 80) return "great";
+  if (numeric >= 60) return "good";
+  if (numeric >= 40) return "average";
+  return "weak";
+};
+
+const formatForecastNumber = (value, decimals = 1) => {
+  if (value === null || value === undefined || value === "") return "—";
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return value;
+  return numeric.toLocaleString(undefined, {
+    maximumFractionDigits: decimals,
+  });
+};
+
 const LakePopup = ({ lake, map }) => {
   const navigate = useNavigate();
 
   const [forecast, setForecast] = useState(null);
+  const [weeklyForecast, setWeeklyForecast] = useState([]);
+  const [showWeeklyForecast, setShowWeeklyForecast] = useState(false);
+  const [selectedWeeklyForecastDate, setSelectedWeeklyForecastDate] = useState("");
+  const [forecastLocked, setForecastLocked] = useState(false);
+  const [alertLocked, setAlertLocked] = useState(false);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [activePanel, setActivePanel] = useState(null);
@@ -72,6 +104,9 @@ const LakePopup = ({ lake, map }) => {
     descriptionLoadedLakeRef.current = null;
     setResolvedDescription(typeof lake?.description === "string" ? lake.description : "");
     setForecast(null);
+    setWeeklyForecast([]);
+    setShowWeeklyForecast(false);
+    setForecastLocked(false);
     setActivePanel(null);
     setDescriptionExpanded(false);
     setMsg("");
@@ -225,10 +260,16 @@ const LakePopup = ({ lake, map }) => {
         notifySuccess("Alert enabled");
       }
     } catch (err) {
-      notifyError(
-        err,
-        alertEnabled ? "Failed to disable alert" : "Failed to enable alert",
-      );
+      if (err?.response?.data?.code === "PREMIUM_REQUIRED") {
+        setAlertLocked(true);
+        setActivePanel("premium-alert");
+        notifyError(null, "Premium subscription required for smart alerts. Open Billing / Premium from the menu.");
+      } else {
+        notifyError(
+          err,
+          alertEnabled ? "Failed to disable alert" : "Failed to enable alert",
+        );
+      }
     } finally {
       setAlertLoading(false);
     }
@@ -273,6 +314,7 @@ const LakePopup = ({ lake, map }) => {
     try {
       setLoading(true);
       const res = await api.get(`/forecast/${lakeLat}/${lakeLng}`);
+      setForecastLocked(false);
       setForecast(res.data || null);
       setActivePanel("forecast");
 
@@ -280,7 +322,56 @@ const LakePopup = ({ lake, map }) => {
         map.setView([lakeLat, lakeLng], map.getZoom(), { animate: true });
       }
     } catch (err) {
-      notifyError(err, "Error fetching forecast");
+      if (err?.response?.data?.code === "PREMIUM_REQUIRED") {
+        setForecast(null);
+        setForecastLocked(true);
+        setActivePanel("forecast");
+        notifyError(null, "Premium subscription required to unlock the forecast. Open Billing / Premium from the menu.");
+      } else {
+        notifyError(err, "Error fetching forecast");
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+
+  const toggleWeeklyForecast = async (e) => {
+    e.stopPropagation();
+
+    if (!lake?.id || !hasValidCoords || loading) {
+      return;
+    }
+
+    if (showWeeklyForecast) {
+      setShowWeeklyForecast(false);
+      return;
+    }
+
+    setShowWeeklyForecast(true);
+
+    if (weeklyForecast.length) {
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const res = await api.get(`/forecast/${lakeLat}/${lakeLng}/weekly`);
+      setForecastLocked(false);
+      const safeData = Array.isArray(res.data) ? res.data.slice(0, 7) : [];
+      setWeeklyForecast(safeData);
+      setSelectedWeeklyForecastDate((current) => current || safeData[0]?.date || "");
+      setActivePanel("forecast");
+    } catch (err) {
+      if (err?.response?.data?.code === "PREMIUM_REQUIRED") {
+        setForecast(null);
+        setWeeklyForecast([]);
+        setForecastLocked(true);
+        setActivePanel("forecast");
+        notifyError(null, "Premium subscription required to unlock the weekly forecast. Open Billing / Premium from the menu.");
+      } else {
+        notifyError(err, "Error fetching weekly forecast");
+      }
     } finally {
       setLoading(false);
     }
@@ -378,7 +469,30 @@ const LakePopup = ({ lake, map }) => {
   };
 
   const renderForecastCard = () => {
-    if (activePanel !== "forecast" || !forecast || loading) return null;
+    if (activePanel !== "forecast" || loading) return null;
+
+    if (forecastLocked) {
+      return (
+        <PremiumLockedCard
+          ref={activePanelRef}
+          className="lake-popup-panel-card"
+          compact
+          title="Forecast Score: Premium Required"
+          message="Unlock the full AI fishing forecast, daily prediction details, and smart lake alerts."
+          onUpgrade={() => navigate("/billing")}
+          onClose={() => {
+            setForecastLocked(false);
+            setActivePanel(null);
+          }}
+        />
+      );
+    }
+
+    if (!forecast) return null;
+
+    const selectedWeeklyForecast = weeklyForecast.find((day) => day.date === selectedWeeklyForecastDate) || weeklyForecast[0] || null;
+    const displayedForecast = showWeeklyForecast && selectedWeeklyForecast ? selectedWeeklyForecast : forecast;
+    const displayedBreakdown = displayedForecast?.breakdown || {};
 
     return (
       <div ref={activePanelRef} className="lake-popup-panel-card lake-popup-forecast-card">
@@ -387,6 +501,7 @@ const LakePopup = ({ lake, map }) => {
           onClick={(e) => {
             e.stopPropagation();
             setForecast(null);
+            setShowWeeklyForecast(false);
             setActivePanel(null);
           }}
           className="lake-popup-inline-close"
@@ -400,7 +515,51 @@ const LakePopup = ({ lake, map }) => {
             <span>Fishing forecast</span>
           </div>
           <p>Live conditions and AI scoring for this water body.</p>
+          <button
+            type="button"
+            className="lake-popup-weekly-toggle"
+            onClick={toggleWeeklyForecast}
+            disabled={loading || !hasValidCoords}
+          >
+            {showWeeklyForecast ? "Hide weekly forecast" : "Show weekly forecast"}
+          </button>
         </div>
+
+        {showWeeklyForecast && (
+          <div className="lake-popup-weekly-list">
+            {weeklyForecast.length ? (
+              (() => {
+                const selectedDay =
+                  weeklyForecast.find((day) => day.date === selectedWeeklyForecastDate) || weeklyForecast[0];
+
+                return (
+                  <>
+                    <div className="lake-popup-weekly-date-grid">
+                      {weeklyForecast.slice(0, 7).map((day) => {
+                        const isActive = day.date === selectedDay?.date;
+                        return (
+                          <button
+                            type="button"
+                            key={day.date}
+                            className={`lake-popup-weekly-date-button${isActive ? " active" : ""}`}
+                            onClick={() => setSelectedWeeklyForecastDate(day.date)}
+                          >
+                            <span>{formatForecastDay(day.date)}</span>
+                            <strong>{day.total_score ?? 0}%</strong>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </>
+                );
+              })()
+            ) : (
+              <div className="lake-popup-weekly-empty">
+                {loading ? "Loading weekly forecast..." : "No weekly forecast available."}
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="lake-popup-score-grid">
           <div className="lake-popup-score-item">
@@ -410,7 +569,7 @@ const LakePopup = ({ lake, map }) => {
             <div>
               <div className="lake-popup-score-label">Weather score</div>
               <div className="lake-popup-score-value">
-                {forecast.breakdown?.weather_score ?? 0}/100
+                {displayedBreakdown.weather_score ?? 0}/100
               </div>
             </div>
           </div>
@@ -422,7 +581,7 @@ const LakePopup = ({ lake, map }) => {
             <div>
               <div className="lake-popup-score-label">Moon score</div>
               <div className="lake-popup-score-value">
-                {forecast.breakdown?.moon_score ?? 0}/100
+                {displayedBreakdown.moon_score ?? 0}/100
               </div>
             </div>
           </div>
@@ -430,28 +589,48 @@ const LakePopup = ({ lake, map }) => {
 
         <div className="lake-popup-total-score">
           <span>Total index</span>
-          <strong>{forecast.total_score ?? 0}%</strong>
+          <strong>{displayedForecast?.total_score ?? 0}%</strong>
         </div>
 
         <div className="lake-popup-metric-grid">
           <div className="lake-popup-metric-item">
             <span>Temperature</span>
-            <strong>{forecast.temp ?? "—"}°C</strong>
+            <strong>{formatForecastNumber(displayedForecast?.temp, 1)}°C</strong>
           </div>
           <div className="lake-popup-metric-item">
             <span>Wind</span>
-            <strong>{forecast.wind ?? "—"} m/s</strong>
+            <strong>{formatForecastNumber(displayedForecast?.wind, 1)} m/s</strong>
           </div>
           <div className="lake-popup-metric-item">
             <span>Pressure</span>
-            <strong>{forecast.pressure ?? "—"} hPa</strong>
+            <strong>{formatForecastNumber(displayedForecast?.pressure, 0)} hPa</strong>
           </div>
           <div className="lake-popup-metric-item">
             <span>Humidity</span>
-            <strong>{forecast.humidity ?? "—"}%</strong>
+            <strong>{formatForecastNumber(displayedForecast?.humidity, 0)}%</strong>
           </div>
         </div>
       </div>
+    );
+  };
+
+  const renderPremiumAlertCard = () => {
+    if (activePanel !== "premium-alert" || !alertLocked) return null;
+
+    return (
+      <PremiumLockedCard
+        ref={activePanelRef}
+        className="lake-popup-panel-card"
+        compact
+        title="Smart Alerts: Premium Required"
+        message="Unlock automatic forecast alerts, daily lake notifications, and custom minimum score reminders."
+        bullets={["Daily or weekly forecast alerts", "Minimum score notifications", "Smart updates for saved lakes"]}
+        onUpgrade={() => navigate("/billing")}
+        onClose={() => {
+          setAlertLocked(false);
+          setActivePanel(null);
+        }}
+      />
     );
   };
 
@@ -549,10 +728,10 @@ const LakePopup = ({ lake, map }) => {
 
           {imagePreviewUrl ? (
             <div className="lake-popup-image-preview-wrap">
-              <img
+              <ZoomableImage
                 src={imagePreviewUrl}
                 alt="Preview"
-                className="lake-popup-image-preview"
+                imageClassName="lake-popup-image-preview"
               />
               <button
                 type="button"
@@ -649,6 +828,22 @@ const LakePopup = ({ lake, map }) => {
 
           <button
             type="button"
+            onClick={async (e) => {
+              e.stopPropagation();
+              if (!forecast) {
+                await getForecast();
+              }
+              await toggleWeeklyForecast(e);
+            }}
+            disabled={loading || !hasValidCoords}
+            className="lake-popup-action-button forecast-week"
+          >
+            <FaCalendarAlt />
+            <span>{loading ? "Loading..." : "Week"}</span>
+          </button>
+
+          <button
+            type="button"
             onClick={(e) => {
               e.stopPropagation();
               setActivePanel((current) => (current === "log" ? null : "log"));
@@ -695,6 +890,7 @@ const LakePopup = ({ lake, map }) => {
         )}
 
         {renderForecastCard()}
+        {renderPremiumAlertCard()}
         {renderLogForm()}
 
         <button
@@ -792,6 +988,135 @@ const LakePopup = ({ lake, map }) => {
           background: linear-gradient(135deg, #d97706 0%, #f59e0b 100%);
         }
 
+        .lake-popup-action-button.forecast-week {
+          background: linear-gradient(135deg, #0f766e 0%, #14b8a6 100%);
+        }
+
+        .lake-popup-weekly-toggle {
+          border: none;
+          border-radius: 999px;
+          background: #0f172a;
+          color: white;
+          font-weight: 800;
+          padding: 9px 12px;
+          cursor: pointer;
+          margin-top: 10px;
+        }
+
+        .lake-popup-weekly-list {
+          display: grid;
+          gap: 10px;
+          margin-bottom: 14px;
+        }
+
+        .lake-popup-weekly-date-grid {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 8px;
+        }
+
+        .lake-popup-weekly-date-button {
+          border: 1px solid #dbe3ef;
+          background: #fff;
+          color: #0f172a;
+          border-radius: 12px;
+          padding: 8px 6px;
+          cursor: pointer;
+          display: grid;
+          gap: 2px;
+          text-align: center;
+          font-weight: 900;
+        }
+
+        .lake-popup-weekly-date-button span {
+          font-size: 11px;
+          line-height: 1.2;
+        }
+
+        .lake-popup-weekly-date-button strong {
+          font-size: 14px;
+        }
+
+        .lake-popup-weekly-date-button.active {
+          background: #2563eb;
+          border-color: #2563eb;
+          color: #fff;
+          box-shadow: 0 10px 22px rgba(37, 99, 235, 0.22);
+        }
+
+        .lake-popup-weekly-row {
+          display: flex;
+          justify-content: space-between;
+          gap: 10px;
+          align-items: center;
+          padding: 10px;
+          background: #f8fafc;
+          border: 1px solid #e2e8f0;
+          border-radius: 14px;
+        }
+
+        .lake-popup-weekly-row strong,
+        .lake-popup-weekly-row span {
+          display: block;
+        }
+
+        .lake-popup-weekly-row strong {
+          color: #0f172a;
+          font-size: 13px;
+        }
+
+        .lake-popup-weekly-row span,
+        .lake-popup-weekly-row small {
+          color: #64748b;
+          font-size: 12px;
+          margin-top: 3px;
+          display: block;
+          line-height: 1.45;
+        }
+
+        .lake-popup-weekly-row.selected {
+          background: #fff;
+        }
+
+        .lake-popup-weekly-row em {
+          border-radius: 999px;
+          font-style: normal;
+          font-weight: 900;
+          padding: 7px 10px;
+          min-width: 52px;
+          text-align: center;
+        }
+
+        .lake-popup-weekly-row em.great {
+          background: #dcfce7;
+          color: #166534;
+        }
+
+        .lake-popup-weekly-row em.good {
+          background: #ecfeff;
+          color: #0f766e;
+        }
+
+        .lake-popup-weekly-row em.average {
+          background: #fff7ed;
+          color: #9a3412;
+        }
+
+        .lake-popup-weekly-row em.weak {
+          background: #fef2f2;
+          color: #991b1b;
+        }
+
+        .lake-popup-weekly-empty {
+          color: #64748b;
+          font-size: 13px;
+          font-weight: 700;
+          padding: 10px;
+          background: #f8fafc;
+          border-radius: 12px;
+        }
+
+
         .lake-popup-action-button.muted {
           background: linear-gradient(135deg, #64748b 0%, #94a3b8 100%);
         }
@@ -822,6 +1147,88 @@ const LakePopup = ({ lake, map }) => {
           cursor: pointer;
           font-weight: 800;
           box-shadow: 0 10px 22px rgba(15, 23, 42, 0.12);
+        }
+
+        .lake-popup-premium-lock-card {
+          background: linear-gradient(135deg, #eff6ff 0%, #f8fafc 48%, #fff7ed 100%);
+          border: 1px solid #bfdbfe;
+          box-shadow: 0 18px 42px rgba(37, 99, 235, 0.16);
+          overflow: hidden;
+        }
+
+        .lake-popup-premium-lock-card::before {
+          content: "";
+          position: absolute;
+          inset: 0;
+          background: radial-gradient(circle at top right, rgba(37, 99, 235, 0.18), transparent 35%),
+            radial-gradient(circle at bottom left, rgba(245, 158, 11, 0.16), transparent 32%);
+          pointer-events: none;
+        }
+
+        .lake-popup-premium-lock-card > * {
+          position: relative;
+          z-index: 1;
+        }
+
+        .lake-popup-premium-badge {
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          background: #1d4ed8;
+          color: white;
+          border-radius: 999px;
+          padding: 6px 10px;
+          font-size: 12px;
+          font-weight: 900;
+          margin-bottom: 14px;
+        }
+
+        .lake-popup-premium-icon {
+          width: 46px;
+          height: 46px;
+          border-radius: 16px;
+          background: rgba(37, 99, 235, 0.12);
+          color: #1d4ed8;
+          display: grid;
+          place-items: center;
+          font-size: 20px;
+          margin-bottom: 12px;
+        }
+
+        .lake-popup-premium-lock-card h3 {
+          margin: 0 0 8px;
+          color: #0f172a;
+          font-size: 20px;
+        }
+
+        .lake-popup-premium-lock-card p {
+          margin: 0 0 16px;
+          color: #475569;
+          line-height: 1.55;
+          font-weight: 650;
+        }
+
+        .lake-popup-premium-list {
+          margin: 0 0 16px;
+          padding-left: 18px;
+          color: #334155;
+          font-weight: 750;
+          line-height: 1.7;
+        }
+
+        .lake-popup-premium-button {
+          border: none;
+          border-radius: 14px;
+          background: linear-gradient(135deg, #2563eb, #1d4ed8);
+          color: white;
+          padding: 12px 16px;
+          font-weight: 900;
+          cursor: pointer;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          box-shadow: 0 12px 24px rgba(37, 99, 235, 0.24);
         }
 
         .lake-popup-panel-card,
@@ -946,6 +1353,7 @@ const LakePopup = ({ lake, map }) => {
           background: #f8fafc;
           border: 1px solid #e2e8f0;
           border-radius: 16px;
+          min-width: 0;
         }
 
         .lake-popup-metric-item span {
@@ -957,8 +1365,11 @@ const LakePopup = ({ lake, map }) => {
         }
 
         .lake-popup-metric-item strong {
+          display: block;
           font-size: 16px;
           color: #0f172a;
+          line-height: 1.25;
+          overflow-wrap: anywhere;
         }
 
         .lake-popup-form-grid {

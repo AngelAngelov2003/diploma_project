@@ -1,16 +1,19 @@
 const express = require("express");
 const authorize = require("../middleware/authorize");
 const waterBodyController = require("../controllers/waterBodyController");
+const requirePremium = require("../middleware/requirePremium");
 
 const router = express.Router();
 
 router.get("/water-bodies", waterBodyController.getWaterBodies);
 router.get("/water-bodies/in-bounds", waterBodyController.getWaterBodiesInBounds);
-router.get("/forecast/:lat/:lng", waterBodyController.getForecastByLatLng);
+router.get("/forecast/:lat/:lng", authorize, requirePremium, waterBodyController.getForecastByLatLng);
+router.get("/forecast/:lat/:lng/weekly", authorize, requirePremium, waterBodyController.getWeeklyForecastByLatLng);
 
 router.get("/water-bodies/search", waterBodyController.searchWaterBodies);
 router.get("/water-bodies/:waterBodyId", waterBodyController.getWaterBodyById);
-router.get("/water-bodies/:waterBodyId/forecast", waterBodyController.getWaterBodyForecast);
+router.get("/water-bodies/:waterBodyId/forecast", authorize, requirePremium, waterBodyController.getWaterBodyForecast);
+router.get("/water-bodies/:waterBodyId/forecast/weekly", authorize, requirePremium, waterBodyController.getWaterBodyWeeklyForecast);
 router.get("/water-bodies/:waterBodyId/catches", waterBodyController.getWaterBodyCatches);
 router.get("/water-bodies/:waterBodyId/species-summary", waterBodyController.getSpeciesSummary);
 router.get("/water-bodies/:waterBodyId/photos", waterBodyController.getWaterBodyPhotos);

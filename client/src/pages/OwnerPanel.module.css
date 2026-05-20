@@ -898,3 +898,609 @@
   font-weight: 900;
   white-space: nowrap;
 }
+
+.ownerProNotice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid #bbf7d0;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #f0fdf4, #ffffff);
+  color: #334155;
+  box-shadow: 0 10px 24px rgba(22, 163, 74, 0.10);
+}
+
+.ownerProNotice strong {
+  color: #166534;
+}
+
+.ownerProNotice button {
+  border: 0;
+  border-radius: 12px;
+  padding: 10px 14px;
+  font-weight: 900;
+  color: #fff;
+  background: linear-gradient(135deg, #15803d, #22c55e);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.ownerProLockGrid,
+.ownerProActiveGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.ownerProActiveTile {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 16px;
+  border-radius: 16px;
+  border: 1px solid #bbf7d0;
+  background: #f0fdf4;
+  color: #334155;
+}
+
+.ownerProActiveTile svg {
+  flex: 0 0 auto;
+  color: #15803d;
+  font-size: 22px;
+  margin-top: 2px;
+}
+
+.ownerProActiveTile strong {
+  display: block;
+  color: #0f172a;
+  margin-bottom: 4px;
+}
+
+.ownerProActiveTile span {
+  color: #64748b;
+  line-height: 1.5;
+}
+
+@media (max-width: 760px) {
+  .ownerProNotice {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .ownerProNotice button {
+    width: 100%;
+  }
+
+  .ownerProLockGrid,
+  .ownerProActiveGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.ownerReservationDetails {
+  min-width: 0;
+  flex: 1 1 420px;
+}
+
+.ownerReservationBadges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.ownerReservationActions {
+  display: grid;
+  gap: 8px;
+  justify-items: end;
+  min-width: 180px;
+}
+
+.ownerReservationButtonRow {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+@media (max-width: 760px) {
+  .ownerReservationDetails {
+    flex: 1 1 100%;
+    width: 100%;
+  }
+
+  .ownerReservationActions {
+    width: 100%;
+    min-width: 0;
+    justify-items: stretch;
+  }
+
+  .ownerReservationActions > *,
+  .ownerReservationButtonRow > * {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .ownerReservationButtonRow {
+    display: grid;
+    grid-template-columns: 1fr;
+    justify-content: stretch;
+  }
+
+  .ownerReservationBadges {
+    gap: 6px;
+  }
+
+  .ownerReservationBadges .mutedBadge,
+  .ownerReservationBadges .warningBadge,
+  .ownerReservationBadges .successBadge {
+    max-width: 100%;
+    white-space: normal;
+    line-height: 1.35;
+  }
+
+  .filterRow {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .filterRow button {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 430px) {
+  .filterRow {
+    grid-template-columns: 1fr;
+  }
+
+  .ownerProActiveTile {
+    padding: 14px;
+    border-radius: 14px;
+  }
+}
+
+/* Extra phone polish for owner panel filters/actions */
+@media (max-width: 760px) {
+  .filterRow {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .filterRow button,
+  .sectionCardActions button,
+  .headerActions button,
+  .modalActions button {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .sectionCardActions,
+  .headerActions,
+  .modalActions {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .itemCardCompact {
+    align-items: stretch;
+  }
+}
+
+@media (max-width: 430px) {
+  .filterRow {
+    grid-template-columns: 1fr;
+  }
+
+  .headerMetrics {
+    grid-template-columns: 1fr;
+  }
+}
+
+.earningsSummaryGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.earningsCard {
+  border: 1px solid #dbeafe;
+  border-radius: 16px;
+  background: linear-gradient(180deg, #eff6ff 0%, #ffffff 100%);
+  padding: 16px;
+  display: grid;
+  gap: 6px;
+}
+
+.earningsCard span {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.earningsCard strong {
+  color: #0f172a;
+  font-size: 22px;
+}
+
+.billingSubgrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+  gap: 14px;
+}
+
+.billingActions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+
+.billingActions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.reportList {
+  display: grid;
+  gap: 8px;
+}
+
+.reportRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: white;
+  padding: 10px 12px;
+  color: #334155;
+  flex-wrap: wrap;
+}
+
+.reportRow strong {
+  color: #0f172a;
+}
+
+.earningsTableWrap {
+  margin-top: 14px;
+  overflow-x: auto;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  background: white;
+}
+
+.earningsTable {
+  width: 100%;
+  min-width: 860px;
+  border-collapse: collapse;
+}
+
+.earningsTable th,
+.earningsTable td {
+  padding: 12px;
+  border-bottom: 1px solid #e5e7eb;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.earningsTable th {
+  background: #f8fafc;
+  color: #475569;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.earningsTable tr:last-child td {
+  border-bottom: none;
+}
+
+@media (max-width: 760px) {
+  .billingSubgrid {
+    grid-template-columns: 1fr;
+  }
+
+  .billingActions button {
+    flex: 1;
+    justify-content: center;
+  }
+}
+
+.compactPagination {
+  margin-top: 10px;
+  padding-top: 10px;
+}
+
+/* Responsive table/card conversions for owner-heavy screens */
+@media (max-width: 680px) {
+  .roomsTableWrap,
+  .earningsTableWrap {
+    overflow: visible;
+    border: 0;
+    background: transparent;
+  }
+
+  .roomsTable,
+  .earningsTable,
+  .roomsTable thead,
+  .earningsTable thead,
+  .roomsTable tbody,
+  .earningsTable tbody,
+  .roomsTable tr,
+  .earningsTable tr,
+  .roomsTable td,
+  .earningsTable td {
+    display: block;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .roomsTable thead,
+  .earningsTable thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+  }
+
+  .roomsTable tr,
+  .earningsTable tr {
+    margin-bottom: 10px;
+    border: 1px solid #e5e7eb;
+    border-radius: 14px;
+    background: #fff;
+    overflow: hidden;
+  }
+
+  .roomsTable td,
+  .earningsTable td {
+    display: grid;
+    grid-template-columns: 118px minmax(0, 1fr);
+    gap: 10px;
+    align-items: center;
+    padding: 10px 12px;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .roomsTable td::before,
+  .earningsTable td::before {
+    color: #64748b;
+    font-size: 11px;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .roomsTable td:nth-child(1)::before { content: "Room"; }
+  .roomsTable td:nth-child(2)::before { content: "Capacity"; }
+  .roomsTable td:nth-child(3)::before { content: "Price"; }
+  .roomsTable td:nth-child(4)::before { content: "Status"; }
+  .roomsTable td:nth-child(5)::before { content: "Actions"; }
+
+  .earningsTable td:nth-child(1)::before { content: "Date"; }
+  .earningsTable td:nth-child(2)::before { content: "Lake"; }
+  .earningsTable td:nth-child(3)::before { content: "Customer"; }
+  .earningsTable td:nth-child(4)::before { content: "Total"; }
+  .earningsTable td:nth-child(5)::before { content: "Platform fee"; }
+  .earningsTable td:nth-child(6)::before { content: "Owner amount"; }
+  .earningsTable td:nth-child(7)::before { content: "Status"; }
+
+  .earningsSummaryGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .reportRow {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .paginationBar,
+  .paginationActions,
+  .billingActions {
+    width: 100%;
+    align-items: stretch;
+  }
+
+  .paginationActions,
+  .billingActions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .paginationActions button,
+  .billingActions button {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 420px) {
+  .roomsTable td,
+  .earningsTable td {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+}
+
+/* Mobile polish for Owner Panel: compact business controls */
+@media (max-width: 760px) {
+  .lakeCard {
+    padding: 10px;
+  }
+
+  .lakeHeader {
+    padding-bottom: 10px;
+    margin-bottom: 10px;
+  }
+
+  .titleRow {
+    gap: 6px;
+    margin-bottom: 6px;
+  }
+
+  .modeBadge,
+  .successBadge,
+  .warningBadge,
+  .mutedBadge {
+    padding: 5px 8px;
+    font-size: 11px;
+  }
+
+  .headerMetrics {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 7px;
+  }
+
+  .metricPill {
+    padding: 7px 8px;
+    min-height: 48px;
+    border-radius: 11px;
+    align-content: center;
+  }
+
+  .metricLabel {
+    font-size: 9px;
+  }
+
+  .metricValue {
+    font-size: 14px;
+    line-height: 1.1;
+  }
+
+  .tabBar {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 7px;
+  }
+
+  .tabButton,
+  .tabButtonActive {
+    min-height: 42px;
+    padding: 9px 10px;
+    border-radius: 12px;
+    font-size: 13px;
+    line-height: 1.15;
+  }
+
+  .tabPanelIntro {
+    margin-bottom: 10px;
+  }
+
+  .settingsGrid {
+    gap: 8px;
+  }
+
+  .settingTile {
+    padding: 10px 12px;
+    border-radius: 13px;
+    gap: 8px;
+  }
+
+  .settingTile input {
+    margin-top: 2px;
+    transform: scale(0.92);
+  }
+
+  .settingTitle {
+    font-size: 13px;
+    margin-bottom: 2px;
+  }
+
+  .settingText {
+    font-size: 12px;
+    line-height: 1.35;
+  }
+
+  .editorCard {
+    padding: 12px;
+  }
+
+  .editorHeader {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+
+  .editorHeader .secondaryButton,
+  .editorHeader .primaryButton,
+  .editorHeader .filterButton,
+  .sectionCardActions .secondaryButton,
+  .sectionCardActions .primaryButton,
+  .sectionCardActions .filterButton {
+    width: 100%;
+    min-height: 42px;
+    padding: 9px 12px;
+    border-radius: 12px;
+    justify-content: center;
+    font-size: 13px;
+  }
+
+  .earningsSummaryGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .earningsCard {
+    padding: 10px 12px;
+    border-radius: 13px;
+    gap: 4px;
+    min-height: 66px;
+    align-content: center;
+  }
+
+  .earningsCard span {
+    font-size: 10px;
+    line-height: 1.2;
+  }
+
+  .earningsCard strong {
+    font-size: 18px;
+    line-height: 1.15;
+  }
+}
+
+@media (max-width: 430px) {
+  .headerMetrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .tabBar {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .tabButton,
+  .tabButtonActive {
+    font-size: 12px;
+    min-height: 40px;
+    padding: 8px 7px;
+  }
+
+  .earningsSummaryGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .earningsCard {
+    padding: 9px 10px;
+    min-height: 62px;
+  }
+
+  .earningsCard span {
+    font-size: 9px;
+  }
+
+  .earningsCard strong {
+    font-size: 17px;
+  }
+}

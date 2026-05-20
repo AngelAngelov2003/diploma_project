@@ -64,11 +64,13 @@ function Register({ setAuth, setCurrentUser }) {
   return (
     <div
       style={{
-        padding: "20px",
+        padding: "clamp(16px, 4vw, 22px)",
+        width: "min(400px, calc(100vw - 24px))",
         maxWidth: "400px",
-        margin: "50px auto",
+        boxSizing: "border-box",
+        margin: "clamp(18px, 8vw, 50px) auto",
         border: "1px solid #ddd",
-        borderRadius: "8px",
+        borderRadius: "16px",
       }}
     >
       <h2>
@@ -97,7 +99,7 @@ function Register({ setAuth, setCurrentUser }) {
           value={fullName}
           onChange={(event) => setFullName(event.target.value)}
           required
-          style={{ padding: "10px" }}
+          style={{ padding: "12px", width: "100%", boxSizing: "border-box", fontSize: "16px" }}
           autoComplete="name"
         />
 
@@ -107,7 +109,7 @@ function Register({ setAuth, setCurrentUser }) {
           value={email}
           onChange={(event) => setEmail(event.target.value)}
           required
-          style={{ padding: "10px" }}
+          style={{ padding: "12px", width: "100%", boxSizing: "border-box", fontSize: "16px" }}
           autoComplete="email"
         />
 
@@ -117,7 +119,7 @@ function Register({ setAuth, setCurrentUser }) {
           value={password}
           onChange={(event) => setPassword(event.target.value)}
           required
-          style={{ padding: "10px" }}
+          style={{ padding: "12px", width: "100%", boxSizing: "border-box", fontSize: "16px" }}
           autoComplete="new-password"
         />
 
@@ -125,7 +127,9 @@ function Register({ setAuth, setCurrentUser }) {
           type="submit"
           disabled={submitting}
           style={{
-            padding: "10px",
+            padding: "12px",
+            width: "100%",
+            borderRadius: "12px",
             background: submitting ? "#6c757d" : "#28a745",
             color: "white",
             border: "none",

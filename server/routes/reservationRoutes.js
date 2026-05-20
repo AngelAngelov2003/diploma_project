@@ -10,6 +10,7 @@ router.get("/reservations/incoming", authorize, reservationController.getIncomin
 router.get("/reservations/:waterBodyId/my-status", authorize, reservationController.getMyReservationStatus);
 router.post("/reservations/estimate", authorize, reservationController.estimateReservation);
 router.post("/reservations", authorize, reservationController.createReservation);
+router.post("/reservations/:reservationId/pay", authorize, reservationController.createReservationPaymentCheckout);
 router.patch("/reservations/:reservationId/cancel", authorize, reservationController.cancelReservation);
 router.patch("/reservations/:reservationId/status", authorize, reservationController.updateReservationStatus);
 

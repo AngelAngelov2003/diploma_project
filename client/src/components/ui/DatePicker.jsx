@@ -41,6 +41,8 @@ export default function DatePicker({
   endValue = "",
   onRangeChange,
   disabledDates = [],
+  rangeStartHint = "Choose the first fishing day",
+  rangeEndHint = "Choose the last fishing day",
 }) {
   const selectedDate = toDateOnly(value);
   const rangeStartDate = toDateOnly(startValue);
@@ -170,7 +172,7 @@ export default function DatePicker({
           <div className={styles.header}>
             <div>
               <div className={styles.monthTitle}>{MONTH_FORMATTER.format(visibleMonth)}</div>
-              {range ? <div className={styles.rangeHint}>{rangeStep === "end" ? "Choose the last fishing day" : "Choose the first fishing day"}</div> : null}
+              {range ? <div className={styles.rangeHint}>{rangeStep === "end" ? rangeEndHint : rangeStartHint}</div> : null}
             </div>
             <div className={styles.navGroup}>
               <button type="button" className={styles.navButton} onClick={() => setVisibleMonth((prev) => addMonths(prev, -1))} aria-label="Previous month">‹</button>

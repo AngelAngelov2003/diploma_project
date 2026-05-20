@@ -35,8 +35,9 @@ export default function DashboardFilters({
 
   const disabled = Boolean(loading);
 
-    return (
-    <div className={`${styles.filtersGrid} ${disabled ? styles.filtersGridDisabled : ""}`.trim()}>
+  return (
+    <div className={`${styles.filtersBlock} ${disabled ? styles.filtersGridDisabled : ""}`.trim()}>
+      <div className={styles.filtersGrid}>
       <div>
         <div className={styles.label}>Search</div>
         <input
@@ -74,17 +75,26 @@ export default function DashboardFilters({
         </select>
       </div>
 
-      <div>
-        <div className={styles.label}>From</div>
-        <DatePicker value={dateFrom} onChange={setDateFrom} />
+      <div className={styles.dateRangeField}>
+        <div className={styles.label}>Date range</div>
+        <DatePicker
+          range
+          startValue={dateFrom}
+          endValue={dateTo}
+          placeholder="Choose date range"
+          rangeStartHint="Choose the start date"
+          rangeEndHint="Choose the end date"
+          onRangeChange={({ start, end }) => {
+            setDateFrom(start || "");
+            setDateTo(end || start || "");
+          }}
+          disabled={disabled}
+        />
       </div>
 
-      <div>
-        <div className={styles.label}>To</div>
-        <DatePicker value={dateTo} onChange={setDateTo} min={dateFrom || undefined} />
       </div>
 
-      <div>
+      <div className={styles.actionsRow}>
         <button
           type="button"
           onClick={onClear}

@@ -41,3 +41,9 @@ export const estimateReservation = async (payload) => {
   const { data } = await api.post("/reservations/estimate", payload);
   return data;
 };
+
+
+export const startReservationPayment = async (reservationId) => {
+  const { data } = await api.post(`/reservations/${reservationId}/pay`);
+  return data;
+};

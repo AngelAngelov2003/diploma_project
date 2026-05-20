@@ -1,6 +1,76 @@
 const pool = require("../db");
 const { refreshWaterBodyMaterializedViews } = require("../services/materializedViewService");
 
+const getOwnerLakeCount = async (db, userId) => {
+  const q = await db.query(
+    `SELECT COUNT(*)::int AS count FROM water_bodies WHERE owner_id = $1::uuid`,
+    [userId]
+  );
+  return Number(q.rows[0]?.count || 0);
+};
+
+const cleanupOwnerLakeData = async (db, userId, waterBodyId = null) => {
+  const lakesQ = await db.query(
+    `
+      SELECT id
+      FROM water_bodies
+      WHERE owner_id = $1::uuid
+        AND ($2::uuid IS NULL OR id = $2::uuid)
+    `,
+    [userId, waterBodyId]
+  );
+
+  const lakeIds = lakesQ.rows.map((row) => row.id);
+
+  if (!lakeIds.length) {
+    return { affectedLakeIds: [], remainingOwnedLakes: await getOwnerLakeCount(db, userId) };
+  }
+
+  await db.query(`DELETE FROM lake_rooms WHERE water_body_id = ANY($1::uuid[])`, [lakeIds]);
+  await db.query(`DELETE FROM lake_spots WHERE water_body_id = ANY($1::uuid[])`, [lakeIds]);
+  await db.query(`DELETE FROM lake_sectors WHERE water_body_id = ANY($1::uuid[])`, [lakeIds]);
+
+  await db.query(
+    `
+      UPDATE water_bodies
+      SET
+        owner_id = NULL,
+        is_reservable = FALSE,
+        has_housing = FALSE,
+        spots_count = 0,
+        allows_night_fishing = FALSE,
+        night_fishing_price = 0,
+        updated_at = NOW()
+      WHERE id = ANY($1::uuid[])
+    `,
+    [lakeIds]
+  );
+
+  const remainingOwnedLakes = await getOwnerLakeCount(db, userId);
+
+  if (remainingOwnedLakes === 0) {
+    await db.query(
+      `
+        UPDATE users
+        SET role = 'user', updated_at = NOW()
+        WHERE id = $1::uuid AND COALESCE(role, 'user') = 'owner'
+      `,
+      [userId]
+    );
+
+    await db.query(
+      `
+        UPDATE owner_billing_profiles
+        SET owner_plan = 'free', subscription_status = 'inactive', updated_at = NOW()
+        WHERE owner_id = $1::uuid
+      `,
+      [userId]
+    );
+  }
+
+  return { affectedLakeIds: lakeIds, remainingOwnedLakes };
+};
+
 const getAdminAnalytics = async (req, res) => {
   try {
     const [
@@ -27,8 +97,8 @@ const getAdminAnalytics = async (req, res) => {
       pool.query(`SELECT COUNT(*)::int AS count FROM catch_logs`),
       pool.query(`SELECT COUNT(*)::int AS count FROM water_body_reviews`),
       pool.query(`SELECT COUNT(*)::int AS count FROM lake_reservations`),
-      pool.query(`SELECT COUNT(*)::int AS count FROM lake_reservations WHERE status = 'pending'`),
-      pool.query(`SELECT COUNT(*)::int AS count FROM lake_reservations WHERE status = 'approved'`),
+      pool.query(`SELECT COUNT(*)::int AS count FROM lake_reservations WHERE status = 'pending' AND COALESCE(end_date, start_date, reservation_date)::date >= CURRENT_DATE`),
+      pool.query(`SELECT COUNT(*)::int AS count FROM lake_reservations WHERE status = 'approved' AND COALESCE(end_date, start_date, reservation_date)::date >= CURRENT_DATE`),
       pool.query(`SELECT COUNT(*)::int AS count FROM lake_subscriptions`),
       pool.query(`SELECT COUNT(*)::int AS count FROM lake_owner_claim_requests WHERE status = 'pending'`),
       pool.query(`
@@ -155,6 +225,11 @@ const updateUser = async (req, res) => {
       `,
       [userId, nextFullName, nextEmail, nextRole, nextIsActive]
     );
+
+    if (String(current.role || '').toLowerCase() === 'owner' && nextRole === 'user') {
+      await cleanupOwnerLakeData(pool, userId);
+      await refreshWaterBodyMaterializedViews();
+    }
 
     res.json(q.rows[0]);
   } catch (err) {
@@ -487,7 +562,7 @@ const updateOwnerClaimRequest = async (req, res) => {
 
     const request = existingQ.rows[0];
 
-    if (!request.is_private || !request.is_reservable) {
+    if (nextStatus === "approved" && (!request.is_private || !request.is_reservable)) {
       await client.query("ROLLBACK");
       return res.status(400).json({
         error: "The selected lake must be both private and reservable",
@@ -536,15 +611,8 @@ const updateOwnerClaimRequest = async (req, res) => {
       );
     }
 
-    if (nextStatus === "pending") {
-      await client.query(
-        `
-          UPDATE water_bodies
-          SET owner_id = NULL, updated_at = NOW()
-          WHERE id = $1::uuid AND owner_id = $2::uuid
-        `,
-        [request.water_body_id, request.user_id]
-      );
+    if (nextStatus === "pending" || nextStatus === "rejected") {
+      await cleanupOwnerLakeData(client, request.user_id, request.water_body_id);
     }
 
     const updateQ = await client.query(
@@ -624,6 +692,56 @@ const deleteOwnerClaimRequest = async (req, res) => {
   }
 };
 
+const getCatchLogs = async (req, res) => {
+  try {
+    const q = await pool.query(`
+      SELECT c.*, w.name AS lake_name, u.full_name, u.email
+      FROM catch_logs c
+      LEFT JOIN water_bodies w ON w.id = c.water_body_id
+      LEFT JOIN users u ON u.id = c.user_id
+      ORDER BY COALESCE(c.catch_time, c.created_at) DESC, c.created_at DESC
+    `);
+    res.json(q.rows);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to load catch logs" });
+  }
+};
+
+const deleteCatchLog = async (req, res) => {
+  try {
+    const { catchId } = req.params;
+    await pool.query(`DELETE FROM catch_logs WHERE id = $1`, [catchId]);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to delete catch log" });
+  }
+};
+
+const getGalleryPhotos = async (req, res) => {
+  try {
+    const q = await pool.query(`
+      SELECT p.*, w.name AS lake_name, u.full_name AS uploaded_by_name, u.email AS uploaded_by_email
+      FROM lake_gallery_photos p
+      LEFT JOIN water_bodies w ON w.id = p.water_body_id
+      LEFT JOIN users u ON u.id = p.uploaded_by
+      ORDER BY p.created_at DESC NULLS LAST, p.sort_order ASC
+    `);
+    res.json(q.rows);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to load gallery photos" });
+  }
+};
+
+const deleteGalleryPhoto = async (req, res) => {
+  try {
+    const { photoId } = req.params;
+    await pool.query(`DELETE FROM lake_gallery_photos WHERE id = $1`, [photoId]);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to delete gallery photo" });
+  }
+};
+
 module.exports = {
   getAdminAnalytics,
   getUsers,
@@ -637,4 +755,8 @@ module.exports = {
   getOwnerClaimRequests,
   updateOwnerClaimRequest,
   deleteOwnerClaimRequest,
+  getCatchLogs,
+  deleteCatchLog,
+  getGalleryPhotos,
+  deleteGalleryPhoto,
 };
