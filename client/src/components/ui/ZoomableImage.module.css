@@ -165,3 +165,8 @@
   transition: transform 60ms linear;
   user-select: none;
 }
+
+.trigger img {
+  display: block;
+  max-width: 100%;
+}

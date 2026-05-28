@@ -762,116 +762,22 @@ export default function AdminDashboard() {
                   <StatCard label="Total Catches" value={analytics.totals?.catches ?? 0} className={styles.statCard} />
                 </div>
 
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: isMobile ? "1fr" : "repeat(auto-fit, minmax(300px, 1fr))",
-                    gap: 16,
-                  }}
-                >
-                  <div className={styles.card}>
-                    <h3 style={{ marginTop: 0, marginBottom: 14 }}>
-                      Platform Totals
-                    </h3>
-                    <div
-                      style={{
-                        display: "grid",
-                        gap: 8,
-                        color: "#334155",
-                        fontSize: 14,
-                      }}
-                    >
-                      <div>Active users: {analytics.totals?.active_users ?? 0}</div>
-                      <div>Private lakes: {analytics.totals?.private_lakes ?? 0}</div>
-                      <div>Public lakes: {analytics.totals?.public_lakes ?? 0}</div>
-                      <div>Reservations: {analytics.totals?.reservations ?? 0}</div>
-                      <div>
-                        Pending reservations:{" "}
-                        {analytics.totals?.pending_reservations ?? 0}
-                      </div>
-                      <div>
-                        Approved reservations:{" "}
-                        {analytics.totals?.approved_reservations ?? 0}
-                      </div>
-                      <div>Subscriptions: {analytics.totals?.subscriptions ?? 0}</div>
-                      <div>
-                        Pending ownership requests:{" "}
-                        {analytics.totals?.pending_owner_claims ?? 0}
-                      </div>
+                <div className={styles.overviewInfoGrid}>
+                  {[
+                    ["Active users", analytics.totals?.active_users ?? 0],
+                    ["Private lakes", analytics.totals?.private_lakes ?? 0],
+                    ["Public lakes", analytics.totals?.public_lakes ?? 0],
+                    ["Reservations", analytics.totals?.reservations ?? 0],
+                    ["Pending reservations", analytics.totals?.pending_reservations ?? 0],
+                    ["Approved reservations", analytics.totals?.approved_reservations ?? 0],
+                    ["Subscriptions", analytics.totals?.subscriptions ?? 0],
+                    ["Pending ownership requests", analytics.totals?.pending_owner_claims ?? 0],
+                  ].map(([label, value]) => (
+                    <div key={label} className={styles.overviewInfoCard}>
+                      <span>{label}</span>
+                      <strong>{value}</strong>
                     </div>
-                  </div>
-
-                  <div className={styles.card}>
-                    <h3 style={{ marginTop: 0, marginBottom: 14 }}>
-                      Top Lakes By Catches
-                    </h3>
-                    {!analytics.topLakes?.length ? (
-                      <div className={styles.muted}>No lake statistics yet.</div>
-                    ) : (
-                      <div style={{ display: "grid", gap: 10 }}>
-                        {analytics.topLakes.map((item) => (
-                          <div
-                            key={item.water_body_id}
-                            style={{
-                              border: "1px solid #e5e7eb",
-                              borderRadius: 12,
-                              padding: 12,
-                              background: "#f8fafc",
-                            }}
-                          >
-                            <div style={{ fontWeight: 800, color: "#0f172a" }}>
-                              {item.lake_name}
-                            </div>
-                            <div
-                              style={{
-                                fontSize: 13,
-                                color: "#475569",
-                                marginTop: 4,
-                              }}
-                            >
-                              {item.catches_count} catches
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className={styles.card}>
-                    <h3 style={{ marginTop: 0, marginBottom: 14 }}>
-                      Top Species
-                    </h3>
-                    {!analytics.topSpecies?.length ? (
-                      <div className={styles.muted}>No species statistics yet.</div>
-                    ) : (
-                      <div style={{ display: "grid", gap: 10 }}>
-                        {analytics.topSpecies.map((item, index) => (
-                          <div
-                            key={`${item.species}-${index}`}
-                            style={{
-                              border: "1px solid #e5e7eb",
-                              borderRadius: 12,
-                              padding: 12,
-                              background: "#f8fafc",
-                            }}
-                          >
-                            <div style={{ fontWeight: 800, color: "#0f172a" }}>
-                              {item.species}
-                            </div>
-                            <div
-                              style={{
-                                fontSize: 13,
-                                color: "#475569",
-                                marginTop: 4,
-                              }}
-                            >
-                              {item.catches_count} catches
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
+                  ))}
                 </div>
               </>
             )}

@@ -22,7 +22,6 @@ const DEFAULT_PROFILE = {
 const DEFAULT_PREFERENCES = {
   email_alerts_enabled: true,
   default_notification_frequency: "daily",
-  default_min_score: 0,
 };
 
 const DEFAULT_PASSWORD_FORM = {
@@ -159,13 +158,6 @@ export default function Profile({ setCurrentUser }) {
   const handlePreferencesSubmit = async (event) => {
     event.preventDefault();
 
-    const score = Number(preferences.default_min_score || 0);
-
-    if (!Number.isInteger(score) || score < 0 || score > 100) {
-      notifyError(null, "Default minimum score must be between 0 and 100");
-      return;
-    }
-
     try {
       setSavingPreferences(true);
 
@@ -173,7 +165,6 @@ export default function Profile({ setCurrentUser }) {
         email_alerts_enabled: Boolean(preferences.email_alerts_enabled),
         default_notification_frequency:
           preferences.default_notification_frequency || "daily",
-        default_min_score: score,
       });
 
       setPreferences(updatedPreferences || preferences);
@@ -413,25 +404,6 @@ export default function Profile({ setCurrentUser }) {
                     <option value="daily">Daily</option>
                     <option value="weekly">Weekly</option>
                   </select>
-                </div>
-
-                <div>
-                  <div className={styles.fieldLabel}>
-                    Default minimum score
-                  </div>
-                  <input
-                    type="number"
-                    min="0"
-                    max="100"
-                    value={Number(preferences.default_min_score || 0)}
-                    onChange={(event) =>
-                      setPreferences((prev) => ({
-                        ...prev,
-                        default_min_score: event.target.value,
-                      }))
-                    }
-                    className={styles.input}
-                  />
                 </div>
               </div>
 

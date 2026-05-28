@@ -64,7 +64,6 @@ const DEFAULT_ALERT_STATE = {
   enabled: false,
   favorite: false,
   notification_frequency: "daily",
-  min_score: 0,
 };
 
 const DEFAULT_REVIEWS_SUMMARY = {
@@ -114,13 +113,6 @@ const formatForecastDay = (value) => {
   return date.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
 };
 
-const getForecastScoreTone = (score) => {
-  const numeric = Number(score);
-  if (numeric >= 80) return { background: "#dcfce7", border: "#86efac", color: "#166534" };
-  if (numeric >= 60) return { background: "#ecfeff", border: "#67e8f9", color: "#0f766e" };
-  if (numeric >= 40) return { background: "#fff7ed", border: "#fed7aa", color: "#9a3412" };
-  return { background: "#fef2f2", border: "#fecaca", color: "#991b1b" };
-};
 
 const formatDateTime = (value) => {
   if (!value) return "Unknown time";
@@ -138,7 +130,7 @@ const formatDate = (value) => {
 
 const DEFAULT_PAGE_SIZES = {
   species: 3,
-  catches: 3,
+  catches: 2,
   photos: 10,
   reviews: 4,
 };
@@ -160,6 +152,21 @@ const paginateItems = (items, page, pageSize) => {
     safePage,
   };
 };
+
+function CatchSkeletonList() {
+  return (
+    <div className={styles.catchSkeletonList} aria-label="Loading recent catches">
+      {[0, 1].map((item) => (
+        <div key={item} className={styles.catchSkeletonCard}>
+          <div className={styles.skeletonLineStrong} />
+          <div className={styles.skeletonLine} />
+          <div className={styles.skeletonLineShort} />
+          <div className={styles.skeletonImage} />
+        </div>
+      ))}
+    </div>
+  );
+}
 
 function PaginationControls({ page, totalPages, onChange, itemLabel }) {
   if (totalPages <= 1) {
@@ -235,6 +242,7 @@ function LakeDetails() {
   const [showWeeklyForecast, setShowWeeklyForecast] = useState(false);
   const [selectedWeeklyForecastDate, setSelectedWeeklyForecastDate] = useState("");
   const [catches, setCatches] = useState([]);
+  const [catchesLoading, setCatchesLoading] = useState(false);
   const [speciesSummary, setSpeciesSummary] = useState([]);
   const [photos, setPhotos] = useState([]);
   const [reviews, setReviews] = useState([]);
@@ -303,6 +311,7 @@ function LakeDetails() {
       setForecast(null);
       setForecastError("");
       setCatches([]);
+      setCatchesLoading(false);
       setSpeciesSummary([]);
       setPhotos([]);
       setReviews([]);
@@ -351,6 +360,8 @@ function LakeDetails() {
         return;
       }
 
+      setCatchesLoading(true);
+
       const [
         forecastData,
         catchesData,
@@ -391,6 +402,7 @@ function LakeDetails() {
         );
       }
       setCatches(catchesData || []);
+      setCatchesLoading(false);
       setSpeciesSummary(speciesSummaryData || []);
       setPhotos(photosData || []);
       setReviews(reviewsData || []);
@@ -403,6 +415,7 @@ function LakeDetails() {
     loadSecondaryLakeDetails().catch((error) => {
       if (!cancelled) {
         console.warn("Failed to load secondary lake details", error);
+        setCatchesLoading(false);
       }
     });
 
@@ -668,7 +681,6 @@ function LakeDetails() {
         is_active: Boolean(nextState.enabled),
         is_favorite: Boolean(nextState.favorite),
         notification_frequency: nextState.notification_frequency || "daily",
-        min_score: Number(nextState.min_score || 0),
       };
 
       if (payload.is_active) {
@@ -676,14 +688,12 @@ function LakeDetails() {
           water_body_id: id,
           is_favorite: payload.is_favorite,
           notification_frequency: payload.notification_frequency,
-          min_score: payload.min_score,
         });
       } else if (alertState.enabled || alertState.favorite) {
         await updateAlert(id, {
           is_active: false,
           is_favorite: payload.is_favorite,
           notification_frequency: payload.notification_frequency,
-          min_score: payload.min_score,
         });
       } else if (payload.is_favorite) {
         await createFavorite(id);
@@ -1543,7 +1553,7 @@ function LakeDetails() {
                   compact
                   title="Smart alerts are Premium"
                   message="Favorites stay free, but automatic forecast alerts require Premium access."
-                  bullets={["Daily or weekly forecast emails", "Minimum score alert threshold", "Premium lake notifications"]}
+                  bullets={["Daily or weekly forecast emails", "Premium lake notifications"]}
                   onUpgrade={goToBilling}
                 />
               </div>
@@ -1619,50 +1629,7 @@ function LakeDetails() {
                   </select>
                 </div>
 
-                <div>
-                  <div
-                    style={{
-                      fontSize: "12px",
-                      color: "#555",
-                      marginBottom: "6px",
-                    }}
-                  >
-                    Minimum Score
-                  </div>
-                  <input
-                    type="number"
-                    min="0"
-                    max="100"
-                    value={Number(alertState.min_score || 0)}
-                    disabled={savingAlertState}
-                    onChange={(event) =>
-                      setAlertState((prev) => ({
-                        ...prev,
-                        min_score: Math.max(
-                          0,
-                          Math.min(100, Number(event.target.value || 0)),
-                        ),
-                      }))
-                    }
-                    onBlur={() =>
-                      saveAlertSettings(
-                        {
-                          ...alertState,
-                          min_score: Number(alertState.min_score || 0),
-                        },
-                        "Minimum score updated",
-                      )
-                    }
-                    style={{
-                      width: "100%",
-                      padding: "10px",
-                      borderRadius: 10,
-                      border: "1px solid #ddd",
-                      boxSizing: "border-box",
-                      background: "white",
-                    }}
-                  />
-                </div>
+
               </>
             )}
           </div>
@@ -1682,13 +1649,7 @@ function LakeDetails() {
               Lake map
             </h2>
 
-            <div
-              style={{
-                height: "420px",
-                borderRadius: "14px",
-                overflow: "hidden",
-              }}
-            >
+            <div className={styles.mapFrame}>
               <MapContainer
                 center={mapCenter}
                 zoom={13}
@@ -2163,7 +2124,9 @@ function LakeDetails() {
               Recent catches
             </h2>
 
-            {catches.length === 0 ? (
+            {catchesLoading ? (
+              <CatchSkeletonList />
+            ) : catches.length === 0 ? (
               <div style={{ color: "#64748b" }}>
                 No catches logged for this lake yet.
               </div>
@@ -2173,12 +2136,7 @@ function LakeDetails() {
                   {paginatedCatches.items.map((item) => (
                     <div
                       key={item.id}
-                      style={{
-                        border: "1px solid #e5e7eb",
-                        borderRadius: "14px",
-                        padding: "14px",
-                        background: "#fff",
-                      }}
+                      className={styles.catchCard}
                     >
                       <div
                         style={{
@@ -2242,6 +2200,7 @@ function LakeDetails() {
                         <ZoomableImage
                           src={`http://localhost:5000/uploads/${item.image_url}`}
                           alt={item.species || "Catch"}
+                          className={styles.catchImageButton}
                           imageClassName={styles.catchImage}
                         />
                       )}
@@ -2260,17 +2219,13 @@ function LakeDetails() {
           </div>
         </div>
 
-        <div style={cardStyle}>
-          <h2 style={sectionTitleStyle}>
-            <FaImages />
-            Lake gallery
-          </h2>
+        {photos.length > 0 && (
+          <div style={cardStyle}>
+            <h2 style={sectionTitleStyle}>
+              <FaImages />
+              Lake gallery
+            </h2>
 
-          {photos.length === 0 ? (
-            <div style={{ color: "#64748b" }}>
-              No owner gallery photos uploaded for this lake yet.
-            </div>
-          ) : (
             <>
               <div
                 style={{
@@ -2318,9 +2273,9 @@ function LakeDetails() {
                 onChange={setPhotosPage}
                 itemLabel={`${photos.length} photos`}
               />
-            </>
-          )}
-        </div>
+              </>
+            </div>
+        )}
 
         <div style={{ ...cardStyle, marginTop: "20px" }}>
           <h2 style={sectionTitleStyle}>

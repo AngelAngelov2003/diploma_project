@@ -40,7 +40,7 @@ const ensureNotificationPreferences = async (userId) => {
 const getNotificationPreferences = async (userId) => {
   const q = await pool.query(
     `
-      SELECT user_id, email_alerts_enabled, default_notification_frequency, default_min_score, created_at, updated_at
+      SELECT user_id, email_alerts_enabled, default_notification_frequency, created_at, updated_at
       FROM user_notification_preferences
       WHERE user_id = $1
     `,
@@ -54,7 +54,6 @@ const updateNotificationPreferences = async ({
   userId,
   emailAlertsEnabled,
   defaultFrequency,
-  defaultMinScore,
 }) => {
   const q = await pool.query(
     `
@@ -62,19 +61,17 @@ const updateNotificationPreferences = async ({
         user_id,
         email_alerts_enabled,
         default_notification_frequency,
-        default_min_score,
         updated_at
       )
-      VALUES ($1, $2, $3, $4, NOW())
+      VALUES ($1, $2, $3, NOW())
       ON CONFLICT (user_id) DO UPDATE
       SET
         email_alerts_enabled = EXCLUDED.email_alerts_enabled,
         default_notification_frequency = EXCLUDED.default_notification_frequency,
-        default_min_score = EXCLUDED.default_min_score,
         updated_at = NOW()
-      RETURNING user_id, email_alerts_enabled, default_notification_frequency, default_min_score, created_at, updated_at
+      RETURNING user_id, email_alerts_enabled, default_notification_frequency, created_at, updated_at
     `,
-    [userId, emailAlertsEnabled, defaultFrequency, defaultMinScore]
+    [userId, emailAlertsEnabled, defaultFrequency]
   );
 
   return q.rows[0];

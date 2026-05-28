@@ -4,7 +4,6 @@ import PremiumLockedCard from "../components/common/PremiumLockedCard";
 import { useNavigate } from "react-router-dom";
 import {
   FaBell,
-  FaChartLine,
   FaHeart,
   FaMapMarkedAlt,
   FaRedoAlt,
@@ -24,8 +23,6 @@ import {
   updateAlert,
 } from "../api/alertsApi";
 import styles from "./SavedLakesPage.module.css";
-
-const clampScore = (value) => Math.max(0, Math.min(100, Number(value || 0)));
 
 const mergeItemsByLakeId = (alerts, favorites) => {
   const merged = new Map();
@@ -197,7 +194,6 @@ export default function SavedLakesPage({ initialTab = "all" }) {
         water_body_id: item.water_body_id,
         is_favorite: Boolean(item.is_favorite),
         notification_frequency: item.notification_frequency || "daily",
-        min_score: Number(item.min_score || 0),
       });
       setAlerts((prev) => {
         const existingIndex = prev.findIndex(
@@ -401,7 +397,7 @@ export default function SavedLakesPage({ initialTab = "all" }) {
             message={`Upgrade to enable automatic forecast alerts for${
               premiumPromptItem?.lake_name ? ` ${premiumPromptItem.lake_name}` : " saved lakes"
             }.`}
-            bullets={["Daily or weekly forecast emails", "Minimum score alert thresholds", "Smart notifications for saved lakes"]}
+            bullets={["Daily or weekly forecast emails", "Smart notifications for saved lakes"]}
             onUpgrade={() => navigate("/billing")}
             onClose={() => setPremiumPromptItem(null)}
           />
@@ -504,26 +500,6 @@ export default function SavedLakesPage({ initialTab = "all" }) {
                       </select>
                     </div>
 
-                    <div className={styles.field}>
-                      <div className={styles.fieldLabel}>
-                        <FaChartLine /> Minimum score
-                      </div>
-                      <input
-                        type="number"
-                        min="0"
-                        max="100"
-                        value={item.min_score ?? 0}
-                        disabled={!item.is_active || isBusy}
-                        onChange={(event) =>
-                          patchAlertItem(
-                            item.water_body_id,
-                            { min_score: clampScore(event.target.value) },
-                            "Minimum score updated",
-                          )
-                        }
-                        className={styles.input}
-                      />
-                    </div>
 
                     <div className={styles.fieldWide}>
                       <div className={styles.fieldLabel}>
@@ -579,9 +555,6 @@ export default function SavedLakesPage({ initialTab = "all" }) {
                     <div className={styles.infoPill}>
                       <FaBell /> Alert:{" "}
                       {item.is_active ? "Enabled" : "Disabled"}
-                    </div>
-                    <div className={styles.infoPill}>
-                      <FaChartLine /> Score threshold: {item.min_score ?? 0}
                     </div>
                   </div>
                 </article>

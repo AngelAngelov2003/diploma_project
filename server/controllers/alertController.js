@@ -11,7 +11,6 @@ const getAlerts = async (req, res) => {
           s.is_active,
           s.is_favorite,
           s.notification_frequency,
-          s.min_score,
           s.created_at,
           w.name AS lake_name
         FROM lake_subscriptions s
@@ -34,7 +33,7 @@ const getAlertStatus = async (req, res) => {
 
     const q = await pool.query(
       `
-        SELECT is_active, is_favorite, notification_frequency, min_score
+        SELECT is_active, is_favorite, notification_frequency
         FROM lake_subscriptions
         WHERE user_id = $1 AND water_body_id = $2
       `,
@@ -44,7 +43,7 @@ const getAlertStatus = async (req, res) => {
     if (!q.rows.length) {
       const prefQ = await pool.query(
         `
-          SELECT email_alerts_enabled, default_notification_frequency, default_min_score
+          SELECT email_alerts_enabled, default_notification_frequency
           FROM user_notification_preferences
           WHERE user_id = $1
         `,
@@ -57,7 +56,6 @@ const getAlertStatus = async (req, res) => {
         enabled: false,
         favorite: false,
         notification_frequency: pref?.default_notification_frequency || "daily",
-        min_score: Number(pref?.default_min_score || 0),
         email_alerts_enabled: pref ? Boolean(pref.email_alerts_enabled) : true,
       });
     }
@@ -75,7 +73,6 @@ const getAlertStatus = async (req, res) => {
       enabled: Boolean(q.rows[0].is_active),
       favorite: Boolean(q.rows[0].is_favorite),
       notification_frequency: q.rows[0].notification_frequency || "daily",
-      min_score: Number(q.rows[0].min_score || 0),
       email_alerts_enabled: prefQ.rows.length
         ? Boolean(prefQ.rows[0].email_alerts_enabled)
         : true,
@@ -91,7 +88,6 @@ const createAlert = async (req, res) => {
       water_body_id,
       is_favorite = true,
       notification_frequency,
-      min_score,
     } = req.body;
 
     if (!water_body_id) {
@@ -100,7 +96,7 @@ const createAlert = async (req, res) => {
 
     const prefQ = await pool.query(
       `
-        SELECT email_alerts_enabled, default_notification_frequency, default_min_score
+        SELECT email_alerts_enabled, default_notification_frequency
         FROM user_notification_preferences
         WHERE user_id = $1
       `,
@@ -110,23 +106,14 @@ const createAlert = async (req, res) => {
     const pref = prefQ.rows[0] || {
       email_alerts_enabled: true,
       default_notification_frequency: "daily",
-      default_min_score: 0,
     };
 
     const finalFrequency =
       notification_frequency || pref.default_notification_frequency || "daily";
-    const finalMinScore =
-      min_score !== undefined ? Number(min_score) : Number(pref.default_min_score || 0);
-
     if (!["daily", "weekly"].includes(finalFrequency)) {
       return res.status(400).json({ error: "notification_frequency must be daily or weekly" });
     }
 
-    if (!Number.isInteger(finalMinScore) || finalMinScore < 0 || finalMinScore > 100) {
-      return res.status(400).json({
-        error: "min_score must be an integer between 0 and 100",
-      });
-    }
 
     const q = await pool.query(
       `
@@ -135,17 +122,15 @@ const createAlert = async (req, res) => {
           water_body_id,
           is_active,
           is_favorite,
-          notification_frequency,
-          min_score
+          notification_frequency
         )
-        VALUES ($1, $2, $3, $4, $5, $6)
+        VALUES ($1, $2, $3, $4, $5)
         ON CONFLICT (user_id, water_body_id) DO UPDATE
         SET
           is_active = EXCLUDED.is_active,
           is_favorite = EXCLUDED.is_favorite,
-          notification_frequency = EXCLUDED.notification_frequency,
-          min_score = EXCLUDED.min_score
-        RETURNING id, user_id, water_body_id, is_active, is_favorite, notification_frequency, min_score, created_at
+          notification_frequency = EXCLUDED.notification_frequency
+        RETURNING id, user_id, water_body_id, is_active, is_favorite, notification_frequency, created_at
       `,
       [
         req.user,
@@ -153,7 +138,6 @@ const createAlert = async (req, res) => {
         Boolean(pref.email_alerts_enabled),
         Boolean(is_favorite),
         finalFrequency,
-        finalMinScore,
       ]
     );
 
@@ -166,7 +150,7 @@ const createAlert = async (req, res) => {
 const updateAlert = async (req, res) => {
   try {
     const { waterBodyId } = req.params;
-    const { is_active, is_favorite, notification_frequency, min_score } = req.body;
+    const { is_active, is_favorite, notification_frequency } = req.body;
 
     const existing = await pool.query(
       `
@@ -205,18 +189,10 @@ const updateAlert = async (req, res) => {
       typeof is_favorite === "boolean" ? is_favorite : current.is_favorite;
 
     const nextFrequency = notification_frequency || current.notification_frequency;
-    const nextMinScore =
-      min_score !== undefined ? Number(min_score) : Number(current.min_score || 0);
-
     if (!["daily", "weekly"].includes(nextFrequency)) {
       return res.status(400).json({ error: "notification_frequency must be daily or weekly" });
     }
 
-    if (!Number.isInteger(nextMinScore) || nextMinScore < 0 || nextMinScore > 100) {
-      return res.status(400).json({
-        error: "min_score must be an integer between 0 and 100",
-      });
-    }
 
     const q = await pool.query(
       `
@@ -224,12 +200,11 @@ const updateAlert = async (req, res) => {
         SET
           is_active = $3,
           is_favorite = $4,
-          notification_frequency = $5,
-          min_score = $6
+          notification_frequency = $5
         WHERE user_id = $1 AND water_body_id = $2
-        RETURNING id, user_id, water_body_id, is_active, is_favorite, notification_frequency, min_score, created_at
+        RETURNING id, user_id, water_body_id, is_active, is_favorite, notification_frequency, created_at
       `,
-      [req.user, waterBodyId, nextIsActive, nextIsFavorite, nextFrequency, nextMinScore]
+      [req.user, waterBodyId, nextIsActive, nextIsFavorite, nextFrequency]
     );
 
     res.json(q.rows[0]);
@@ -267,7 +242,6 @@ const getFavorites = async (req, res) => {
           s.is_active,
           s.is_favorite,
           s.notification_frequency,
-          s.min_score,
           s.created_at,
           w.name AS lake_name
         FROM lake_subscriptions s
@@ -294,7 +268,7 @@ const createFavorite = async (req, res) => {
 
     const prefQ = await pool.query(
       `
-        SELECT default_notification_frequency, default_min_score, email_alerts_enabled
+        SELECT default_notification_frequency, email_alerts_enabled
         FROM user_notification_preferences
         WHERE user_id = $1
       `,
@@ -303,7 +277,6 @@ const createFavorite = async (req, res) => {
 
     const pref = prefQ.rows[0] || {
       default_notification_frequency: "daily",
-      default_min_score: 0,
       email_alerts_enabled: true,
     };
 
@@ -314,23 +287,20 @@ const createFavorite = async (req, res) => {
           water_body_id,
           is_active,
           is_favorite,
-          notification_frequency,
-          min_score
+          notification_frequency
         )
-        VALUES ($1, $2, $3, TRUE, $4, $5)
+        VALUES ($1, $2, $3, TRUE, $4)
         ON CONFLICT (user_id, water_body_id) DO UPDATE
         SET
           is_favorite = TRUE,
-          notification_frequency = COALESCE(lake_subscriptions.notification_frequency, EXCLUDED.notification_frequency),
-          min_score = COALESCE(lake_subscriptions.min_score, EXCLUDED.min_score)
-        RETURNING id, user_id, water_body_id, is_active, is_favorite, notification_frequency, min_score, created_at
+          notification_frequency = COALESCE(lake_subscriptions.notification_frequency, EXCLUDED.notification_frequency)
+        RETURNING id, user_id, water_body_id, is_active, is_favorite, notification_frequency, created_at
       `,
       [
         req.user,
         water_body_id,
         false,
         pref.default_notification_frequency || "daily",
-        Number(pref.default_min_score || 0),
       ]
     );
 

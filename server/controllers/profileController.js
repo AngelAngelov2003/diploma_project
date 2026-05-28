@@ -130,7 +130,7 @@ const getNotificationPreferences = async (req, res) => {
 
     const q = await pool.query(
       `
-        SELECT user_id, email_alerts_enabled, default_notification_frequency, default_min_score, created_at, updated_at
+        SELECT user_id, email_alerts_enabled, default_notification_frequency, created_at, updated_at
         FROM user_notification_preferences
         WHERE user_id = $1
       `,
@@ -142,7 +142,6 @@ const getNotificationPreferences = async (req, res) => {
         user_id: req.user,
         email_alerts_enabled: true,
         default_notification_frequency: "daily",
-        default_min_score: 0,
       }
     );
   } catch (err) {
@@ -155,12 +154,11 @@ const updateNotificationPreferences = async (req, res) => {
     const {
       email_alerts_enabled,
       default_notification_frequency,
-      default_min_score,
     } = req.body;
 
     const existingQ = await pool.query(
       `
-        SELECT user_id, email_alerts_enabled, default_notification_frequency, default_min_score
+        SELECT user_id, email_alerts_enabled, default_notification_frequency
         FROM user_notification_preferences
         WHERE user_id = $1
       `,
@@ -170,7 +168,6 @@ const updateNotificationPreferences = async (req, res) => {
     const current = existingQ.rows[0] || {
       email_alerts_enabled: true,
       default_notification_frequency: "daily",
-      default_min_score: 0,
     };
 
     const nextEmailAlertsEnabled =
@@ -183,22 +180,12 @@ const updateNotificationPreferences = async (req, res) => {
         ? String(default_notification_frequency).trim().toLowerCase()
         : current.default_notification_frequency;
 
-    const nextMinScore =
-      default_min_score !== undefined
-        ? Number(default_min_score)
-        : Number(current.default_min_score || 0);
-
     if (!["daily", "weekly"].includes(nextFrequency)) {
       return res.status(400).json({
         error: "Default notification frequency must be daily or weekly",
       });
     }
 
-    if (!Number.isInteger(nextMinScore) || nextMinScore < 0 || nextMinScore > 100) {
-      return res.status(400).json({
-        error: "Default minimum score must be between 0 and 100",
-      });
-    }
 
     const q = await pool.query(
       `
@@ -206,19 +193,17 @@ const updateNotificationPreferences = async (req, res) => {
           user_id,
           email_alerts_enabled,
           default_notification_frequency,
-          default_min_score,
-          updated_at
+              updated_at
         )
-        VALUES ($1, $2, $3, $4, NOW())
+        VALUES ($1, $2, $3, NOW())
         ON CONFLICT (user_id) DO UPDATE
         SET
           email_alerts_enabled = EXCLUDED.email_alerts_enabled,
           default_notification_frequency = EXCLUDED.default_notification_frequency,
-          default_min_score = EXCLUDED.default_min_score,
           updated_at = NOW()
-        RETURNING user_id, email_alerts_enabled, default_notification_frequency, default_min_score, created_at, updated_at
+        RETURNING user_id, email_alerts_enabled, default_notification_frequency, created_at, updated_at
       `,
-      [req.user, nextEmailAlertsEnabled, nextFrequency, nextMinScore]
+      [req.user, nextEmailAlertsEnabled, nextFrequency]
     );
 
     res.json(q.rows[0]);

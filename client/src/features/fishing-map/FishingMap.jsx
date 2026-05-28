@@ -98,6 +98,15 @@ function FishingMap() {
   const searchFetchTimerRef = useRef(null);
   const routeReleaseTimerRef = useRef(null);
 
+
+  const selectedRegionFeature = useMemo(() => {
+    if (!selectedRegion) return null;
+
+    return (bulgariaRegions.features || []).find(
+      (feature) => getRegionNameFromFeature(feature) === selectedRegion,
+    ) || null;
+  }, [selectedRegion]);
+
   const distanceFilterActive = distanceKm !== "ALL";
   const locationModeActive = Boolean(
     mapUserLocation &&
@@ -137,6 +146,12 @@ function FishingMap() {
         setShowRegionOverview(true);
         setSelectedRegion(null);
         setActiveLake(null);
+        return;
+      }
+
+      if (showRegionOverview && currentZoom >= getInitialBulgariaZoom() + 0.75) {
+        setShowRegionOverview(false);
+        setSelectedRegion(null);
       }
     };
 
@@ -145,7 +160,7 @@ function FishingMap() {
     return () => {
       mapInstance.off("zoomend", handleZoomState);
     };
-  }, [mapInstance, locationModeActive, distanceFilterActive, selectedRegion]);
+  }, [mapInstance, locationModeActive, distanceFilterActive, showRegionOverview]);
 
   useEffect(() => {
     const handleResize = () => {
@@ -231,6 +246,15 @@ function FishingMap() {
         userLat: userLocation?.latitude,
         userLng: userLocation?.longitude,
         distanceKm: distanceFilterActive ? distanceKm : undefined,
+        regionName: selectedRegion || undefined,
+        regionGeoJson:
+          selectedRegion &&
+          selectedRegionFeature?.geometry &&
+          !showRegionOverview &&
+          !locationModeActive &&
+          !distanceFilterActive
+            ? JSON.stringify(selectedRegionFeature.geometry)
+            : undefined,
       });
 
       if (requestId !== latestBoundsRequestIdRef.current) return;
@@ -253,6 +277,10 @@ function FishingMap() {
     userLocation,
     distanceKm,
     distanceFilterActive,
+    selectedRegion,
+    selectedRegionFeature,
+    showRegionOverview,
+    locationModeActive,
   ]);
 
   const scheduleBoundsFetch = useCallback(

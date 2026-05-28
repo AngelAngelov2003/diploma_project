@@ -38,13 +38,6 @@ const formatForecastDay = (value) => {
   return date.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
 };
 
-const getForecastScoreClass = (score) => {
-  const numeric = Number(score);
-  if (numeric >= 80) return "great";
-  if (numeric >= 60) return "good";
-  if (numeric >= 40) return "average";
-  return "weak";
-};
 
 const formatForecastNumber = (value, decimals = 1) => {
   if (value === null || value === undefined || value === "") return "—";
@@ -254,7 +247,6 @@ const LakePopup = ({ lake, map }) => {
           water_body_id: lake.id,
           is_favorite: favoriteEnabled,
           notification_frequency: "daily",
-          min_score: 0,
         });
         setAlertEnabled(true);
         notifySuccess("Alert enabled");
@@ -623,8 +615,8 @@ const LakePopup = ({ lake, map }) => {
         className="lake-popup-panel-card"
         compact
         title="Smart Alerts: Premium Required"
-        message="Unlock automatic forecast alerts, daily lake notifications, and custom minimum score reminders."
-        bullets={["Daily or weekly forecast alerts", "Minimum score notifications", "Smart updates for saved lakes"]}
+        message="Unlock automatic forecast alerts and smart lake notifications."
+        bullets={["Daily or weekly forecast alerts", "Smart updates for saved lakes"]}
         onUpgrade={() => navigate("/billing")}
         onClose={() => {
           setAlertLocked(false);

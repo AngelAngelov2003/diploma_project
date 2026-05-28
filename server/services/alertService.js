@@ -130,7 +130,6 @@ const renderCombinedAlertEmail = ({ userName, periodLabel, alerts }) => {
             <div><b>Temperature:</b> ${forecast.temp ?? "N/A"} °C</div>
             <div><b>Pressure:</b> ${forecast.pressure ?? "N/A"} hPa</div>
             <div><b>Wind:</b> ${forecast.wind ?? "N/A"} m/s</div>
-            <div><b>Your minimum score:</b> ${Number(item.min_score || 0)}%</div>
           </div>
           ${renderExplanationList(forecast.explanation)}
           ${weeklyRows ? `
@@ -236,7 +235,6 @@ const processAlertEmails = async ({ frequency, deliveryDate, periodLabel }) => {
         s.user_id,
         s.water_body_id,
         s.notification_frequency,
-        s.min_score,
         u.email AS user_email,
         u.full_name AS user_name,
         w.name AS lake_name,
@@ -300,27 +298,9 @@ const processAlertEmails = async ({ frequency, deliveryDate, periodLabel }) => {
           ? weeklyForecast.reduce((best, day) => Number(day.total_score || 0) > Number(best.total_score || 0) ? day : best, weeklyForecast[0])
           : await fetchForecastForLatLng(lat, lng);
 
-        if (Number(forecast.total_score || 0) < Number(sub.min_score || 0)) {
-          await pool.query(
-            `
-              INSERT INTO subscription_deliveries (subscription_id, delivery_date, status, error)
-              VALUES ($1, $2, 'skipped', $3)
-              ON CONFLICT (subscription_id, delivery_date)
-              DO UPDATE SET status = 'skipped', error = EXCLUDED.error, sent_at = NOW()
-            `,
-            [
-              sub.subscription_id,
-              deliveryDate,
-              `Skipped because score ${forecast.total_score}% is below min score ${sub.min_score}%`,
-            ]
-          );
-          continue;
-        }
-
         qualifiedAlerts.push({
           subscription_id: sub.subscription_id,
           lake_name: sub.lake_name,
-          min_score: Number(sub.min_score || 0),
           forecast,
           weeklyForecast,
         });

@@ -1112,9 +1112,9 @@
     padding: 10px 13px;
     border-radius: var(--fm-radius-md);
   }
-  .leaflet-top.leaflet-left {
-    margin-top: 18px;
-    margin-left: 48px;
+  .map-main-panel .leaflet-top.leaflet-left {
+    margin-top: 10px;
+    margin-left: 10px;
   }
 }
 
@@ -1406,9 +1406,9 @@
     transform-origin: top left;
   }
 
-  .leaflet-top.leaflet-left {
-    margin-top: 22px;
-    margin-left: 82px;
+  .map-main-panel .leaflet-top.leaflet-left {
+    margin-top: 10px;
+    margin-left: 10px;
   }
 }
 

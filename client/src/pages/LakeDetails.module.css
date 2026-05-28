@@ -122,6 +122,18 @@
     height: 260px;
   }
 
+  .catchCard {
+    padding: 12px;
+  }
+
+  .catchImage {
+    height: clamp(160px, 62vw, 220px);
+  }
+
+  .skeletonImage {
+    height: 180px;
+  }
+
   .galleryGrid {
     grid-template-columns: 1fr;
   }
@@ -135,11 +147,12 @@
 }
 
 .catchImage {
+  display: block;
   width: 100%;
-  max-height: 280px;
+  height: clamp(180px, 32vw, 260px);
+  max-height: 260px;
   object-fit: cover;
   border-radius: 12px;
-  margin-top: 12px;
   border: 1px solid #e5e7eb;
 }
 
@@ -300,4 +313,95 @@
   .paymentChoiceGrid {
     grid-template-columns: 1fr;
   }
+}
+
+@media (max-width: 640px) {
+  .catchImage {
+    height: 190px;
+    max-height: 190px;
+  }
+}
+
+.catchCard {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  padding: 14px;
+  background: #fff;
+}
+
+.catchImageButton {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  margin-top: 12px;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.catchSkeletonList {
+  display: grid;
+  gap: 12px;
+}
+
+.catchSkeletonCard {
+  overflow: hidden;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  padding: 14px;
+  background: #fff;
+}
+
+.skeletonLineStrong,
+.skeletonLine,
+.skeletonLineShort,
+.skeletonImage {
+  border-radius: 999px;
+  background: linear-gradient(90deg, #eef2f7 25%, #f8fafc 37%, #eef2f7 63%);
+  background-size: 400% 100%;
+  animation: lakeDetailsSkeleton 1.25s ease-in-out infinite;
+}
+
+.skeletonLineStrong {
+  width: 42%;
+  height: 20px;
+}
+
+.skeletonLine {
+  width: 64%;
+  height: 14px;
+  margin-top: 10px;
+}
+
+.skeletonLineShort {
+  width: 34%;
+  height: 14px;
+  margin-top: 14px;
+}
+
+.skeletonImage {
+  width: 100%;
+  height: 220px;
+  border-radius: 12px;
+  margin-top: 12px;
+}
+
+@keyframes lakeDetailsSkeleton {
+  0% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0 50%;
+  }
+}
+
+.mapFrame :global(.leaflet-top.leaflet-left) {
+  margin-top: 10px !important;
+  margin-left: 10px !important;
+}
+
+.mapFrame :global(.leaflet-control-zoom) {
+  transform: none !important;
+  transform-origin: top left;
 }

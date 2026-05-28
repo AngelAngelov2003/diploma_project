@@ -104,6 +104,7 @@ const getWaterBodiesInBounds = async ({
   userLat,
   userLng,
   distanceKm,
+  regionGeoJson,
 }) => {
   const parsedWest = Number(west);
   const parsedSouth = Number(south);
@@ -144,7 +145,14 @@ const getWaterBodiesInBounds = async ({
 
   const trimmedQuery = String(q || "").trim();
   const normalizedSortBy = String(sortBy || "default").trim().toLowerCase();
-  const useMarkerView = parsedZoom < LOW_ZOOM_MARKER_CUTOFF;
+  const parsedRegionGeoJson = String(regionGeoJson || "").trim() || null;
+
+  // When a region is selected, use the full map view even at low zoom.
+  // The marker materialized view only has display points, so filtering it by
+  // a region polygon can hide water bodies whose polygon intersects the
+  // selected oblast but whose display point/centroid is outside it.
+  const useMarkerView =
+    parsedZoom < LOW_ZOOM_MARKER_CUTOFF && !parsedRegionGeoJson;
 
   const params = [
     minWest,
@@ -156,6 +164,7 @@ const getWaterBodiesInBounds = async ({
     hasUserLocation ? parsedUserLat : null,
     hasUserLocation ? parsedUserLng : null,
     parsedDistanceKm,
+    parsedRegionGeoJson,
   ];
 
   const sourceView = useMarkerView
@@ -186,6 +195,36 @@ const getWaterBodiesInBounds = async ({
         AND wb.latitude IS NOT NULL
         AND wb.longitude BETWEEN $1 AND $3
         AND wb.latitude BETWEEN $2 AND $4
+      `;
+
+  const regionFilterCondition = sourceHasGeom
+    ? `
+        (
+          r.geom IS NULL
+          OR (wb.geom IS NOT NULL AND ST_Intersects(wb.geom, r.geom))
+          OR (
+            wb.geom IS NULL
+            AND wb.longitude IS NOT NULL
+            AND wb.latitude IS NOT NULL
+            AND ST_Contains(
+              r.geom,
+              ST_SetSRID(ST_MakePoint(wb.longitude, wb.latitude), 4326)
+            )
+          )
+        )
+      `
+    : `
+        (
+          r.geom IS NULL
+          OR (
+            wb.longitude IS NOT NULL
+            AND wb.latitude IS NOT NULL
+            AND ST_Contains(
+              r.geom,
+              ST_SetSRID(ST_MakePoint(wb.longitude, wb.latitude), 4326)
+            )
+          )
+        )
       `;
 
   const boundarySelectSql = sourceHasGeom
@@ -231,6 +270,13 @@ const getWaterBodiesInBounds = async ({
       WITH envelope AS (
         SELECT ST_MakeEnvelope($1, $2, $3, $4, 4326) AS geom
       ),
+      selected_region AS (
+        SELECT
+          CASE
+            WHEN $10::text IS NULL THEN NULL
+            ELSE ST_SetSRID(ST_GeomFromGeoJSON($10::text), 4326)
+          END AS geom
+      ),
       filtered_rows AS (
         SELECT
           wb.*,
@@ -247,8 +293,10 @@ const getWaterBodiesInBounds = async ({
           END AS distance_km
         FROM ${sourceView} wb
         CROSS JOIN envelope e
+        CROSS JOIN selected_region r
         WHERE
           ${sourceBoundingCondition}
+          AND ${regionFilterCondition}
           AND (
             $6::text IS NULL
             OR wb.name ILIKE '%' || $6 || '%'

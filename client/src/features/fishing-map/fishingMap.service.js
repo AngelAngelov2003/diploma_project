@@ -34,6 +34,8 @@ const getBoundsCacheKey = (params = {}) =>
     userLat: normalizeNumber(params.userLat),
     userLng: normalizeNumber(params.userLng),
     distanceKm: params.distanceKm === undefined ? "" : String(params.distanceKm),
+    regionName: String(params.regionName || ""),
+    regionGeoJson: String(params.regionGeoJson || ""),
   });
 
 const getSearchCacheKey = (query = "") => String(query || "").trim().toLowerCase();

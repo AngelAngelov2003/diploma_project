@@ -55,10 +55,8 @@ const getPaymentLabel = (item) => {
   return item?.payment_status || "Manual / unpaid";
 };
 
-const getStatusCount = (items, status) => {
-  if (status === "all") return items.length;
-  return items.filter((item) => item.status === status).length;
-};
+const getValidApprovedCount = (items) =>
+  items.filter((item) => item.status === "approved" && !isReservationPast(item)).length;
 
 const paginateItems = (items, currentPage, pageSize = PAGE_SIZE) => {
   const totalItems = items.length;
@@ -267,7 +265,7 @@ export default function ReservationsPage() {
                   active={myStatusFilter === filter.key}
                   activeClassName={styles.reservationFilterActive}
                   onClick={() => setMyStatusFilter(filter.key)}
-                  badge={getStatusCount(myReservations, filter.key)}
+                  badge={filter.key === "approved" ? getValidApprovedCount(myReservations) : null}
                 >
                   {filter.label}
                 </TabButton>

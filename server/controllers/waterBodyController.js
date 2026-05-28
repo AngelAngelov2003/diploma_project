@@ -36,6 +36,7 @@ const getWaterBodiesInBounds = async (req, res) => {
       userLat: req.query.userLat,
       userLng: req.query.userLng,
       distanceKm: req.query.distanceKm,
+      regionGeoJson: req.query.regionGeoJson,
     });
 
     res.json(rows);
