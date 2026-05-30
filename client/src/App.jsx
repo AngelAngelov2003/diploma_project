@@ -24,6 +24,8 @@ import BecomeOwner from "./pages/BecomeOwner";
 import AdminDashboard from "./pages/AdminDashboard";
 import Profile from "./pages/Profile";
 import BillingPage from "./pages/BillingPage";
+import ForgotPassword from "./pages/ForgotPassword";
+import ResetPassword from "./pages/ResetPassword";
 import { getCurrentUser } from "./api/authApi";
 import { AUTH_EXPIRED_EVENT } from "./api/client";
 import { ToastContainer } from "react-toastify";
@@ -170,6 +172,9 @@ function App() {
             )
           }
         />
+
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
 
         <Route
           path="/register"

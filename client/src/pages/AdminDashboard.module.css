@@ -13,7 +13,7 @@
 .statCard { composes: card from "../styles/ui.module.css"; border-radius: 18px; }
 .statsGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 16px;
 }
 .overviewStack {
@@ -173,7 +173,7 @@
 
 .overviewInfoGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 14px;
 }
 
@@ -197,4 +197,155 @@
   color: #0f172a;
   font-size: 28px;
   line-height: 1;
+}
+
+.overviewInfoCard small {
+  display: block;
+  margin-top: 8px;
+  color: #64748b;
+  line-height: 1.35;
+}
+
+.ownerStatusList {
+  display: grid;
+  gap: 12px;
+}
+
+.ownerStatusRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 14px;
+  background: #f8fafc;
+}
+
+.ownerStatusMain {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.ownerStatusMain svg {
+  color: #2563eb;
+  font-size: 22px;
+  flex: 0 0 auto;
+}
+
+.ownerStatusMain strong,
+.ownerStatusMain span {
+  display: block;
+}
+
+.ownerStatusMain strong {
+  color: #0f172a;
+  font-size: 16px;
+}
+
+.ownerStatusMain span {
+  color: #64748b;
+  font-size: 13px;
+  margin-top: 3px;
+}
+
+.ownerStatusPills {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.ownerStatusPills span {
+  border-radius: 999px;
+  padding: 7px 9px;
+  background: #e2e8f0;
+  color: #334155;
+  font-weight: 800;
+  font-size: 12px;
+}
+
+.ownerStatusPills .statusGood {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.ownerStatusPills .statusWarn {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+@media (max-width: 760px) {
+  .ownerStatusRow {
+    grid-template-columns: 1fr;
+  }
+
+  .ownerStatusPills {
+    justify-content: flex-start;
+  }
+}
+
+.ownerStatusPagination {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid #e2e8f0;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.ownerStatusPagination div {
+  display: flex;
+  gap: 8px;
+}
+
+.ownerStatusPagination button {
+  border: 1px solid #dbeafe;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #1d4ed8;
+  font-weight: 800;
+  padding: 8px 12px;
+  cursor: pointer;
+}
+
+.ownerStatusPagination button:disabled {
+  color: #94a3b8;
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+@media (max-width: 1100px) {
+  .statsGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 560px) {
+  .ownerStatusPagination {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .ownerStatusPagination div,
+  .ownerStatusPagination button {
+    width: 100%;
+  }
+}
+
+@media (max-width: 1200px) {
+  .overviewInfoGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .overviewInfoGrid {
+    grid-template-columns: 1fr;
+  }
 }

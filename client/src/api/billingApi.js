@@ -20,16 +20,6 @@ export const getOwnerBillingStatus = async () => {
   return data;
 };
 
-export const startOwnerProCheckout = async () => {
-  const { data } = await api.post("/billing/owner/checkout/pro");
-  return data;
-};
-
-export const openOwnerBillingPortal = async () => {
-  const { data } = await api.post("/billing/owner/portal");
-  return data;
-};
-
 export const startOwnerConnectOnboarding = async () => {
   const { data } = await api.post("/billing/owner/connect/onboarding");
   return data;
@@ -37,5 +27,11 @@ export const startOwnerConnectOnboarding = async () => {
 
 export const refreshOwnerConnectStatus = async () => {
   const { data } = await api.post("/billing/owner/connect/refresh");
+  return data;
+};
+
+
+export const getOwnerRevenueSummary = async () => {
+  const { data } = await api.get("/billing/owner/revenue");
   return data;
 };

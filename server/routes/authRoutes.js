@@ -8,6 +8,8 @@ const authLimiter = createRateLimiter({ windowMs: 15 * 60 * 1000, max: 20, messa
 
 router.post("/auth/register", authLimiter, authController.register);
 router.post("/auth/login", authLimiter, authController.login);
+router.post("/auth/forgot-password", authLimiter, authController.forgotPassword);
+router.post("/auth/reset-password", authLimiter, authController.resetPassword);
 router.get("/auth/me", authorize, authController.me);
 
 module.exports = router;

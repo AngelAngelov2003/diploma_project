@@ -91,7 +91,7 @@ export default function BillingPage() {
         <div className="billing-grid">
           <article className="billing-card">
             <h2>Free</h2>
-            <div className="billing-price">0 BGN</div>
+            <div className="billing-price">€0</div>
             <ul>
               <li><FaCheckCircle /> Interactive map</li>
               <li><FaCheckCircle /> Lake details</li>

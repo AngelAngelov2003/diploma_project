@@ -9,8 +9,7 @@ router.post("/billing/checkout/premium", authorize, billingController.createPrem
 router.post("/billing/portal", authorize, billingController.createCustomerPortalSession);
 
 router.get("/billing/owner/status", authorize, billingController.getOwnerBillingStatus);
-router.post("/billing/owner/checkout/pro", authorize, billingController.createOwnerProCheckoutSession);
-router.post("/billing/owner/portal", authorize, billingController.createOwnerCustomerPortalSession);
+router.get("/billing/owner/revenue", authorize, billingController.getOwnerRevenueSummary);
 router.post("/billing/owner/connect/onboarding", authorize, billingController.createOwnerConnectOnboardingLink);
 router.post("/billing/owner/connect/refresh", authorize, billingController.refreshOwnerConnectStatus);
 

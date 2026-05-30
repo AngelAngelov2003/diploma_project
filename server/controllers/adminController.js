@@ -1,5 +1,6 @@
 const pool = require("../db");
 const { refreshWaterBodyMaterializedViews } = require("../services/materializedViewService");
+const billingService = require("../services/billingService");
 
 const getOwnerLakeCount = async (db, userId) => {
   const q = await db.query(
@@ -88,6 +89,7 @@ const getAdminAnalytics = async (req, res) => {
       pendingOwnerClaimsQ,
       topLakesQ,
       topSpeciesQ,
+      revenueSummary,
     ] = await Promise.all([
       pool.query(`SELECT COUNT(*)::int AS count FROM users`),
       pool.query(`SELECT COUNT(*)::int AS count FROM users WHERE is_active = TRUE`),
@@ -120,6 +122,18 @@ const getAdminAnalytics = async (req, res) => {
         ORDER BY catches_count DESC, species ASC
         LIMIT 5
       `),
+      billingService.getAdminRevenueSummary().catch((error) => {
+        console.warn("[admin] Revenue summary skipped:", error.message);
+        return {
+          platform_commissions: 0,
+          total_reservation_volume: 0,
+          owner_earnings: 0,
+          pending_checkout_volume: 0,
+          paid_payments_count: 0,
+          pending_payments_count: 0,
+          connected_owner_statuses: [],
+        };
+      }),
     ]);
 
     res.json({
@@ -139,6 +153,7 @@ const getAdminAnalytics = async (req, res) => {
       },
       topLakes: topLakesQ.rows,
       topSpecies: topSpeciesQ.rows,
+      revenue: revenueSummary,
     });
   } catch (err) {
     res.status(500).json({ error: "Failed to load analytics" });

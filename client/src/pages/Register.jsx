@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { FaUserPlus } from "react-icons/fa";
 import { registerUser } from "../api/authApi";
 import { notifyError, notifySuccess } from "../ui/toast";
+import { getPasswordStrength, passwordRules } from "../utils/passwordValidation";
 
 const getErrorMessage = (error, fallbackMessage) => {
   const serverError = error?.response?.data?.error;
@@ -25,6 +26,7 @@ function Register({ setAuth, setCurrentUser }) {
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const passwordStrength = getPasswordStrength(password);
 
   const navigate = useNavigate();
 
@@ -32,6 +34,14 @@ function Register({ setAuth, setCurrentUser }) {
     event.preventDefault();
 
     setMessage("");
+
+    if (!passwordStrength.isStrong) {
+      const errorMessage = "Password must include uppercase, lowercase, number, symbol, and at least 8 characters.";
+      setMessage(errorMessage);
+      notifyError(errorMessage);
+      return;
+    }
+
     setSubmitting(true);
 
     try {
@@ -122,6 +132,14 @@ function Register({ setAuth, setCurrentUser }) {
           style={{ padding: "12px", width: "100%", boxSizing: "border-box", fontSize: "16px" }}
           autoComplete="new-password"
         />
+
+        <div style={{ display: "grid", gap: "6px", fontSize: "13px", color: "#475569" }}>
+          {passwordRules.map((rule) => (
+            <span key={rule.key} style={{ color: rule.test(password) ? "#15803d" : "#64748b" }}>
+              ✓ {rule.label}
+            </span>
+          ))}
+        </div>
 
         <button
           type="submit"

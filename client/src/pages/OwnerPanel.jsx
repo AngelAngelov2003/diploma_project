@@ -23,7 +23,7 @@ import {
   updateOwnerLake,
   uploadLakePhoto,
 } from "../api/ownerApi";
-import { getOwnerBillingStatus } from "../api/billingApi";
+import { getOwnerBillingStatus, getOwnerRevenueSummary } from "../api/billingApi";
 import { updateReservationStatus } from "../api/reservationsApi";
 import OwnerProLockedCard from "../components/common/OwnerProLockedCard";
 import { notifyError, notifySuccess } from "../ui/toast";
@@ -223,17 +223,20 @@ export default function OwnerPanel() {
   const [savingId, setSavingId] = useState("");
   const [busyLakeId, setBusyLakeId] = useState("");
   const [ownerBilling, setOwnerBilling] = useState(null);
+  const [ownerRevenue, setOwnerRevenue] = useState(null);
 
   const loadOwnerPanel = async () => {
     try {
       setLoading(true);
-      const [owned, billingStatus] = await Promise.all([
+      const [owned, billingStatus, revenueSummary] = await Promise.all([
         getOwnerLakes(),
         getOwnerBillingStatus().catch(() => null),
+        getOwnerRevenueSummary().catch(() => null),
       ]);
       const normalizedLakes = Array.isArray(owned) ? owned : [];
       setLakes(normalizedLakes);
       setOwnerBilling(billingStatus);
+      setOwnerRevenue(revenueSummary);
 
       const [blockedEntries, spotEntries, roomEntries, photoEntries, catchPhotoEntries, reservationEntries, earningsEntries] = await Promise.all([
         Promise.all(
@@ -305,7 +308,7 @@ export default function OwnerPanel() {
 
       if (shouldOpenBilling) {
         if (params.get("checkout") === "success") {
-          notifySuccess("Owner Pro checkout completed. Stripe will confirm the subscription shortly.");
+          notifySuccess("Payout setup updated.");
         }
         if (params.get("connect") === "return") {
           notifySuccess("Stripe Connect onboarding returned. Refresh payout status to confirm the latest state.");
@@ -697,7 +700,7 @@ export default function OwnerPanel() {
     }
   };
 
-  const hasOwnerPro = Boolean(ownerBilling?.has_owner_pro_access);
+  const hasOwnerPro = true;
 
   const goToOwnerBilling = () => {
     setActiveTabByLake((prev) => {
@@ -738,6 +741,8 @@ export default function OwnerPanel() {
       setEarningsByLake((prev) => ({ ...prev, [lakeId]: earnings }));
       setBillingTransactionPageByLake((prev) => ({ ...prev, [lakeId]: 1 }));
       setMonthlyReportPageByLake((prev) => ({ ...prev, [lakeId]: 1 }));
+      const revenueSummary = await getOwnerRevenueSummary().catch(() => null);
+      if (revenueSummary) setOwnerRevenue(revenueSummary);
       notifySuccess("Earnings refreshed");
     } catch (error) {
       notifyError(error, "Failed to refresh earnings");
@@ -751,19 +756,23 @@ export default function OwnerPanel() {
       setBusyLakeId("billing-action");
       const billingApi = await import("../api/billingApi");
       if (action === "refresh") {
-        const state = await billingApi.refreshOwnerConnectStatus();
+        const [state, revenueSummary] = await Promise.all([
+          billingApi.refreshOwnerConnectStatus(),
+          billingApi.getOwnerRevenueSummary().catch(() => null),
+        ]);
         setOwnerBilling(state);
+        if (revenueSummary) setOwnerRevenue(revenueSummary);
         notifySuccess("Payout status refreshed");
         return;
       }
-      if (action === "portal") {
-        const data = await billingApi.openOwnerBillingPortal();
-        if (data?.url) window.location.href = data.url;
+      if (action === "portal" || action === "upgrade") {
+        setActiveTabByLake((prev) => {
+          const firstLakeId = lakes[0]?.id;
+          return firstLakeId ? { ...prev, [firstLakeId]: "billing" } : prev;
+        });
         return;
       }
-      const data = action === "upgrade"
-        ? await billingApi.startOwnerProCheckout()
-        : await billingApi.startOwnerConnectOnboarding();
+      const data = await billingApi.startOwnerConnectOnboarding();
       if (data?.url) window.location.href = data.url;
     } catch (error) {
       notifyError(error, "Billing action failed");
@@ -913,8 +922,8 @@ export default function OwnerPanel() {
                   {!hasOwnerPro ? (
                     <div className={styles.ownerProNotice}>
                       <div>
-                        <strong>Owner Free plan</strong>
-                        <span> Lake setup stays available. Revenue tools, online payment preparation, and payout features are locked behind Owner Pro.</span>
+                        <strong>Commission model</strong>
+                        <span> Owners do not pay a monthly subscription. Online payments require completed Stripe payout setup.</span>
                       </div>
                       <button type="button" onClick={goToOwnerBilling}>Upgrade</button>
                     </div>
@@ -925,8 +934,8 @@ export default function OwnerPanel() {
                       <>
                         {!hasOwnerPro ? (
                           <SectionCard
-                            title="Owner Pro business tools"
-                            subtitle="These tools are visible to Free owners as locked upgrade cards."
+                            title="Owner business tools"
+                            subtitle="These tools use the commission model instead of an owner subscription."
                           >
                             <div className={styles.ownerProLockGrid}>
                               {renderOwnerProLock({
@@ -945,8 +954,8 @@ export default function OwnerPanel() {
                           </SectionCard>
                         ) : (
                           <SectionCard
-                            title="Owner Pro business tools"
-                            subtitle="Your Owner Pro tools are active for this lake."
+                            title="Owner business tools"
+                            subtitle="Your owner tools are active for this lake."
                           >
                             <div className={styles.ownerProActiveGrid}>
                               <div className={styles.ownerProActiveTile}>
@@ -1171,14 +1180,14 @@ export default function OwnerPanel() {
                         {!hasOwnerPro ? (
                           renderOwnerProLock({
                             title: "Online reservation payments",
-                            message: "Free owners can still review manual reservation requests. Upgrade to Owner Pro to approve paid online reservations, use payout setup, and track revenue.",
+                            message: "Owners can review manual requests. Online paid reservations require completed Stripe payout setup.",
                             bullets: ["Paid reservation checkout", "Payout preparation", "Revenue tracking"],
                           })
                         ) : null}
 
                         <SectionCard
                           title="Reservation requests"
-                          subtitle="Approve, reject, or return booking requests to pending. Owner Pro + completed payouts turns approval into paid checkout for the user."
+                          subtitle="Approve, reject, or return booking requests to pending. Completed Stripe payouts can turn approval into paid checkout for the user."
                         >
                           <div className={styles.filterRow}>
                             {OWNER_RESERVATION_FILTERS.map((filter) => (
@@ -1252,7 +1261,7 @@ export default function OwnerPanel() {
                                           disabled={busyLakeId === lake.id}
                                           onClick={() => handleUpdateReservationStatus(lake.id, reservation.id, "approved")}
                                         >
-                                          {hasOwnerPro ? "Approve / request payment" : "Approve"}
+                                          "Approve / request payment"
                                         </button>
                                         <button
                                           type="button"
@@ -1849,6 +1858,25 @@ export default function OwnerPanel() {
                       >
                         <div className={styles.earningsSummaryGrid}>
                           <div className={styles.earningsCard}>
+                            <span>Total owner earnings</span>
+                            <strong>{formatCurrency(ownerRevenue?.total_earnings || 0)}</strong>
+                          </div>
+                          <div className={styles.earningsCard}>
+                            <span>Stripe pending balance</span>
+                            <strong>{formatCurrency(ownerRevenue?.pending_balance || 0)}</strong>
+                          </div>
+                          <div className={styles.earningsCard}>
+                            <span>Stripe available balance</span>
+                            <strong>{formatCurrency(ownerRevenue?.available_balance || 0)}</strong>
+                          </div>
+                          <div className={styles.earningsCard}>
+                            <span>Estimated next payout</span>
+                            <strong className={styles.earningsSmallText}>{ownerRevenue?.estimated_next_payout || "Weekly automatic payouts"}</strong>
+                          </div>
+                        </div>
+
+                        <div className={styles.earningsSummaryGrid}>
+                          <div className={styles.earningsCard}>
                             <span>This month revenue</span>
                             <strong>{formatCurrency(currentMonth.total_revenue || 0)}</strong>
                           </div>
@@ -1884,7 +1912,7 @@ export default function OwnerPanel() {
                             <div className={styles.billingActions}>
                               {!hasOwnerPro ? (
                                 <button type="button" className={styles.primaryButton} onClick={() => handleOwnerConnect("upgrade")}>
-                                  Upgrade Owner Pro
+                                  Set up payouts
                                 </button>
                               ) : (
                                 <>
@@ -1896,7 +1924,7 @@ export default function OwnerPanel() {
                                   </button>
                                   {ownerBilling?.subscription_status !== "inactive" ? (
                                     <button type="button" className={styles.filterButton} onClick={() => handleOwnerConnect("portal")}>
-                                      Manage plan <FaExternalLinkAlt />
+                                      Manage payouts <FaExternalLinkAlt />
                                     </button>
                                   ) : null}
                                 </>

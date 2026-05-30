@@ -39,6 +39,18 @@ const getOwnerBillingStatus = async (req, res, next) => {
   }
 };
 
+
+const getOwnerRevenueSummary = async (req, res, next) => {
+  try {
+    if (!requireOwnerRole(req, res)) return;
+    const stripe = requireStripe();
+    const state = await billingService.getOwnerRevenueSummary(req.user, stripe);
+    res.json(state);
+  } catch (err) {
+    next(err);
+  }
+};
+
 const createPremiumCheckoutSession = async (req, res, next) => {
   try {
     const priceId = process.env.STRIPE_USER_PREMIUM_PRICE_ID;
@@ -81,50 +93,6 @@ const createPremiumCheckoutSession = async (req, res, next) => {
   }
 };
 
-const createOwnerProCheckoutSession = async (req, res, next) => {
-  try {
-    if (!requireOwnerRole(req, res)) return;
-
-    const priceId = process.env.STRIPE_OWNER_PRO_PRICE_ID;
-    if (!priceId) {
-      return res.status(500).json({ error: "Missing STRIPE_OWNER_PRO_PRICE_ID in server/.env" });
-    }
-
-    const stripe = requireStripe();
-    const billing = await billingService.getOrCreateOwnerBillingProfile(req.user);
-    const user = await getCurrentUser(req.user);
-
-    let customerId = billing?.stripe_customer_id;
-    if (!customerId) {
-      const customer = await stripe.customers.create({
-        email: user.email,
-        name: user.full_name || undefined,
-        metadata: { owner_id: String(req.user), billing_type: "owner_pro" },
-      });
-      customerId = customer.id;
-      await billingService.setOwnerStripeCustomerId(req.user, customerId);
-    }
-
-    const appUrl = getAppUrl();
-    const session = await stripe.checkout.sessions.create({
-      mode: "subscription",
-      customer: customerId,
-      line_items: [{ price: priceId, quantity: 1 }],
-      success_url: `${appUrl}/owner?checkout=success`,
-      cancel_url: `${appUrl}/owner?checkout=cancelled`,
-      allow_promotion_codes: true,
-      subscription_data: {
-        metadata: { owner_id: String(req.user), billing_type: "owner_pro", plan: "owner_pro" },
-      },
-      metadata: { owner_id: String(req.user), billing_type: "owner_pro", plan: "owner_pro" },
-    });
-
-    res.json({ url: session.url });
-  } catch (err) {
-    next(err);
-  }
-};
-
 const createCustomerPortalSession = async (req, res, next) => {
   try {
     const stripe = requireStripe();
@@ -146,41 +114,11 @@ const createCustomerPortalSession = async (req, res, next) => {
   }
 };
 
-const createOwnerCustomerPortalSession = async (req, res, next) => {
-  try {
-    if (!requireOwnerRole(req, res)) return;
-    const stripe = requireStripe();
-    const billing = await billingService.getOrCreateOwnerBillingProfile(req.user);
-
-    if (!billing?.stripe_customer_id) {
-      return res.status(400).json({ error: "No Stripe customer exists for this owner plan yet." });
-    }
-
-    const appUrl = getAppUrl();
-    const session = await stripe.billingPortal.sessions.create({
-      customer: billing.stripe_customer_id,
-      return_url: `${appUrl}/owner`,
-    });
-
-    res.json({ url: session.url });
-  } catch (err) {
-    next(err);
-  }
-};
-
 const createOwnerConnectOnboardingLink = async (req, res, next) => {
   try {
     if (!requireOwnerRole(req, res)) return;
     const stripe = requireStripe();
     const billing = await billingService.getOrCreateOwnerBillingProfile(req.user);
-    const ownerState = await billingService.getOwnerBillingState(req.user, req.userRole);
-
-    if (!ownerState.has_owner_pro_access) {
-      return res.status(403).json({
-        error: "Owner Pro is required to set up Stripe payouts.",
-        code: "OWNER_PRO_REQUIRED",
-      });
-    }
 
     const user = await getCurrentUser(req.user);
 
@@ -237,10 +175,9 @@ const refreshOwnerConnectStatus = async (req, res, next) => {
 module.exports = {
   getBillingStatus,
   getOwnerBillingStatus,
+  getOwnerRevenueSummary,
   createPremiumCheckoutSession,
-  createOwnerProCheckoutSession,
   createCustomerPortalSession,
-  createOwnerCustomerPortalSession,
   createOwnerConnectOnboardingLink,
   refreshOwnerConnectStatus,
 };

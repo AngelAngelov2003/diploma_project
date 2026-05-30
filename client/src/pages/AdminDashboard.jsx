@@ -11,6 +11,7 @@ import {
   FaShieldAlt,
   FaFish,
   FaImages,
+  FaPlug,
 } from "react-icons/fa";
 import {
   deleteAdminCatchLog,
@@ -46,6 +47,7 @@ import TabButton from "../components/ui/TabButton";
 import { formatDateTime } from "../utils/date";
 
 const PAGE_SIZE = 3;
+const OWNER_STATUS_PAGE_SIZE = 4;
 
 const paginateItems = (items, currentPage, pageSize = PAGE_SIZE) => {
   const totalItems = items.length;
@@ -165,6 +167,7 @@ export default function AdminDashboard() {
   const [catchLogsPage, setCatchLogsPage] = useState(1);
   const [galleryPhotosPage, setGalleryPhotosPage] = useState(1);
   const [ownerClaimsPage, setOwnerClaimsPage] = useState(1);
+  const [ownerStatusPage, setOwnerStatusPage] = useState(1);
 
   const waterBodiesSectionRef = useRef(null);
   const usersSectionRef = useRef(null);
@@ -454,6 +457,16 @@ export default function AdminDashboard() {
   const paginatedOwnerClaims = useMemo(
     () => paginateItems(filteredOwnerClaims, ownerClaimsPage),
     [filteredOwnerClaims, ownerClaimsPage],
+  );
+
+  const connectedOwnerStatuses = useMemo(
+    () => analytics?.revenue?.connected_owner_statuses || [],
+    [analytics?.revenue?.connected_owner_statuses],
+  );
+
+  const paginatedOwnerStatuses = useMemo(
+    () => paginateItems(connectedOwnerStatuses, ownerStatusPage, OWNER_STATUS_PAGE_SIZE),
+    [connectedOwnerStatuses, ownerStatusPage],
   );
 
   const updateLakeLocal = (lakeId, field, value) => {
@@ -756,29 +769,88 @@ export default function AdminDashboard() {
             ) : (
               <>
                 <div className={styles.statsGrid}>
-                  <StatCard label="Total Users" value={analytics.totals?.users ?? 0} className={styles.statCard} />
-                  <StatCard label="Total Water Bodies" value={analytics.totals?.water_bodies ?? 0} className={styles.statCard} />
-                  <StatCard label="Total Reviews" value={analytics.totals?.reviews ?? 0} className={styles.statCard} />
-                  <StatCard label="Total Catches" value={analytics.totals?.catches ?? 0} className={styles.statCard} />
+                  <StatCard label="Platform commissions" value={formatCurrency(analytics.revenue?.platform_commissions || 0)} className={styles.statCard} />
+                  <StatCard label="Reservation volume" value={formatCurrency(analytics.revenue?.total_reservation_volume || 0)} className={styles.statCard} />
+                  <StatCard label="Active users" value={analytics.totals?.active_users ?? 0} className={styles.statCard} />
+                  <StatCard label="Pending owner requests" value={analytics.totals?.pending_owner_claims ?? 0} className={styles.statCard} />
                 </div>
 
                 <div className={styles.overviewInfoGrid}>
                   {[
-                    ["Active users", analytics.totals?.active_users ?? 0],
-                    ["Private lakes", analytics.totals?.private_lakes ?? 0],
-                    ["Public lakes", analytics.totals?.public_lakes ?? 0],
-                    ["Reservations", analytics.totals?.reservations ?? 0],
-                    ["Pending reservations", analytics.totals?.pending_reservations ?? 0],
-                    ["Approved reservations", analytics.totals?.approved_reservations ?? 0],
-                    ["Subscriptions", analytics.totals?.subscriptions ?? 0],
-                    ["Pending ownership requests", analytics.totals?.pending_owner_claims ?? 0],
-                  ].map(([label, value]) => (
+                    ["Total users", analytics.totals?.users ?? 0, "Registered accounts in the platform."],
+                    ["Reservations", analytics.totals?.reservations ?? 0, "All reservation requests created by users."],
+                    ["Valid approved reservations", analytics.totals?.approved_reservations ?? 0, "Approved reservations that have not passed yet."],
+                    ["Pending reservations", analytics.totals?.pending_reservations ?? 0, "Reservations waiting for owner/admin action."],
+                    ["Owner earnings", formatCurrency(analytics.revenue?.owner_earnings || 0), "Money sent to connected owner accounts."],
+                    ["Pending checkout volume", formatCurrency(analytics.revenue?.pending_checkout_volume || 0), "Started online payments not completed yet."],
+                    ["Paid online payments", analytics.revenue?.paid_payments_count ?? 0, "Successful Stripe reservation payments."],
+                    ["Pending ownership requests", analytics.totals?.pending_owner_claims ?? 0, "Owner claim requests waiting for review."],
+                  ].map(([label, value, hint]) => (
                     <div key={label} className={styles.overviewInfoCard}>
                       <span>{label}</span>
                       <strong>{value}</strong>
+                      <small>{hint}</small>
                     </div>
                   ))}
                 </div>
+
+                <Card className={styles.card}>
+                  <SectionHeader
+                    title="Owner Stripe statuses"
+                    subtitle="Connected owner accounts used for reservation payouts."
+                  />
+                  {!analytics.revenue?.connected_owner_statuses?.length ? (
+                    <div className={styles.muted}>No connected owner accounts yet.</div>
+                  ) : (
+                    <div className={styles.ownerStatusList}>
+                      {paginatedOwnerStatuses.items.map((owner) => {
+                        const ready = Boolean(owner.charges_enabled && owner.payouts_enabled);
+                        return (
+                          <div key={owner.owner_id} className={styles.ownerStatusRow}>
+                            <div className={styles.ownerStatusMain}>
+                              <FaPlug />
+                              <div>
+                                <strong>{owner.full_name || owner.email || "Owner"}</strong>
+                                <span>{owner.email || "No email"} · {owner.owned_lakes_count || 0} lake(s)</span>
+                              </div>
+                            </div>
+                            <div className={styles.ownerStatusPills}>
+                              <span className={ready ? styles.statusGood : styles.statusWarn}>
+                                {ready ? "Payouts ready" : "Action needed"}
+                              </span>
+                              <span>{owner.connect_onboarding_status || "not started"}</span>
+                              <span>Charges: {owner.charges_enabled ? "enabled" : "pending"}</span>
+                              <span>Payouts: {owner.payouts_enabled ? "enabled" : "pending"}</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                  {connectedOwnerStatuses.length > OWNER_STATUS_PAGE_SIZE ? (
+                    <div className={styles.ownerStatusPagination}>
+                      <span>
+                        Page {paginatedOwnerStatuses.currentPage} of {paginatedOwnerStatuses.totalPages} · {connectedOwnerStatuses.length} owners
+                      </span>
+                      <div>
+                        <button
+                          type="button"
+                          disabled={paginatedOwnerStatuses.currentPage <= 1}
+                          onClick={() => setOwnerStatusPage((page) => Math.max(1, page - 1))}
+                        >
+                          Previous
+                        </button>
+                        <button
+                          type="button"
+                          disabled={paginatedOwnerStatuses.currentPage >= paginatedOwnerStatuses.totalPages}
+                          onClick={() => setOwnerStatusPage((page) => Math.min(paginatedOwnerStatuses.totalPages, page + 1))}
+                        >
+                          Next
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
+                </Card>
               </>
             )}
           </div>

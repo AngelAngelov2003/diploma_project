@@ -22,6 +22,7 @@ const {
   ensureSubscriptionDeliveriesTable,
   ensureReservationDomainTables,
   ensureBillingTables,
+  ensurePasswordResetTokensTable,
 } = require("./setup/ensureTables");
 
 const {
@@ -94,6 +95,7 @@ const startServer = async () => {
   await ensureSubscriptionDeliveriesTable();
   await ensureReservationDomainTables();
   await ensureBillingTables();
+  await ensurePasswordResetTokensTable();
 
   startDailyCron();
   startWeeklyCron();

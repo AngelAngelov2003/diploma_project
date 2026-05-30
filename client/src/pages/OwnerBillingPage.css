@@ -301,3 +301,149 @@
     border-radius: 14px;
   }
 }
+
+.owner-billing-revenue-grid,
+.owner-billing-history-card {
+  max-width: 1100px;
+  margin: 0 auto 18px;
+}
+
+.owner-billing-revenue-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.owner-billing-metric-card,
+.owner-billing-history-card {
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 20px;
+  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.08);
+}
+
+.owner-billing-metric-card {
+  padding: 18px;
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.owner-billing-metric-card > svg {
+  color: #16a34a;
+  font-size: 22px;
+}
+
+.owner-billing-metric-card span {
+  color: #64748b;
+  font-weight: 800;
+}
+
+.owner-billing-metric-card strong {
+  color: #0f172a;
+  font-size: 1.65rem;
+  line-height: 1.05;
+}
+
+.owner-billing-metric-card small {
+  color: #64748b;
+  line-height: 1.35;
+}
+
+.owner-billing-small-strong {
+  font-size: 1rem !important;
+  line-height: 1.35 !important;
+}
+
+.owner-billing-history-card {
+  padding: 22px;
+}
+
+.owner-billing-history-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+.owner-billing-history-head h2 {
+  margin: 8px 0 0;
+}
+
+.owner-billing-history-head > span {
+  border-radius: 999px;
+  padding: 8px 11px;
+  font-weight: 900;
+  color: #166534;
+  background: #dcfce7;
+  white-space: nowrap;
+}
+
+.owner-billing-empty {
+  color: #64748b;
+  margin: 0;
+}
+
+.owner-billing-history-list {
+  display: grid;
+  gap: 10px;
+}
+
+.owner-billing-history-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 14px;
+  background: #f8fafc;
+}
+
+.owner-billing-history-row strong,
+.owner-billing-history-row small {
+  display: block;
+}
+
+.owner-billing-history-row small {
+  margin-top: 5px;
+  color: #64748b;
+}
+
+.owner-billing-history-amounts {
+  text-align: right;
+}
+
+@media (max-width: 980px) {
+  .owner-billing-revenue-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .owner-billing-revenue-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .owner-billing-history-card {
+    padding: 16px;
+    border-radius: 16px;
+  }
+
+  .owner-billing-history-head,
+  .owner-billing-history-row {
+    grid-template-columns: 1fr;
+  }
+
+  .owner-billing-history-head {
+    display: grid;
+  }
+
+  .owner-billing-history-head > span,
+  .owner-billing-history-amounts {
+    text-align: left;
+    justify-self: start;
+  }
+}

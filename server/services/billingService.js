@@ -93,21 +93,21 @@ const getUserPremiumState = async (userId, role = "user") => {
 const getOwnerBillingState = async (ownerId, role = "user") => {
   const billing = await getOrCreateOwnerBillingProfile(ownerId);
   const normalizedRole = String(role || "user").toLowerCase();
-  const isAdmin = normalizedRole === "admin";
-  const hasOwnerProAccess = isAdmin || isOwnerProBilling(billing);
+  const hasOwnerAccess = ["owner", "admin"].includes(normalizedRole);
   const connectReady = isOwnerConnectReady(billing);
 
   return {
-    owner_plan: billing?.owner_plan || "free",
-    subscription_status: billing?.subscription_status || "inactive",
-    current_period_end: billing?.current_period_end || null,
-    has_owner_pro_access: hasOwnerProAccess,
+    owner_plan: "commission",
+    subscription_status: "not_required",
+    current_period_end: null,
+    has_owner_pro_access: hasOwnerAccess,
     stripe_connected_account_id: billing?.stripe_connected_account_id || null,
     connect_onboarding_status: billing?.connect_onboarding_status || "not_started",
     charges_enabled: Boolean(billing?.charges_enabled),
     payouts_enabled: Boolean(billing?.payouts_enabled),
     details_submitted: Boolean(billing?.details_submitted),
     connect_ready: connectReady,
+    platform_fee_percent: Number(process.env.PLATFORM_FEE_PERCENT || 10),
   };
 };
 
@@ -245,6 +245,175 @@ const updateOwnerSubscriptionByCustomer = async ({
 
 
 
+const centsToMajor = (amount) => Number((Number(amount || 0) / 100).toFixed(2));
+
+const summarizeStripeBalance = (balance, preferredCurrency = "eur") => {
+  const currency = String(preferredCurrency || "eur").toLowerCase();
+  const sumForCurrency = (items = []) => items
+    .filter((item) => String(item.currency || "").toLowerCase() === currency)
+    .reduce((sum, item) => sum + Number(item.amount || 0), 0);
+
+  return {
+    currency,
+    available: centsToMajor(sumForCurrency(balance?.available || [])),
+    pending: centsToMajor(sumForCurrency(balance?.pending || [])),
+  };
+};
+
+const formatPayoutSchedule = (account) => {
+  const schedule = account?.settings?.payouts?.schedule;
+  if (!schedule) return "Automatic payouts depend on the Stripe account settings.";
+
+  if (schedule.interval === "weekly") {
+    const weekday = schedule.weekly_anchor ? String(schedule.weekly_anchor) : "the selected weekday";
+    return `Weekly automatic payouts, usually on ${weekday}.`;
+  }
+
+  if (schedule.interval === "monthly") {
+    const day = schedule.monthly_anchor ? `day ${schedule.monthly_anchor}` : "the selected day";
+    return `Monthly automatic payouts, usually on ${day}.`;
+  }
+
+  if (schedule.interval === "daily") return "Daily automatic payouts after Stripe's availability delay.";
+  if (schedule.interval === "manual") return "Manual payouts are enabled; payouts must be triggered from Stripe.";
+
+  return `${schedule.interval || "Automatic"} payout schedule.`;
+};
+
+const getOwnerRevenueSummary = async (ownerId, stripe = null) => {
+  const billing = await getOrCreateOwnerBillingProfile(ownerId);
+  const currency = String(process.env.STRIPE_RESERVATION_CURRENCY || "eur").toLowerCase();
+
+  const totalsQ = await pool.query(
+    `
+      SELECT
+        COALESCE(SUM(CASE WHEN status = 'paid' THEN amount_total ELSE 0 END), 0)::numeric AS total_volume,
+        COALESCE(SUM(CASE WHEN status = 'paid' THEN platform_fee_amount ELSE 0 END), 0)::numeric AS platform_fees,
+        COALESCE(SUM(CASE WHEN status = 'paid' THEN owner_amount ELSE 0 END), 0)::numeric AS owner_earnings,
+        COALESCE(SUM(CASE WHEN status IN ('pending', 'checkout_started') THEN owner_amount ELSE 0 END), 0)::numeric AS pending_checkout_amount,
+        COUNT(*) FILTER (WHERE status = 'paid')::int AS paid_payments_count
+      FROM reservation_payments
+      WHERE owner_id = $1::uuid
+    `,
+    [ownerId]
+  );
+
+  const historyQ = await pool.query(
+    `
+      SELECT
+        rp.id,
+        rp.reservation_id,
+        rp.water_body_id,
+        rp.currency,
+        rp.amount_total,
+        rp.platform_fee_amount,
+        rp.owner_amount,
+        rp.status,
+        rp.created_at,
+        rp.paid_at,
+        w.name AS lake_name,
+        u.full_name AS customer_name,
+        u.email AS customer_email,
+        COALESCE(lr.start_date, lr.reservation_date)::text AS arrival_date,
+        COALESCE(lr.end_date, lr.start_date, lr.reservation_date)::text AS departure_date
+      FROM reservation_payments rp
+      LEFT JOIN water_bodies w ON w.id = rp.water_body_id
+      LEFT JOIN users u ON u.id = rp.user_id
+      LEFT JOIN lake_reservations lr ON lr.id = rp.reservation_id
+      WHERE rp.owner_id = $1::uuid
+      ORDER BY COALESCE(rp.paid_at, rp.created_at) DESC
+      LIMIT 12
+    `,
+    [ownerId]
+  );
+
+  let stripeBalance = { currency, available: 0, pending: 0 };
+  let payoutSchedule = billing?.payouts_enabled
+    ? "Automatic payouts are enabled in Stripe."
+    : "Payouts are not enabled yet.";
+
+  if (stripe && billing?.stripe_connected_account_id) {
+    try {
+      const [balance, account] = await Promise.all([
+        stripe.balance.retrieve({}, { stripeAccount: billing.stripe_connected_account_id }),
+        stripe.accounts.retrieve(billing.stripe_connected_account_id),
+      ]);
+      stripeBalance = summarizeStripeBalance(balance, currency);
+      payoutSchedule = formatPayoutSchedule(account);
+    } catch (error) {
+      console.warn("[billing] Could not load owner Stripe balance:", error.message);
+    }
+  }
+
+  const row = totalsQ.rows[0] || {};
+
+  return {
+    currency,
+    total_earnings: Number(row.owner_earnings || 0),
+    pending_balance: stripeBalance.pending,
+    available_balance: stripeBalance.available,
+    estimated_next_payout: payoutSchedule,
+    total_reservation_volume: Number(row.total_volume || 0),
+    platform_fees: Number(row.platform_fees || 0),
+    pending_checkout_amount: Number(row.pending_checkout_amount || 0),
+    paid_payments_count: Number(row.paid_payments_count || 0),
+    history: historyQ.rows,
+  };
+};
+
+const getAdminRevenueSummary = async () => {
+  const paymentsQ = await pool.query(
+    `
+      SELECT
+        COALESCE(SUM(CASE WHEN status = 'paid' THEN amount_total ELSE 0 END), 0)::numeric AS total_volume,
+        COALESCE(SUM(CASE WHEN status = 'paid' THEN platform_fee_amount ELSE 0 END), 0)::numeric AS platform_commissions,
+        COALESCE(SUM(CASE WHEN status = 'paid' THEN owner_amount ELSE 0 END), 0)::numeric AS owner_earnings,
+        COALESCE(SUM(CASE WHEN status IN ('pending', 'checkout_started') THEN amount_total ELSE 0 END), 0)::numeric AS pending_checkout_volume,
+        COUNT(*) FILTER (WHERE status = 'paid')::int AS paid_payments_count,
+        COUNT(*) FILTER (WHERE status IN ('pending', 'checkout_started'))::int AS pending_payments_count
+      FROM reservation_payments
+    `
+  );
+
+  const ownerStatusesQ = await pool.query(
+    `
+      SELECT
+        obp.owner_id,
+        u.full_name,
+        u.email,
+        obp.stripe_connected_account_id,
+        obp.connect_onboarding_status,
+        obp.charges_enabled,
+        obp.payouts_enabled,
+        obp.details_submitted,
+        obp.updated_at,
+        COUNT(w.id)::int AS owned_lakes_count
+      FROM owner_billing_profiles obp
+      LEFT JOIN users u ON u.id = obp.owner_id
+      LEFT JOIN water_bodies w ON w.owner_id = obp.owner_id
+      WHERE obp.stripe_connected_account_id IS NOT NULL
+         OR u.role = 'owner'
+      GROUP BY obp.owner_id, u.full_name, u.email, obp.stripe_connected_account_id,
+               obp.connect_onboarding_status, obp.charges_enabled, obp.payouts_enabled,
+               obp.details_submitted, obp.updated_at
+      ORDER BY obp.updated_at DESC NULLS LAST, u.full_name ASC
+      LIMIT 25
+    `
+  );
+
+  const row = paymentsQ.rows[0] || {};
+  return {
+    platform_commissions: Number(row.platform_commissions || 0),
+    total_reservation_volume: Number(row.total_volume || 0),
+    owner_earnings: Number(row.owner_earnings || 0),
+    pending_checkout_volume: Number(row.pending_checkout_volume || 0),
+    paid_payments_count: Number(row.paid_payments_count || 0),
+    pending_payments_count: Number(row.pending_payments_count || 0),
+    connected_owner_statuses: ownerStatusesQ.rows,
+  };
+};
+
+
 const markReservationPaymentPaid = async ({
   checkoutSessionId,
   paymentIntentId,
@@ -336,6 +505,8 @@ module.exports = {
   markReservationPaymentPaid,
   markReservationPaymentFailed,
   recordStripeWebhookEvent,
+  getOwnerRevenueSummary,
+  getAdminRevenueSummary,
   isPremiumBilling,
   isOwnerProBilling,
   isOwnerConnectReady,

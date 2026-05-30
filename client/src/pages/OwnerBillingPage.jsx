@@ -1,46 +1,55 @@
 import React, { useEffect, useState } from "react";
 import {
   FaCheckCircle,
-  FaCreditCard,
-  FaExternalLinkAlt,
   FaMoneyBillWave,
   FaPlug,
-  FaShieldAlt,
   FaStore,
+  FaWallet,
+  FaClock,
+  FaReceipt,
 } from "react-icons/fa";
 import {
   getOwnerBillingStatus,
-  openOwnerBillingPortal,
+  getOwnerRevenueSummary,
   refreshOwnerConnectStatus,
   startOwnerConnectOnboarding,
-  startOwnerProCheckout,
 } from "../api/billingApi";
-import OwnerProLockedCard from "../components/common/OwnerProLockedCard";
 import { notifyError, notifySuccess } from "../ui/toast";
 import "./OwnerBillingPage.css";
-
-const formatDate = (value) => {
-  if (!value) return "Not active";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "Not active";
-  return date.toLocaleDateString();
-};
 
 const StatusPill = ({ active, children }) => (
   <span className={`owner-billing-pill ${active ? "active" : "muted"}`}>{children}</span>
 );
 
+const formatMoney = (value, currency = "EUR") =>
+  new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: String(currency || "EUR").toUpperCase(),
+  }).format(Number(value || 0));
+
+const formatDate = (value) => {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  return date.toLocaleDateString();
+};
+
 export default function OwnerBillingPage() {
   const [billing, setBilling] = useState(null);
   const [loading, setLoading] = useState(true);
   const [busyAction, setBusyAction] = useState("");
+  const [revenue, setRevenue] = useState(null);
 
   const loadBilling = async ({ silent = false } = {}) => {
     try {
-      const data = await getOwnerBillingStatus();
+      const [data, revenueData] = await Promise.all([
+        getOwnerBillingStatus(),
+        getOwnerRevenueSummary().catch(() => null),
+      ]);
       setBilling(data);
+      setRevenue(revenueData);
     } catch (error) {
-      if (!silent) notifyError(error, "Failed to load owner billing status");
+      if (!silent) notifyError(error, "Failed to load owner payout status");
     } finally {
       setLoading(false);
     }
@@ -50,10 +59,6 @@ export default function OwnerBillingPage() {
     loadBilling();
 
     const params = new URLSearchParams(window.location.search);
-    if (params.get("checkout") === "success") {
-      notifySuccess("Owner Pro checkout completed. Stripe will confirm the subscription shortly.");
-      window.history.replaceState({}, "", "/owner/billing");
-    }
     if (params.get("connect") === "return") {
       notifySuccess("Stripe Connect onboarding returned. Refreshing payout status.");
       refreshOwnerConnectStatus().then(setBilling).catch(() => loadBilling({ silent: true }));
@@ -65,39 +70,11 @@ export default function OwnerBillingPage() {
     }
   }, []);
 
-  const redirectTo = (url) => {
-    if (url) window.location.href = url;
-  };
-
-  const handleOwnerPro = async () => {
-    setBusyAction("owner-pro");
-    try {
-      const data = await startOwnerProCheckout();
-      redirectTo(data.url);
-    } catch (error) {
-      notifyError(error, "Could not start Owner Pro checkout");
-    } finally {
-      setBusyAction("");
-    }
-  };
-
-  const handlePortal = async () => {
-    setBusyAction("portal");
-    try {
-      const data = await openOwnerBillingPortal();
-      redirectTo(data.url);
-    } catch (error) {
-      notifyError(error, "Could not open owner billing portal");
-    } finally {
-      setBusyAction("");
-    }
-  };
-
   const handleConnect = async () => {
     setBusyAction("connect");
     try {
       const data = await startOwnerConnectOnboarding();
-      redirectTo(data.url);
+      if (data?.url) window.location.href = data.url;
     } catch (error) {
       notifyError(error, "Could not start Stripe Connect onboarding");
     } finally {
@@ -118,106 +95,136 @@ export default function OwnerBillingPage() {
     }
   };
 
-  const hasOwnerPro = Boolean(billing?.has_owner_pro_access);
   const connectReady = Boolean(billing?.connect_ready);
+  const platformFeePercent = Number.isFinite(Number(billing?.platform_fee_percent))
+    ? Number(billing.platform_fee_percent)
+    : 10;
 
   return (
     <div className="owner-billing-page">
       <section className="owner-billing-hero">
         <div>
-          <div className="owner-billing-eyebrow"><FaStore /> Owner billing</div>
-          <h1>Owner Pro and payout setup</h1>
+          <div className="owner-billing-eyebrow"><FaStore /> Owner payouts</div>
+          <h1>Stripe payouts and platform commission</h1>
           <p>
-            Phase 2 adds the owner subscription and Stripe Connect onboarding foundation. Owners can pay for platform tools now;
-            reservation split payments and commission payouts are prepared for the next phase.
+            Owners do not need a subscription. Users pay reservations through Stripe, the platform keeps {platformFeePercent}% commission,
+            and the remaining amount is sent to the owner connected account.
           </p>
         </div>
-        <div className={`owner-billing-status-card ${hasOwnerPro ? "active" : ""}`}>
-          <span>{hasOwnerPro ? "Owner Pro active" : "Owner Free"}</span>
-          <strong>{billing?.subscription_status || "inactive"}</strong>
-          <small>Period end: {formatDate(billing?.current_period_end)}</small>
+        <div className={`owner-billing-status-card ${connectReady ? "active" : ""}`}>
+          <span>{connectReady ? "Payouts ready" : "Payout setup needed"}</span>
+          <strong>{billing?.connect_onboarding_status || "not_started"}</strong>
+          <small>Platform fee: {platformFeePercent}%</small>
         </div>
       </section>
 
       {loading ? (
-        <div className="owner-billing-card">Loading owner billing...</div>
+        <div className="owner-billing-card">Loading owner payout status...</div>
       ) : (
         <>
           <div className="owner-billing-grid">
             <article className="owner-billing-card">
-              <h2>Owner Free</h2>
-              <div className="owner-billing-price">0 BGN</div>
+              <h2>Owner tools</h2>
+              <div className="owner-billing-price">No monthly fee</div>
               <ul>
-                <li><FaCheckCircle /> Manage basic lake profile</li>
-                <li><FaCheckCircle /> Upload gallery photos</li>
-                <li><FaCheckCircle /> Configure spots, rooms, and prices</li>
+                <li><FaCheckCircle /> Manage lake profile, gallery, spots, rooms, and prices</li>
                 <li><FaCheckCircle /> Receive manual reservation requests</li>
+                <li><FaCheckCircle /> Use online paid reservations after Stripe Connect is ready</li>
               </ul>
             </article>
 
             <article className="owner-billing-card pro">
-              <h2>Owner Pro</h2>
-              <div className="owner-billing-price">Set in Stripe</div>
+              <h2>Commission model</h2>
+              <div className="owner-billing-price">{platformFeePercent}% platform fee</div>
               <ul>
-                <li><FaCheckCircle /> Prepare online paid bookings</li>
-                <li><FaCheckCircle /> Owner revenue dashboard foundation</li>
-                <li><FaCheckCircle /> Stripe billing portal</li>
-                <li><FaCheckCircle /> Future Connect payouts and commissions</li>
+                <li><FaCheckCircle /> Customer pays the reservation total</li>
+                <li><FaCheckCircle /> Platform keeps the commission</li>
+                <li><FaCheckCircle /> Owner receives the remaining amount in Stripe Connect</li>
               </ul>
-              {hasOwnerPro ? (
-                <button type="button" onClick={handlePortal} disabled={busyAction === "portal"}>
-                  <FaCreditCard /> Manage Owner Pro <FaExternalLinkAlt />
-                </button>
-              ) : (
-                <button type="button" onClick={handleOwnerPro} disabled={busyAction === "owner-pro"}>
-                  <FaShieldAlt /> Upgrade to Owner Pro
-                </button>
-              )}
             </article>
           </div>
 
-          <section className="owner-billing-connect-card">
-            {hasOwnerPro ? (
-              <>
-                <div>
-                  <div className="owner-billing-eyebrow"><FaPlug /> Stripe Connect</div>
-                  <h2>Payout account setup</h2>
-                  <p>
-                    Connect is for the marketplace part: later, users will pay reservations through the platform, the platform keeps
-                    a commission, and the owner receives the remaining amount through this connected account.
-                  </p>
-                  <div className="owner-billing-pills">
-                    <StatusPill active={Boolean(billing?.stripe_connected_account_id)}>
-                      Account: {billing?.stripe_connected_account_id ? "created" : "not started"}
-                    </StatusPill>
-                    <StatusPill active={connectReady}>Onboarding: {billing?.connect_onboarding_status || "not started"}</StatusPill>
-                    <StatusPill active={Boolean(billing?.charges_enabled)}>Charges: {billing?.charges_enabled ? "enabled" : "pending"}</StatusPill>
-                    <StatusPill active={Boolean(billing?.payouts_enabled)}>Payouts: {billing?.payouts_enabled ? "enabled" : "pending"}</StatusPill>
-                  </div>
-                </div>
-                <div className="owner-billing-connect-actions">
-                  <button type="button" onClick={handleConnect} disabled={busyAction === "connect"}>
-                    <FaMoneyBillWave /> {billing?.stripe_connected_account_id ? "Continue onboarding" : "Set up payouts"}
-                  </button>
-                  <button type="button" className="secondary" onClick={handleRefreshConnect} disabled={busyAction === "refresh-connect"}>
-                    Refresh status
-                  </button>
-                </div>
-              </>
+          <section className="owner-billing-revenue-grid">
+            <article className="owner-billing-metric-card">
+              <FaWallet />
+              <span>Total earnings</span>
+              <strong>{formatMoney(revenue?.total_earnings, revenue?.currency)}</strong>
+              <small>Paid reservation revenue after platform commission.</small>
+            </article>
+            <article className="owner-billing-metric-card">
+              <FaMoneyBillWave />
+              <span>Pending Stripe balance</span>
+              <strong>{formatMoney(revenue?.pending_balance, revenue?.currency)}</strong>
+              <small>Money paid by users but not yet available for payout.</small>
+            </article>
+            <article className="owner-billing-metric-card">
+              <FaCheckCircle />
+              <span>Available balance</span>
+              <strong>{formatMoney(revenue?.available_balance, revenue?.currency)}</strong>
+              <small>Available in the owner connected account.</small>
+            </article>
+            <article className="owner-billing-metric-card">
+              <FaClock />
+              <span>Estimated next payout</span>
+              <strong className="owner-billing-small-strong">{revenue?.estimated_next_payout || "Weekly automatic payouts"}</strong>
+              <small>Stripe sends payouts based on the connected account schedule.</small>
+            </article>
+          </section>
+
+          <section className="owner-billing-history-card">
+            <div className="owner-billing-history-head">
+              <div>
+                <div className="owner-billing-eyebrow"><FaReceipt /> Revenue history</div>
+                <h2>Reservation payments</h2>
+              </div>
+              <span>{revenue?.paid_payments_count || 0} paid payments</span>
+            </div>
+            {!revenue?.history?.length ? (
+              <p className="owner-billing-empty">No online reservation payments yet.</p>
             ) : (
-              <OwnerProLockedCard
-                className="owner-billing-locked-wide"
-                title="Payout account setup"
-                message="Stripe Connect payouts are available after upgrading to Owner Pro. Free owners can still prepare their lake profile, but payment and payout tools stay locked."
-                bullets={[
-                  "Set up Stripe payout account",
-                  "Prepare online paid bookings",
-                  "Enable future commission-based reservation payments",
-                ]}
-                onUpgrade={handleOwnerPro}
-                buttonLabel={busyAction === "owner-pro" ? "Opening checkout..." : "Upgrade to Owner Pro"}
-              />
+              <div className="owner-billing-history-list">
+                {revenue.history.map((item) => (
+                  <div key={item.id} className="owner-billing-history-row">
+                    <div>
+                      <strong>{item.lake_name || "Reservation"}</strong>
+                      <small>
+                        {item.customer_name || item.customer_email || "Customer"} · {formatDate(item.arrival_date)} → {formatDate(item.departure_date)}
+                      </small>
+                    </div>
+                    <div className="owner-billing-history-amounts">
+                      <strong>{formatMoney(item.owner_amount, item.currency)}</strong>
+                      <small>Total {formatMoney(item.amount_total, item.currency)} · Fee {formatMoney(item.platform_fee_amount, item.currency)}</small>
+                    </div>
+                  </div>
+                ))}
+              </div>
             )}
+          </section>
+
+          <section className="owner-billing-connect-card">
+            <div>
+              <div className="owner-billing-eyebrow"><FaPlug /> Stripe Connect</div>
+              <h2>Payout account setup</h2>
+              <p>
+                This connected account is required before online reservation payments can be sent to the owner.
+              </p>
+              <div className="owner-billing-pills">
+                <StatusPill active={Boolean(billing?.stripe_connected_account_id)}>
+                  Account: {billing?.stripe_connected_account_id ? "created" : "not started"}
+                </StatusPill>
+                <StatusPill active={connectReady}>Onboarding: {billing?.connect_onboarding_status || "not started"}</StatusPill>
+                <StatusPill active={Boolean(billing?.charges_enabled)}>Charges: {billing?.charges_enabled ? "enabled" : "pending"}</StatusPill>
+                <StatusPill active={Boolean(billing?.payouts_enabled)}>Payouts: {billing?.payouts_enabled ? "enabled" : "pending"}</StatusPill>
+              </div>
+            </div>
+            <div className="owner-billing-connect-actions">
+              <button type="button" onClick={handleConnect} disabled={busyAction === "connect"}>
+                <FaMoneyBillWave /> {billing?.stripe_connected_account_id ? "Continue onboarding" : "Set up payouts"}
+              </button>
+              <button type="button" className="secondary" onClick={handleRefreshConnect} disabled={busyAction === "refresh-connect"}>
+                Refresh status
+              </button>
+            </div>
           </section>
         </>
       )}

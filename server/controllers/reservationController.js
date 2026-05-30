@@ -39,9 +39,6 @@ const toStripeAmount = (value) => Math.max(0, Math.round(toNumber(value, 0) * 10
 const canUseOnlinePayments = async (ownerId) => {
   if (!ownerId) return { enabled: false, reason: "Lake owner is missing" };
   const ownerState = await billingService.getOwnerBillingState(ownerId, "owner");
-  if (!ownerState.has_owner_pro_access) {
-    return { enabled: false, reason: "Owner Pro subscription is required" };
-  }
   if (!ownerState.connect_ready || !ownerState.stripe_connected_account_id) {
     return { enabled: false, reason: "Owner Stripe payout setup is not complete" };
   }
@@ -1173,7 +1170,10 @@ const createReservationPaymentCheckout = async (req, res) => {
     const currency = getReservationCurrency();
     const appUrl = getAppUrl();
     const totalCents = toStripeAmount(reservation.total_amount);
-    const platformFeeCents = toStripeAmount(reservation.platform_fee_amount);
+    const checkoutBreakdown = buildPaymentBreakdown(reservation.total_amount);
+    const platformFeeAmount = reservation.platform_fee_amount ?? checkoutBreakdown.platformFeeAmount;
+    const ownerAmount = reservation.owner_amount ?? checkoutBreakdown.ownerAmount;
+    const platformFeeCents = toStripeAmount(platformFeeAmount);
 
     const paymentIntentData = {
       transfer_data: {
@@ -1234,8 +1234,8 @@ const createReservationPaymentCheckout = async (req, res) => {
       onlinePayment.ownerState.stripe_connected_account_id,
       currency,
       reservation.total_amount,
-      reservation.platform_fee_amount,
-      reservation.owner_amount,
+      platformFeeAmount,
+      ownerAmount,
     ]);
 
     await pool.query(`
