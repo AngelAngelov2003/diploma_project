@@ -79,6 +79,7 @@ function FishingMapCanvas({
   showMapLoadingOverlay,
   mapInstance,
   selectedRegion,
+  selectedRegionFeature,
   setSelectedRegion,
   showRegionOverview,
   setShowRegionOverview,
@@ -93,6 +94,49 @@ function FishingMapCanvas({
   const regionsLayerRef = useRef(null);
   const hoveredRegionLayerRef = useRef(null);
   const overviewFitTimerRef = useRef(null);
+
+  const selectedRegionFocusActive = Boolean(
+    selectedRegionFeature &&
+      selectedRegion &&
+      !showRegionOverview &&
+      !locationModeActive &&
+      !distanceFilterActive,
+  );
+
+  const selectedRegionMask = useMemo(() => {
+    if (!selectedRegionFocusActive || !selectedRegionFeature?.geometry) {
+      return null;
+    }
+
+    const geometry = selectedRegionFeature.geometry;
+    const worldRing = [
+      [-180, -90],
+      [180, -90],
+      [180, 90],
+      [-180, 90],
+      [-180, -90],
+    ];
+
+    const regionOuterRings =
+      geometry.type === "Polygon"
+        ? [geometry.coordinates?.[0]].filter(Boolean)
+        : geometry.type === "MultiPolygon"
+          ? geometry.coordinates
+              .map((polygon) => polygon?.[0])
+              .filter(Boolean)
+          : [];
+
+    if (!regionOuterRings.length) return null;
+
+    return {
+      type: "Feature",
+      properties: { role: "selected-region-mask" },
+      geometry: {
+        type: "Polygon",
+        coordinates: [worldRing, ...regionOuterRings],
+      },
+    };
+  }, [selectedRegionFocusActive, selectedRegionFeature]);
 
   const activeLakeId =
     activeLake?.id === undefined || activeLake?.id === null
@@ -269,6 +313,31 @@ function FishingMapCanvas({
 
 
   useEffect(() => {
+    if (!mapInstance) return undefined;
+
+    const previousMaxBounds = mapInstance.options.maxBounds || null;
+    const previousMaxBoundsViscosity = mapInstance.options.maxBoundsViscosity || 0;
+
+    if (selectedRegionFocusActive && selectedRegionFeature) {
+      const regionBounds = L.geoJSON(selectedRegionFeature).getBounds();
+
+      if (regionBounds?.isValid?.()) {
+        mapInstance.setMaxBounds(regionBounds.pad(0.12));
+        mapInstance.options.maxBoundsViscosity = 0.65;
+      }
+    } else {
+      mapInstance.setMaxBounds(previousMaxBounds);
+      mapInstance.options.maxBoundsViscosity = previousMaxBoundsViscosity;
+    }
+
+    return () => {
+      mapInstance.setMaxBounds(previousMaxBounds);
+      mapInstance.options.maxBoundsViscosity = previousMaxBoundsViscosity;
+    };
+  }, [mapInstance, selectedRegionFocusActive, selectedRegionFeature]);
+
+
+  useEffect(() => {
     if (!mapInstance) return;
 
     const restoreRegionsWhenZoomedOut = () => {
@@ -439,8 +508,8 @@ function FishingMapCanvas({
 
             mapInstance.once("moveend", fetchAfterMove);
             mapInstance.fitBounds(bounds, {
-              padding: isSmallScreen ? [18, 18] : [30, 30],
-              maxZoom: isSmallScreen ? 10 : 9,
+              padding: isSmallScreen ? [10, 10] : [16, 16],
+              maxZoom: isSmallScreen ? 10 : 10,
               animate: true,
             });
 
@@ -496,6 +565,36 @@ function FishingMapCanvas({
             load: () => setTilesLoading(false),
           }}
         />
+
+        {selectedRegionMask && (
+          <GeoJSON
+            key={`region-mask-${selectedRegion}`}
+            data={selectedRegionMask}
+            interactive={false}
+            style={() => ({
+              color: "transparent",
+              weight: 0,
+              fillColor: "#0f172a",
+              fillOpacity: 0.72,
+              fillRule: "evenodd",
+            })}
+          />
+        )}
+
+        {selectedRegionFocusActive && selectedRegionFeature && (
+          <GeoJSON
+            key={`selected-region-outline-${selectedRegion}`}
+            data={selectedRegionFeature}
+            interactive={false}
+            style={() => ({
+              color: "#0f172a",
+              weight: 3,
+              fillColor: "#60a5fa",
+              fillOpacity: 0.06,
+              opacity: 1,
+            })}
+          />
+        )}
 
         {showRegionOverview && !locationModeActive && (
           <GeoJSON
@@ -667,8 +766,17 @@ function FishingMapCanvas({
           <div className="map-selected-preview-text">
             {locationModeActive
               ? "Showing lakes around your current location."
-              : "Explore lakes inside this region."}
+              : "Only lakes inside this selected region are loaded."}
           </div>
+          {!locationModeActive && (
+            <button
+              type="button"
+              className="map-selected-preview-action"
+              onClick={handleLocateBulgaria}
+            >
+              Show all regions
+            </button>
+          )}
         </div>
       )}
 

@@ -1507,3 +1507,23 @@
     max-height: calc(100svh - 92px);
   }
 }
+
+.map-selected-preview-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 12px;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--fm-color-text-white);
+  cursor: pointer;
+  background: var(--fm-color-primary-strong);
+  border: none;
+  border-radius: var(--fm-radius-pill);
+  box-shadow: var(--fm-shadow-primary);
+}
+
+.map-selected-preview-action:hover {
+  background: var(--fm-color-primary-stronger);
+}

@@ -427,7 +427,43 @@ function FishingMap() {
     sortBy,
     userLocation,
     distanceKm,
+    selectedRegion,
+    selectedRegionFeature,
+    showRegionOverview,
     scheduleBoundsFetch,
+  ]);
+
+  useEffect(() => {
+    if (
+      selectedRegion &&
+      selectedRegionFeature &&
+      !showRegionOverview &&
+      !locationModeActive &&
+      !distanceFilterActive
+    ) {
+      setActiveLake(null);
+      setWaterBodies((prev) => prev.filter((lake) => {
+        const latitude = Number(lake?.latitude);
+        const longitude = Number(lake?.longitude);
+
+        if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+          return false;
+        }
+
+        const matchedRegion = findRegionFeatureByPoint(bulgariaRegions, {
+          latitude,
+          longitude,
+        });
+
+        return getRegionNameFromFeature(matchedRegion) === selectedRegion;
+      }));
+    }
+  }, [
+    selectedRegion,
+    selectedRegionFeature,
+    showRegionOverview,
+    locationModeActive,
+    distanceFilterActive,
   ]);
 
   useEffect(() => {
@@ -558,12 +594,46 @@ function FishingMap() {
     }
   }, [canUseDistanceSorting, sortBy]);
 
-  const visibleLakes = waterBodies;
+  const selectedRegionFocusActive = Boolean(
+    selectedRegion &&
+      selectedRegionFeature &&
+      !showRegionOverview &&
+      !locationModeActive &&
+      !distanceFilterActive,
+  );
+
+  const isLakeInsideSelectedRegion = useCallback(
+    (lake) => {
+      if (!selectedRegionFocusActive) return true;
+
+      const latitude = Number(lake?.latitude);
+      const longitude = Number(lake?.longitude);
+
+      if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+        return false;
+      }
+
+      const matchedRegion = findRegionFeatureByPoint(bulgariaRegions, {
+        latitude,
+        longitude,
+      });
+
+      return getRegionNameFromFeature(matchedRegion) === selectedRegion;
+    },
+    [selectedRegionFocusActive, selectedRegion],
+  );
+
+  const visibleLakes = useMemo(
+    () => waterBodies.filter(isLakeInsideSelectedRegion),
+    [waterBodies, isLakeInsideSelectedRegion],
+  );
 
   const globalSearchLakes = useMemo(() => {
     const visibleIds = new Set(visibleLakes.map((lake) => String(lake.id)));
-    return searchMatches.filter((lake) => !visibleIds.has(String(lake.id)));
-  }, [searchMatches, visibleLakes]);
+    return searchMatches
+      .filter(isLakeInsideSelectedRegion)
+      .filter((lake) => !visibleIds.has(String(lake.id)));
+  }, [searchMatches, visibleLakes, isLakeInsideSelectedRegion]);
 
   const displayedLakes = useMemo(() => {
     if (!searchTerm.trim()) {
@@ -828,6 +898,7 @@ function FishingMap() {
         showMapLoadingOverlay={showMapLoadingOverlay}
         mapInstance={mapInstance}
         selectedRegion={selectedRegion}
+        selectedRegionFeature={selectedRegionFeature}
         setSelectedRegion={setSelectedRegion}
         showRegionOverview={showRegionOverview}
         setShowRegionOverview={setShowRegionOverview}
