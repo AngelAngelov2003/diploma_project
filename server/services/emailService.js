@@ -23,7 +23,7 @@ const ensureSmtpConfigured = () => {
     .map(([name]) => name);
 
   if (missing.length) {
-    throw new Error(`Missing email environment variables: ${missing.join(", ")}`);
+    throw new Error(`Липсват настройки за имейл средата: ${missing.join(", ")}`);
   }
 };
 

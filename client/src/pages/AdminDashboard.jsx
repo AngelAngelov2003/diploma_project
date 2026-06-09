@@ -99,6 +99,30 @@ const applyLakeMode = (lake, mode) => {
   return nextLake;
 };
 
+
+const getConnectStatusLabel = (status) => {
+  const labels = {
+    completed: "завършено",
+    complete: "завършено",
+    onboarding_complete: "завършено",
+    active: "активен",
+    pending: "чакащо",
+    pending_verification: "чака проверка",
+    restricted: "ограничен",
+    restricted_soon: "скоро ще бъде ограничен",
+    rejected: "отхвърлен",
+    disabled: "деактивиран",
+    not_started: "не е започнато",
+    none: "не е започнато",
+  };
+
+  if (!status) {
+    return "не е започнато";
+  }
+
+  return labels[String(status).toLowerCase()] || String(status).replace(/_/g, " ");
+};
+
 const getUploadUrl = (proofDocumentUrl) => {
   if (!proofDocumentUrl) {
     return "";
@@ -192,8 +216,8 @@ export default function AdminDashboard() {
       const data = await getAdminAnalytics();
       setAnalytics(data || null);
     } catch (error) {
-      setOverviewError(error?.response?.data?.error || "Failed to load analytics");
-      notifyError(error, "Failed to load analytics");
+      setOverviewError(error?.response?.data?.error || "Неуспешно зареждане на статистиката");
+      notifyError(error, "Неуспешно зареждане на статистиката");
       setAnalytics(null);
     } finally {
       setLoadingOverview(false);
@@ -208,9 +232,9 @@ export default function AdminDashboard() {
       setWaterBodies(data || []);
     } catch (error) {
       setWaterBodiesError(
-        error?.response?.data?.error || "Failed to load water bodies",
+        error?.response?.data?.error || "Неуспешно зареждане на водоемите",
       );
-      notifyError(error, "Failed to load water bodies");
+      notifyError(error, "Неуспешно зареждане на водоемите");
       setWaterBodies([]);
     } finally {
       setLoadingWaterBodies(false);
@@ -224,8 +248,8 @@ export default function AdminDashboard() {
       const data = await getAdminUsers();
       setUsers(data || []);
     } catch (error) {
-      setUsersError(error?.response?.data?.error || "Failed to load users");
-      notifyError(error, "Failed to load users");
+      setUsersError(error?.response?.data?.error || "Неуспешно зареждане на потребителите");
+      notifyError(error, "Неуспешно зареждане на потребителите");
       setUsers([]);
     } finally {
       setLoadingUsers(false);
@@ -239,8 +263,8 @@ export default function AdminDashboard() {
       const data = await getAdminReviews();
       setReviews(data || []);
     } catch (error) {
-      setReviewsError(error?.response?.data?.error || "Failed to load reviews");
-      notifyError(error, "Failed to load reviews");
+      setReviewsError(error?.response?.data?.error || "Неуспешно зареждане на ревютата");
+      notifyError(error, "Неуспешно зареждане на ревютата");
       setReviews([]);
     } finally {
       setLoadingReviews(false);
@@ -254,8 +278,8 @@ export default function AdminDashboard() {
       const data = await getAdminCatchLogs();
       setCatchLogs(data || []);
     } catch (error) {
-      setCatchLogsError(error?.response?.data?.error || "Failed to load catch logs");
-      notifyError(error, "Failed to load catch logs");
+      setCatchLogsError(error?.response?.data?.error || "Неуспешно зареждане на уловите");
+      notifyError(error, "Неуспешно зареждане на уловите");
       setCatchLogs([]);
     } finally {
       setLoadingCatchLogs(false);
@@ -269,8 +293,8 @@ export default function AdminDashboard() {
       const data = await getAdminGalleryPhotos();
       setGalleryPhotos(data || []);
     } catch (error) {
-      setGalleryPhotosError(error?.response?.data?.error || "Failed to load gallery photos");
-      notifyError(error, "Failed to load gallery photos");
+      setGalleryPhotosError(error?.response?.data?.error || "Неуспешно зареждане на снимките от галерията");
+      notifyError(error, "Неуспешно зареждане на снимките от галерията");
       setGalleryPhotos([]);
     } finally {
       setLoadingGalleryPhotos(false);
@@ -285,9 +309,9 @@ export default function AdminDashboard() {
       setOwnerClaimRequests(data || []);
     } catch (error) {
       setOwnerClaimsError(
-        error?.response?.data?.error || "Failed to load owner claim requests",
+        error?.response?.data?.error || "Неуспешно зареждане на заявките за собственост",
       );
-      notifyError(error, "Failed to load owner claim requests");
+      notifyError(error, "Неуспешно зареждане на заявките за собственост");
       setOwnerClaimRequests([]);
     } finally {
       setLoadingOwnerClaims(false);
@@ -521,7 +545,7 @@ export default function AdminDashboard() {
   });
 
   const saveLake = async (lake, options = {}) => {
-    const { successMessage = "Water body updated", showSuccessToast = true } = options;
+    const { successMessage = "Водоемът е обновен", showSuccessToast = true } = options;
 
     try {
       setSavingWaterBodyId(lake.id);
@@ -535,7 +559,7 @@ export default function AdminDashboard() {
       await loadWaterBodies();
       await loadOverview();
     } catch (error) {
-      notifyError(error, "Failed to update water body");
+      notifyError(error, "Неуспешно обновяване на водоема");
     } finally {
       setSavingWaterBodyId("");
     }
@@ -545,11 +569,11 @@ export default function AdminDashboard() {
     try {
       setDeletingId(lakeId);
       await deleteAdminWaterBody(lakeId);
-      notifySuccess("Water body deleted");
+      notifySuccess("Водоемът е изтрит");
       await loadWaterBodies();
       await loadOverview();
     } catch (error) {
-      notifyError(error, "Failed to delete water body");
+      notifyError(error, "Неуспешно изтриване на водоема");
     } finally {
       setDeletingId("");
     }
@@ -566,12 +590,12 @@ export default function AdminDashboard() {
       };
 
       await updateAdminUser(user.id, payload);
-      notifySuccess("User updated");
+      notifySuccess("Потребителят е обновен");
       await loadUsers();
       await loadWaterBodies();
       await loadOverview();
     } catch (error) {
-      notifyError(error, "Failed to update user");
+      notifyError(error, "Неуспешно обновяване на потребителя");
     } finally {
       setSavingUserId("");
     }
@@ -581,13 +605,13 @@ export default function AdminDashboard() {
     try {
       setDeletingId(userId);
       await deleteAdminUser(userId);
-      notifySuccess("User deleted");
+      notifySuccess("Потребителят е изтрит");
       await loadUsers();
       await loadWaterBodies();
       await loadReviews();
       await loadOverview();
     } catch (error) {
-      notifyError(error, "Failed to delete user");
+      notifyError(error, "Неуспешно изтриване на потребителя");
     } finally {
       setDeletingId("");
     }
@@ -597,11 +621,11 @@ export default function AdminDashboard() {
     try {
       setDeletingId(reviewId);
       await deleteAdminReview(reviewId);
-      notifySuccess("Review deleted");
+      notifySuccess("Ревюто е изтрито");
       await loadReviews();
       await loadOverview();
     } catch (error) {
-      notifyError(error, "Failed to delete review");
+      notifyError(error, "Неуспешно изтриване на ревюто");
     } finally {
       setDeletingId("");
     }
@@ -611,11 +635,11 @@ export default function AdminDashboard() {
     try {
       setDeletingId(catchId);
       await deleteAdminCatchLog(catchId);
-      notifySuccess("Catch log deleted");
+      notifySuccess("Записът за улов е изтрит");
       await loadCatchLogs();
       await loadOverview();
     } catch (error) {
-      notifyError(error, "Failed to delete catch log");
+      notifyError(error, "Неуспешно изтриване на записа за улов");
     } finally {
       setDeletingId("");
     }
@@ -625,10 +649,10 @@ export default function AdminDashboard() {
     try {
       setDeletingId(photoId);
       await deleteAdminGalleryPhoto(photoId);
-      notifySuccess("Gallery photo deleted");
+      notifySuccess("Снимката от галерията е изтрита");
       await loadGalleryPhotos();
     } catch (error) {
-      notifyError(error, "Failed to delete gallery photo");
+      notifyError(error, "Неуспешно изтриване на снимката от галерията");
     } finally {
       setDeletingId("");
     }
@@ -649,13 +673,13 @@ export default function AdminDashboard() {
         admin_note: String(current?.admin_note || "").trim(),
       });
 
-      notifySuccess(`Request set to ${status}`);
+      notifySuccess(`Заявката е променена към ${status}`);
       await loadOwnerClaims();
       await loadWaterBodies();
       await loadUsers();
       await loadOverview();
     } catch (error) {
-      notifyError(error, `Failed to set request to ${status}`);
+      notifyError(error, `Неуспешна промяна на заявката към ${status}`);
     } finally {
       setSavingOwnerClaimId("");
     }
@@ -665,11 +689,11 @@ export default function AdminDashboard() {
     try {
       setDeletingId(requestId);
       await deleteAdminOwnerClaimRequest(requestId);
-      notifySuccess("Ownership request removed");
+      notifySuccess("Заявката за собственост е премахната");
       await loadOwnerClaims();
       await loadOverview();
     } catch (error) {
-      notifyError(error, "Failed to remove ownership request");
+      notifyError(error, "Неуспешно премахване на заявката за собственост");
     } finally {
       setDeletingId("");
     }
@@ -679,7 +703,7 @@ export default function AdminDashboard() {
     <div className={ui.alertError}>
       <div>{text}</div>
       <ActionButton tone="neutral" onClick={onRetry}>
-        Retry
+        Опитай отново
       </ActionButton>
     </div>
   );
@@ -692,10 +716,10 @@ export default function AdminDashboard() {
         <div className={styles.hero}>
           <div className={styles.heroEyebrow}>
             <FaShieldAlt />
-            <span>Admin Dashboard</span>
+            <span>Административен панел</span>
           </div>
           <h1 className={styles.heroTitle}>
-            Admin Dashboard
+            Административен панел
           </h1>
         </div>
 
@@ -713,7 +737,7 @@ export default function AdminDashboard() {
             onClick={() => setActiveTab("water-bodies")}
             icon={<FaWater />}
           >
-            Water Bodies
+            Водоеми
           </TabButton>
 
           <TabButton
@@ -721,7 +745,7 @@ export default function AdminDashboard() {
             onClick={() => setActiveTab("users")}
             icon={<FaUsers />}
           >
-            Users
+            Потребители
           </TabButton>
 
           <TabButton
@@ -729,7 +753,7 @@ export default function AdminDashboard() {
             onClick={() => setActiveTab("reviews")}
             icon={<FaStar />}
           >
-            Reviews
+            Отзиви
           </TabButton>
 
           <TabButton
@@ -737,7 +761,7 @@ export default function AdminDashboard() {
             onClick={() => setActiveTab("catches")}
             icon={<FaFish />}
           >
-            Catch Logs
+            Улови
           </TabButton>
 
           <TabButton
@@ -745,7 +769,7 @@ export default function AdminDashboard() {
             onClick={() => setActiveTab("gallery-photos")}
             icon={<FaImages />}
           >
-            Gallery Photos
+            Снимки в галерията
           </TabButton>
 
           <TabButton
@@ -754,7 +778,7 @@ export default function AdminDashboard() {
             icon={<FaFileAlt />}
             badge={pendingOwnerClaimsCount > 0 ? pendingOwnerClaimsCount : null}
           >
-            Ownership Requests
+            Заявки за собственост
           </TabButton>
         </div>
 
@@ -763,28 +787,28 @@ export default function AdminDashboard() {
             {overviewError ? (
               renderError(overviewError, loadOverview)
             ) : loadingOverview ? (
-              <Card className={styles.card}>Loading analytics...</Card>
+              <Card className={styles.card}>Зареждане на статистика...</Card>
             ) : !analytics ? (
-              <Card className={styles.card}>No analytics available.</Card>
+              <Card className={styles.card}>Няма налична статистика.</Card>
             ) : (
               <>
                 <div className={styles.statsGrid}>
-                  <StatCard label="Platform commissions" value={formatCurrency(analytics.revenue?.platform_commissions || 0)} className={styles.statCard} />
-                  <StatCard label="Reservation volume" value={formatCurrency(analytics.revenue?.total_reservation_volume || 0)} className={styles.statCard} />
-                  <StatCard label="Active users" value={analytics.totals?.active_users ?? 0} className={styles.statCard} />
-                  <StatCard label="Pending owner requests" value={analytics.totals?.pending_owner_claims ?? 0} className={styles.statCard} />
+                  <StatCard label="Комисиони на платформата" value={formatCurrency(analytics.revenue?.platform_commissions || 0)} className={styles.statCard} />
+                  <StatCard label="Обем на резервациите" value={formatCurrency(analytics.revenue?.total_reservation_volume || 0)} className={styles.statCard} />
+                  <StatCard label="Активни потребители" value={analytics.totals?.active_users ?? 0} className={styles.statCard} />
+                  <StatCard label="Чакащи заявки за собственост" value={analytics.totals?.pending_owner_claims ?? 0} className={styles.statCard} />
                 </div>
 
                 <div className={styles.overviewInfoGrid}>
                   {[
-                    ["Total users", analytics.totals?.users ?? 0, "Registered accounts in the platform."],
-                    ["Reservations", analytics.totals?.reservations ?? 0, "All reservation requests created by users."],
-                    ["Valid approved reservations", analytics.totals?.approved_reservations ?? 0, "Approved reservations that have not passed yet."],
-                    ["Pending reservations", analytics.totals?.pending_reservations ?? 0, "Reservations waiting for owner/admin action."],
-                    ["Owner earnings", formatCurrency(analytics.revenue?.owner_earnings || 0), "Money sent to connected owner accounts."],
-                    ["Pending checkout volume", formatCurrency(analytics.revenue?.pending_checkout_volume || 0), "Started online payments not completed yet."],
-                    ["Paid online payments", analytics.revenue?.paid_payments_count ?? 0, "Successful Stripe reservation payments."],
-                    ["Pending ownership requests", analytics.totals?.pending_owner_claims ?? 0, "Owner claim requests waiting for review."],
+                    ["Общо потребители", analytics.totals?.users ?? 0, "Регистрирани профили в платформата."],
+                    ["Резервации", analytics.totals?.reservations ?? 0, "Всички заявки за резервации, създадени от потребители."],
+                    ["Валидни одобрени резервации", analytics.totals?.approved_reservations ?? 0, "Одобрени резервации, които все още не са минали."],
+                    ["Чакащи резервации", analytics.totals?.pending_reservations ?? 0, "Резервации, които чакат действие от собственик или администратор."],
+                    ["Приходи на собственици", formatCurrency(analytics.revenue?.owner_earnings || 0), "Сума, изпратена към свързаните профили на собственици."],
+                    ["Стойност на започнати плащания", formatCurrency(analytics.revenue?.pending_checkout_volume || 0), "Започнати онлайн плащания, които още не са завършени."],
+                    ["Платени онлайн плащания", analytics.revenue?.paid_payments_count ?? 0, "Успешни Stripe плащания за резервации."],
+                    ["Чакащи заявки за собственост", analytics.totals?.pending_owner_claims ?? 0, "Заявки за собственост, които чакат преглед."],
                   ].map(([label, value, hint]) => (
                     <div key={label} className={styles.overviewInfoCard}>
                       <span>{label}</span>
@@ -796,11 +820,11 @@ export default function AdminDashboard() {
 
                 <Card className={styles.card}>
                   <SectionHeader
-                    title="Owner Stripe statuses"
-                    subtitle="Connected owner accounts used for reservation payouts."
+                    title="Stripe статуси на собственици"
+                    subtitle="Свързани акаунти на собственици, използвани за изплащания по резервации."
                   />
                   {!analytics.revenue?.connected_owner_statuses?.length ? (
-                    <div className={styles.muted}>No connected owner accounts yet.</div>
+                    <div className={styles.muted}>Все още няма свързани акаунти на собственици.</div>
                   ) : (
                     <div className={styles.ownerStatusList}>
                       {paginatedOwnerStatuses.items.map((owner) => {
@@ -810,17 +834,17 @@ export default function AdminDashboard() {
                             <div className={styles.ownerStatusMain}>
                               <FaPlug />
                               <div>
-                                <strong>{owner.full_name || owner.email || "Owner"}</strong>
-                                <span>{owner.email || "No email"} · {owner.owned_lakes_count || 0} lake(s)</span>
+                                <strong>{owner.full_name || owner.email || "Собственик"}</strong>
+                                <span>{owner.email || "Няма имейл"} · {owner.owned_lakes_count || 0} водоем(а)</span>
                               </div>
                             </div>
                             <div className={styles.ownerStatusPills}>
                               <span className={ready ? styles.statusGood : styles.statusWarn}>
-                                {ready ? "Payouts ready" : "Action needed"}
+                                {ready ? "Изплащанията са готови" : "Нужно е действие"}
                               </span>
-                              <span>{owner.connect_onboarding_status || "not started"}</span>
-                              <span>Charges: {owner.charges_enabled ? "enabled" : "pending"}</span>
-                              <span>Payouts: {owner.payouts_enabled ? "enabled" : "pending"}</span>
+                              <span>{getConnectStatusLabel(owner.connect_onboarding_status)}</span>
+                              <span>Плащания: {owner.charges_enabled ? "активни" : "чакащи"}</span>
+                              <span>Изплащания: {owner.payouts_enabled ? "активни" : "чакащи"}</span>
                             </div>
                           </div>
                         );
@@ -828,27 +852,14 @@ export default function AdminDashboard() {
                     </div>
                   )}
                   {connectedOwnerStatuses.length > OWNER_STATUS_PAGE_SIZE ? (
-                    <div className={styles.ownerStatusPagination}>
-                      <span>
-                        Page {paginatedOwnerStatuses.currentPage} of {paginatedOwnerStatuses.totalPages} · {connectedOwnerStatuses.length} owners
-                      </span>
-                      <div>
-                        <button
-                          type="button"
-                          disabled={paginatedOwnerStatuses.currentPage <= 1}
-                          onClick={() => setOwnerStatusPage((page) => Math.max(1, page - 1))}
-                        >
-                          Previous
-                        </button>
-                        <button
-                          type="button"
-                          disabled={paginatedOwnerStatuses.currentPage >= paginatedOwnerStatuses.totalPages}
-                          onClick={() => setOwnerStatusPage((page) => Math.min(paginatedOwnerStatuses.totalPages, page + 1))}
-                        >
-                          Next
-                        </button>
-                      </div>
-                    </div>
+                    <Pagination
+                      currentPage={paginatedOwnerStatuses.currentPage}
+                      totalPages={paginatedOwnerStatuses.totalPages}
+                      totalItems={paginatedOwnerStatuses.totalItems}
+                      startIndex={paginatedOwnerStatuses.startIndex}
+                      endIndex={paginatedOwnerStatuses.endIndex}
+                      onPageChange={setOwnerStatusPage}
+                    />
                   ) : null}
                 </Card>
               </>
@@ -859,12 +870,12 @@ export default function AdminDashboard() {
         {activeTab === "water-bodies" && (
           <div ref={waterBodiesSectionRef} className={styles.card}>
             <SectionHeader
-              title="Manage Water Bodies"
+              title="Управление на водоемите"
               action={
                 <SearchInput
                   value={lakeSearch}
                   onChange={(e) => setLakeSearch(e.target.value)}
-                  placeholder="Search water bodies..."
+                  placeholder="Търсене на водоеми..."
                 />
               }
             />
@@ -872,9 +883,9 @@ export default function AdminDashboard() {
             {waterBodiesError ? (
               renderError(waterBodiesError, loadWaterBodies)
             ) : loadingWaterBodies ? (
-              <div className={styles.muted}>Loading water bodies...</div>
+              <div className={styles.muted}>Зареждане на водоеми...</div>
             ) : !filteredWaterBodies.length ? (
-              <div className={styles.muted}>No water bodies found.</div>
+              <div className={styles.muted}>Няма намерени водоеми.</div>
             ) : (
               <>
                 <div style={{ display: "grid", gap: 14 }}>
@@ -921,7 +932,7 @@ export default function AdminDashboard() {
 
                         <div>
                           <div className={ui.fieldLabel}>
-                            Price per day (€)
+                            Price на ден (€)
                           </div>
                           <input
                             type="number"
@@ -933,7 +944,7 @@ export default function AdminDashboard() {
                             }
                             className={styles.input}
                           />
-                          <div className={ui.helperText}>Shown to users as {formatCurrency(lake.price_per_day || 0)} per day</div>
+                          <div className={ui.helperText}>Показва се на потребителите като {formatCurrency(lake.price_per_day || 0)} на ден</div>
                         </div>
 
                         <div>
@@ -951,7 +962,7 @@ export default function AdminDashboard() {
 
                         <div>
                           <div className={ui.fieldLabel}>
-                            Lake mode
+                            Режим на водоема
                           </div>
                           <select
                             value={getLakeMode(lake)}
@@ -961,31 +972,31 @@ export default function AdminDashboard() {
                                 prev.map((item) => (item.id === lake.id ? nextLake : item)),
                               );
                               await saveLake(nextLake, {
-                                successMessage: "Lake mode updated",
+                                successMessage: "Режим на водоема updated",
                                 showSuccessToast: true,
                               });
                             }}
                             className={styles.input}
                             disabled={savingWaterBodyId === lake.id}
                           >
-                            <option value="public">Public</option>
+                            <option value="public">Публичен</option>
                             <option value="private_not_reservable">
-                              Private, not reservable
+                              Частен, без резервации
                             </option>
                             <option value="private_reservable">
-                              Private, reservable
+                              Частен, с резервации
                             </option>
                           </select>
                           <div className={styles.helperText}>
-                            Public lakes are open in the atlas and cannot have bookings or an owner.
-                            Private lakes are owner-controlled, and only the reservable mode supports
-                            reservations and ownership requests.
+                            Публичните водоеми са отворени в атласа и не могат да имат резервации или собственик.
+                            Частните водоеми се управляват от собственик, а само режимът с резервации поддържа
+                            резервации и заявки за собственост.
                           </div>
                         </div>
 
                         <div>
                           <div className={ui.fieldLabel}>
-                            Owner
+                            Собственик
                           </div>
                           <select
                             value={lake.owner_id || ""}
@@ -994,7 +1005,7 @@ export default function AdminDashboard() {
                             }
                             className={styles.input}
                           >
-                            <option value="">No owner</option>
+                            <option value="">Без собственик</option>
                             {users.map((user) => (
                               <option key={user.id} value={user.id}>
                                 {user.full_name} ({user.email})
@@ -1006,7 +1017,7 @@ export default function AdminDashboard() {
 
                       <div style={{ marginTop: 12 }}>
                         <div className={ui.fieldLabel}>
-                          Description
+                          Описание
                         </div>
                         <textarea
                           rows={3}
@@ -1018,7 +1029,7 @@ export default function AdminDashboard() {
 
                       <div style={{ marginTop: 12 }}>
                         <div className={ui.fieldLabel}>
-                          Availability notes
+                          Бележки за наличност
                         </div>
                         <textarea
                           rows={3}
@@ -1041,10 +1052,10 @@ export default function AdminDashboard() {
                         }}
                       >
                         <div className={ui.metaText}>
-                          Owner:{" "}
+                          Собственик:{" "}
                           {lake.owner_name
                             ? `${lake.owner_name} (${lake.owner_email})`
-                            : "No owner"}
+                            : "Без собственик"}
                         </div>
 
                         <div className={ui.buttonRow}>
@@ -1055,7 +1066,7 @@ export default function AdminDashboard() {
                             tone="primary"
                           >
                             <FaSave className={ui.buttonIcon} />
-                            {savingWaterBodyId === lake.id ? "Saving..." : "Save"}
+                            {savingWaterBodyId === lake.id ? "Запазване..." : "Запази"}
                           </ActionButton>
 
                           <ActionButton
@@ -1065,7 +1076,7 @@ export default function AdminDashboard() {
                             tone="danger"
                           >
                             <FaTrash className={ui.buttonIcon} />
-                            {deletingId === lake.id ? "Deleting..." : "Delete"}
+                            {deletingId === lake.id ? "Изтриване..." : "Изтрий"}
                           </ActionButton>
                         </div>
                       </div>
@@ -1092,12 +1103,12 @@ export default function AdminDashboard() {
         {activeTab === "users" && (
           <div ref={usersSectionRef} className={styles.card}>
             <SectionHeader
-              title="Manage Users"
+              title="Управление на потребители"
               action={
                 <SearchInput
                   value={userSearch}
                   onChange={(e) => setUserSearch(e.target.value)}
-                  placeholder="Search users..."
+                  placeholder="Търсене на потребители..."
                 />
               }
             />
@@ -1105,9 +1116,9 @@ export default function AdminDashboard() {
             {usersError ? (
               renderError(usersError, loadUsers)
             ) : loadingUsers ? (
-              <div className={styles.muted}>Loading users...</div>
+              <div className={styles.muted}>Зареждане на потребители...</div>
             ) : !filteredUsers.length ? (
-              <div className={styles.muted}>No users found.</div>
+              <div className={styles.muted}>Няма намерени потребители.</div>
             ) : (
               <>
                 <div style={{ display: "grid", gap: 12 }}>
@@ -1130,7 +1141,7 @@ export default function AdminDashboard() {
                       >
                         <div>
                           <div className={ui.fieldLabel}>
-                            Full name
+                            Име и фамилия
                           </div>
                           <input
                             type="text"
@@ -1152,32 +1163,32 @@ export default function AdminDashboard() {
                             className={styles.input}
                             disabled
                             readOnly
-                            title="Email addresses cannot be changed from the admin panel."
+                            title="Имейл адресите не могат да се променят от админ панела."
                             style={{ background: "#f8fafc", color: "#475569", cursor: "not-allowed" }}
                           />
                           <div className={ui.metaText} style={{ marginTop: 6 }}>
-                            Email is locked and cannot be edited by admins.
+                            Имейлът е заключен и не може да се редактира от администратори.
                           </div>
                         </div>
 
                         <div>
                           <div className={ui.fieldLabel}>
-                            Role
+                            Роля
                           </div>
                           <select
                             value={user.role || "user"}
                             onChange={(e) => updateUserLocal(user.id, "role", e.target.value)}
                             className={styles.input}
                           >
-                            <option value="user">user</option>
-                            <option value="owner">owner</option>
-                            <option value="admin">admin</option>
+                            <option value="user">Потребител</option>
+                            <option value="owner">Собственик</option>
+                            <option value="admin">Администратор</option>
                           </select>
                         </div>
 
                         <div>
                           <div className={ui.fieldLabel}>
-                            Active
+                            Активен
                           </div>
                           <select
                             value={user.is_active ? "true" : "false"}
@@ -1186,8 +1197,8 @@ export default function AdminDashboard() {
                             }
                             className={styles.input}
                           >
-                            <option value="true">Active</option>
-                            <option value="false">Inactive</option>
+                            <option value="true">Активен</option>
+                            <option value="false">Неактивен</option>
                           </select>
                         </div>
                       </div>
@@ -1203,7 +1214,7 @@ export default function AdminDashboard() {
                         }}
                       >
                         <div className={ui.metaText}>
-                          Created: {formatDateTime(user.created_at)} | Verified:{" "}
+                          Created: {formatDateTime(user.created_at)} | Потвърден:{" "}
                           {user.is_verified ? "Yes" : "No"}
                         </div>
 
@@ -1215,7 +1226,7 @@ export default function AdminDashboard() {
                             tone="neutral"
                           >
                             <FaSave className={ui.buttonIcon} />
-                            {savingUserId === user.id ? "Saving..." : "Save"}
+                            {savingUserId === user.id ? "Запазване..." : "Запази"}
                           </ActionButton>
 
                           <ActionButton
@@ -1224,7 +1235,7 @@ export default function AdminDashboard() {
                             onClick={() => toggleUserBan(user)}
                             tone={user.is_active ? "danger" : "neutral"}
                           >
-                            {user.is_active ? "Ban user" : "Unban user"}
+                            {user.is_active ? "Блокирай потребителя" : "Отблокирай потребителя"}
                           </ActionButton>
 
                           <ActionButton
@@ -1234,7 +1245,7 @@ export default function AdminDashboard() {
                             tone="danger"
                           >
                             <FaTrash className={ui.buttonIcon} />
-                            {deletingId === user.id ? "Deleting..." : "Delete"}
+                            {deletingId === user.id ? "Изтриване..." : "Изтрий"}
                           </ActionButton>
                         </div>
                       </div>
@@ -1261,12 +1272,12 @@ export default function AdminDashboard() {
         {activeTab === "reviews" && (
           <div ref={reviewsSectionRef} className={styles.card}>
             <SectionHeader
-              title="Manage Reviews"
+              title="Управление на отзиви"
               action={
                 <SearchInput
                   value={reviewSearch}
                   onChange={(e) => setReviewSearch(e.target.value)}
-                  placeholder="Search reviews..."
+                  placeholder="Търсене на отзиви..."
                 />
               }
             />
@@ -1274,9 +1285,9 @@ export default function AdminDashboard() {
             {reviewsError ? (
               renderError(reviewsError, loadReviews)
             ) : loadingReviews ? (
-              <div className={styles.muted}>Loading reviews...</div>
+              <div className={styles.muted}>Зареждане на отзиви...</div>
             ) : !filteredReviews.length ? (
-              <div className={styles.muted}>No reviews found.</div>
+              <div className={styles.muted}>Няма намерени отзиви.</div>
             ) : (
               <>
                 <div style={{ display: "grid", gap: 12 }}>
@@ -1307,7 +1318,7 @@ export default function AdminDashboard() {
                               color: "#0f172a",
                             }}
                           >
-                            {review.full_name || "Unknown user"}
+                            {review.full_name || "Неизвестен потребител"}
                           </div>
                           <div
                             style={{
@@ -1316,7 +1327,7 @@ export default function AdminDashboard() {
                               marginTop: 4,
                             }}
                           >
-                            {review.email || "No email"}
+                            {review.email || "Няма имейл"}
                           </div>
                           <div
                             style={{
@@ -1325,7 +1336,7 @@ export default function AdminDashboard() {
                               marginTop: 4,
                             }}
                           >
-                            Lake: {review.lake_name || "Unknown lake"}
+                            Водоем: {review.lake_name || "Неизвестен водоем"}
                           </div>
                           <div
                             style={{
@@ -1353,7 +1364,7 @@ export default function AdminDashboard() {
                       </div>
 
                       <div style={{ marginTop: 10, color: "#334155", lineHeight: 1.6 }}>
-                        {review.comment || "No comment provided."}
+                        {review.comment || "Няма добавен коментар."}
                       </div>
 
                       <div style={{ marginTop: 12, display: "flex", justifyContent: "flex-end" }}>
@@ -1364,7 +1375,7 @@ export default function AdminDashboard() {
                           tone="danger"
                         >
                           <FaTrash className={ui.buttonIcon} />
-                          {deletingId === review.id ? "Deleting..." : "Delete review"}
+                          {deletingId === review.id ? "Изтриване..." : "Изтрий отзива"}
                         </ActionButton>
                       </div>
                     </div>
@@ -1391,26 +1402,26 @@ export default function AdminDashboard() {
         {activeTab === "catches" && (
           <div ref={catchLogsSectionRef} className={styles.card}>
             <SectionHeader
-              title="Moderate Catch Logs"
+              title="Модериране на улови"
               action={
                 <SearchInput
                   value={catchSearch}
                   onChange={(e) => setCatchSearch(e.target.value)}
-                  placeholder="Search by user, email, lake, species, notes..."
+                  placeholder="Търсене по потребител, имейл, водоем, вид, бележки..."
                 />
               }
             />
 
             <div className={styles.muted} style={{ marginBottom: 12 }}>
-              Search supports user name, email, lake, species, notes, weight, and date.
+              Търсенето поддържа име на потребител, имейл, водоем, вид, бележки, тегло и дата.
             </div>
 
             {catchLogsError ? (
               renderError(catchLogsError, loadCatchLogs)
             ) : loadingCatchLogs ? (
-              <div className={styles.muted}>Loading catch logs...</div>
+              <div className={styles.muted}>Зареждане на улови...</div>
             ) : !filteredCatchLogs.length ? (
-              <div className={styles.muted}>No catch logs found.</div>
+              <div className={styles.muted}>Няма намерени улови.</div>
             ) : (
               <>
                 <div style={{ display: "grid", gap: 12 }}>
@@ -1419,21 +1430,21 @@ export default function AdminDashboard() {
                     return (
                       <div key={item.id} style={{ border: "1px solid #e5e7eb", borderRadius: 14, padding: 14, background: "#fff", display: "grid", gridTemplateColumns: isMobile ? "1fr" : "120px 1fr auto", gap: 12, alignItems: "start" }}>
                         {imageUrl ? (
-                          <ZoomableImage src={imageUrl} alt={item.species || "Catch photo"} imageClassName={styles.adminThumb} />
+                          <ZoomableImage src={imageUrl} alt={item.species || "Снимка на улова"} imageClassName={styles.adminThumb} />
                         ) : (
                           <div className={styles.adminThumbPlaceholder}><FaFish /></div>
                         )}
                         <div style={{ minWidth: 0 }}>
-                          <div style={{ fontWeight: 900, color: "#0f172a" }}>{item.species || "Unknown species"} · {item.weight_kg ?? "-"} kg</div>
-                          <div className={ui.metaText}>Lake: {item.lake_name || "Unknown lake"}</div>
-                          <div className={ui.metaText}>User: {item.full_name || "Unknown user"} {item.email ? `(${item.email})` : ""}</div>
-                          <div className={ui.metaText}>Created: {formatDateTime(item.catch_time || item.created_at)}</div>
+                          <div style={{ fontWeight: 900, color: "#0f172a" }}>{item.species || "Неизвестен вид"} · {item.weight_kg ?? "-"} кг</div>
+                          <div className={ui.metaText}>Водоем: {item.lake_name || "Неизвестен водоем"}</div>
+                          <div className={ui.metaText}>Потребител: {item.full_name || "Неизвестен потребител"} {item.email ? `(${item.email})` : ""}</div>
+                          <div className={ui.metaText}>Създаден: {formatDateTime(item.catch_time || item.created_at)}</div>
                           {item.notes ? <div style={{ marginTop: 8, color: "#334155", lineHeight: 1.5 }}>{item.notes}</div> : null}
                         </div>
                         <div className={ui.buttonRow}>
                           <ActionButton type="button" disabled={deletingId === item.id} onClick={() => deleteCatchLog(item.id)} tone="danger">
                             <FaTrash className={ui.buttonIcon} />
-                            {deletingId === item.id ? "Deleting..." : "Delete"}
+                            {deletingId === item.id ? "Изтриване..." : "Изтрий"}
                           </ActionButton>
                         </div>
                       </div>
@@ -1460,26 +1471,26 @@ export default function AdminDashboard() {
         {activeTab === "gallery-photos" && (
           <div ref={galleryPhotosSectionRef} className={styles.card}>
             <SectionHeader
-              title="Moderate Gallery Photos"
+              title="Модериране на снимки от галерията"
               action={
                 <SearchInput
                   value={photoSearch}
                   onChange={(e) => setPhotoSearch(e.target.value)}
-                  placeholder="Search by lake, uploader, email, caption..."
+                  placeholder="Търсене по водоем, качил потребител, имейл, описание..."
                 />
               }
             />
 
             <div className={styles.muted} style={{ marginBottom: 12 }}>
-              Search supports lake name, uploader name, uploader email, caption, file path, and date.
+              Търсенето поддържа име на водоем, име и имейл на качилия потребител, описание, път до файла и дата.
             </div>
 
             {galleryPhotosError ? (
               renderError(galleryPhotosError, loadGalleryPhotos)
             ) : loadingGalleryPhotos ? (
-              <div className={styles.muted}>Loading gallery photos...</div>
+              <div className={styles.muted}>Зареждане на снимки от галерията...</div>
             ) : !filteredGalleryPhotos.length ? (
-              <div className={styles.muted}>No gallery photos found.</div>
+              <div className={styles.muted}>Няма намерени снимки в галерията.</div>
             ) : (
               <>
                 <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(auto-fill, minmax(240px, 1fr))", gap: 14 }}>
@@ -1491,7 +1502,7 @@ export default function AdminDashboard() {
                           type="button"
                           disabled={deletingId === photo.id}
                           onClick={() => deleteGalleryPhoto(photo.id)}
-                          title="Delete photo"
+                          title="Изтрий снимката"
                           style={{
                             position: "absolute",
                             top: 10,
@@ -1513,16 +1524,16 @@ export default function AdminDashboard() {
                           <FaTrash />
                         </button>
                         {imageUrl ? (
-                          <ZoomableImage src={imageUrl} alt={photo.caption || "Gallery photo"} imageClassName={styles.adminPhoto} />
+                          <ZoomableImage src={imageUrl} alt={photo.caption || "Снимка от галерията"} imageClassName={styles.adminPhoto} />
                         ) : null}
                         <div style={{ padding: 12, display: "grid", gap: 6 }}>
-                          <div style={{ fontWeight: 900, color: "#0f172a" }}>{photo.caption || "Lake photo"}</div>
-                          <div className={ui.metaText}>Lake: {photo.lake_name || "Unknown lake"}</div>
-                          <div className={ui.metaText}>Uploaded by: {photo.uploaded_by_name || "Unknown"}</div>
+                          <div style={{ fontWeight: 900, color: "#0f172a" }}>{photo.caption || "Снимка на водоема"}</div>
+                          <div className={ui.metaText}>Водоем: {photo.lake_name || "Неизвестен водоем"}</div>
+                          <div className={ui.metaText}>Качено от: {photo.uploaded_by_name || "Неизвестно"}</div>
                           <div className={ui.metaText}>{formatDateTime(photo.created_at)}</div>
                           <ActionButton type="button" disabled={deletingId === photo.id} onClick={() => deleteGalleryPhoto(photo.id)} tone="danger">
                             <FaTrash className={ui.buttonIcon} />
-                            {deletingId === photo.id ? "Deleting..." : "Delete photo"}
+                            {deletingId === photo.id ? "Изтриване..." : "Изтрий снимката"}
                           </ActionButton>
                         </div>
                       </div>
@@ -1549,12 +1560,12 @@ export default function AdminDashboard() {
         {activeTab === "owner-claims" && (
           <div ref={ownerClaimsSectionRef} className={styles.card}>
             <SectionHeader
-              title={`Ownership Verification Requests${pendingOwnerClaimsCount > 0 ? ` (${pendingOwnerClaimsCount})` : ""}`}
+              title={`Заявки за верификация на собственост${pendingOwnerClaimsCount > 0 ? ` (${pendingOwnerClaimsCount})` : ""}`}
               action={
                 <SearchInput
                   value={ownerClaimSearch}
                   onChange={(e) => setOwnerClaimSearch(e.target.value)}
-                  placeholder="Search ownership requests..."
+                  placeholder="Търсене в заявки за собственост..."
                 />
               }
             />
@@ -1565,37 +1576,37 @@ export default function AdminDashboard() {
                 onClick={() => setOwnerClaimStatusFilter("all")}
                 className={[ui.filterButton, ownerClaimStatusFilter === "all" ? ui.filterButtonActive : ""].filter(Boolean).join(" ")}
               >
-                All
+                Всички
               </button>
               <button
                 type="button"
                 onClick={() => setOwnerClaimStatusFilter("pending")}
                 className={[ui.filterButton, ownerClaimStatusFilter === "pending" ? ui.filterButtonActive : ""].filter(Boolean).join(" ")}
               >
-                Pending
+                Чакащи
               </button>
               <button
                 type="button"
                 onClick={() => setOwnerClaimStatusFilter("approved")}
                 className={[ui.filterButton, ownerClaimStatusFilter === "approved" ? ui.filterButtonActive : ""].filter(Boolean).join(" ")}
               >
-                Approved
+                Одобрени
               </button>
               <button
                 type="button"
                 onClick={() => setOwnerClaimStatusFilter("rejected")}
                 className={[ui.filterButton, ownerClaimStatusFilter === "rejected" ? ui.filterButtonActive : ""].filter(Boolean).join(" ")}
               >
-                Rejected
+                Отхвърлени
               </button>
             </div>
 
             {ownerClaimsError ? (
               renderError(ownerClaimsError, loadOwnerClaims)
             ) : loadingOwnerClaims ? (
-              <div className={styles.muted}>Loading ownership requests...</div>
+              <div className={styles.muted}>Зареждане на заявки за собственост...</div>
             ) : !filteredOwnerClaims.length ? (
-              <div className={styles.muted}>No ownership requests found.</div>
+              <div className={styles.muted}>Няма намерени заявки за собственост.</div>
             ) : (
               <>
                 <div style={{ display: "grid", gap: 14 }}>
@@ -1629,23 +1640,23 @@ export default function AdminDashboard() {
                               color: "#0f172a",
                             }}
                           >
-                            {item.lake_name || "Unknown lake"}
+                            {item.lake_name || "Неизвестен водоем"}
                           </div>
                           <div style={{ fontSize: 14, color: "#334155" }}>
                             {item.full_name} ({item.email})
                           </div>
                           <div className={ui.metaText}>
-                            Phone: {item.phone || "Not provided"}
+                            Телефон: {item.phone || "Не е предоставено"}
                           </div>
                           <div className={ui.metaText}>
-                            Company: {item.company_name || "Not provided"}
+                            Фирма: {item.company_name || "Не е предоставено"}
                           </div>
                           <div className={ui.metaText}>
-                            Submitted: {formatDateTime(item.created_at)}
+                            Изпратена: {formatDateTime(item.created_at)}
                           </div>
                           {item.reviewed_at ? (
                             <div className={ui.metaText}>
-                              Reviewed: {formatDateTime(item.reviewed_at)}
+                              Прегледана: {formatDateTime(item.reviewed_at)}
                             </div>
                           ) : null}
                         </div>
@@ -1656,7 +1667,7 @@ export default function AdminDashboard() {
                       <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
                         <div>
                           <div className={ui.fieldLabel}>
-                            Claim message
+                            Съобщение към заявката
                           </div>
                           <div
                             style={{
@@ -1668,13 +1679,13 @@ export default function AdminDashboard() {
                               minHeight: 48,
                             }}
                           >
-                            {item.message || "No message provided."}
+                            {item.message || "Няма предоставено съобщение."}
                           </div>
                         </div>
 
                         <div>
                           <div className={ui.fieldLabel}>
-                            Proof document
+                            Документ за доказване
                           </div>
                           {item.proof_document_url ? (
                             <a
@@ -1687,13 +1698,13 @@ export default function AdminDashboard() {
                               Open document
                             </a>
                           ) : (
-                            <div className={styles.muted}>No document uploaded.</div>
+                            <div className={styles.muted}>Няма качен документ.</div>
                           )}
                         </div>
 
                         <div>
                           <div className={ui.fieldLabel}>
-                            Admin note
+                            Бележка от администратор
                           </div>
                           <textarea
                             rows={3}
@@ -1717,7 +1728,7 @@ export default function AdminDashboard() {
                         }}
                       >
                         <div className={ui.metaText}>
-                          Reviewed by: {item.reviewed_by_name || "Not reviewed yet"}
+                          Прегледано от: {item.reviewed_by_name || "Все още не е прегледано"}
                         </div>
 
                         <div className={ui.buttonRow}>
@@ -1728,7 +1739,7 @@ export default function AdminDashboard() {
                               onClick={() => reviewOwnerClaim(item.id, "approved")}
                               tone="success"
                             >
-                              {savingOwnerClaimId === item.id ? "Saving..." : "Approve"}
+                              {savingOwnerClaimId === item.id ? "Запазване..." : "Одобри"}
                             </ActionButton>
                           ) : null}
 
@@ -1739,7 +1750,7 @@ export default function AdminDashboard() {
                               onClick={() => reviewOwnerClaim(item.id, "rejected")}
                               tone="danger"
                             >
-                              {savingOwnerClaimId === item.id ? "Saving..." : "Reject"}
+                              {savingOwnerClaimId === item.id ? "Запазване..." : "Отхвърли"}
                             </ActionButton>
                           ) : null}
 
@@ -1750,7 +1761,7 @@ export default function AdminDashboard() {
                               onClick={() => reviewOwnerClaim(item.id, "pending")}
                               tone="warning"
                             >
-                              {savingOwnerClaimId === item.id ? "Saving..." : "Move to pending"}
+                              {savingOwnerClaimId === item.id ? "Запазване..." : "Върни към чакащи"}
                             </ActionButton>
                           ) : null}
 
@@ -1761,7 +1772,7 @@ export default function AdminDashboard() {
                               onClick={() => deleteOwnerClaim(item.id)}
                               tone="neutral"
                             >
-                              {deletingId === item.id ? "Removing..." : "Hide rejected"}
+                              {deletingId === item.id ? "Премахване..." : "Скрий отхвърленото"}
                             </ActionButton>
                           ) : null}
                         </div>

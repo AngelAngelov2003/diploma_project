@@ -4,7 +4,7 @@ export const notifySuccess = (msg) => toast.success(msg);
 export const notifyInfo = (msg) => toast.info(msg);
 export const notifyWarn = (msg) => toast.warn(msg);
 
-export const notifyError = (err, fallback = "Something went wrong") => {
+export const notifyError = (err, fallback = "Възникна грешка") => {
   if (err?.silent || err?.isAuthExpired) {
     return;
   }

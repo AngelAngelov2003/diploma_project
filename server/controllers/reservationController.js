@@ -37,10 +37,10 @@ const getReservationCurrency = () => String(process.env.STRIPE_RESERVATION_CURRE
 const toStripeAmount = (value) => Math.max(0, Math.round(toNumber(value, 0) * 100));
 
 const canUseOnlinePayments = async (ownerId) => {
-  if (!ownerId) return { enabled: false, reason: "Lake owner is missing" };
+  if (!ownerId) return { enabled: false, reason: "Липсва собственик на водоема" };
   const ownerState = await billingService.getOwnerBillingState(ownerId, "owner");
   if (!ownerState.connect_ready || !ownerState.stripe_connected_account_id) {
-    return { enabled: false, reason: "Owner Stripe payout setup is not complete" };
+    return { enabled: false, reason: "Настройката на Stripe изплащанията за собственика не е завършена" };
   }
   return { enabled: true, ownerState };
 };
@@ -225,17 +225,17 @@ const buildReservationEmailHtml = ({ title, intro, reservation }) => {
   const fishingDates = Array.isArray(reservation.fishing_dates) ? reservation.fishing_dates : [];
   const nightDates = Array.isArray(reservation.night_fishing_dates) ? reservation.night_fishing_dates : [];
   const roomNames = Array.isArray(reservation.room_names) ? reservation.room_names : [];
-  const notes = reservation.notes ? escapeHtml(reservation.notes) : "No notes";
+  const notes = reservation.notes ? escapeHtml(reservation.notes) : "Няма бележки";
 
   const rows = [
-    ["Lake", reservation.lake_name],
-    ["Stay", `${formatEmailDate(reservation.arrival_date)} → ${formatEmailDate(reservation.departure_date)}`],
-    ["Selected spots", spotNumbers.length ? spotNumbers.map((number) => `Spot ${number}`).join(", ") : `${reservation.requested_spots || 1} spot(s)`],
-    ["Fishing days", fishingDates.length ? fishingDates.map(formatEmailDate).join(", ") : "None"],
-    ["Night fishing", nightDates.length ? nightDates.map(formatEmailDate).join(", ") : "None"],
-    ["Rooms", roomNames.length ? roomNames.join(", ") : "None"],
-    ["Total", formatEmailCurrency(reservation.total_amount)],
-    ["Notes", notes],
+    ["Водоем", reservation.lake_name],
+    ["Престой", `${formatEmailDate(reservation.arrival_date)} → ${formatEmailDate(reservation.departure_date)}`],
+    ["Избрани места", spotNumbers.length ? spotNumbers.map((number) => `Място ${number}`).join(", ") : `${reservation.requested_spots || 1} място/места`],
+    ["Дни за риболов", fishingDates.length ? fishingDates.map(formatEmailDate).join(", ") : "Няма"],
+    ["Нощен риболов", nightDates.length ? nightDates.map(formatEmailDate).join(", ") : "Няма"],
+    ["Стаи", roomNames.length ? roomNames.join(", ") : "Няма"],
+    ["Общо", formatEmailCurrency(reservation.total_amount)],
+    ["Бележки", notes],
   ];
 
   return `
@@ -247,7 +247,7 @@ const buildReservationEmailHtml = ({ title, intro, reservation }) => {
           ${rows.map(([label, value]) => `
             <tr>
               <td style="border: 1px solid #e2e8f0; padding: 10px; font-weight: 700; background: #f8fafc; width: 170px;">${escapeHtml(label)}</td>
-              <td style="border: 1px solid #e2e8f0; padding: 10px;">${label === "Notes" ? value : escapeHtml(value)}</td>
+              <td style="border: 1px solid #e2e8f0; padding: 10px;">${label === "Бележки" ? value : escapeHtml(value)}</td>
             </tr>
           `).join("")}
         </tbody>
@@ -267,14 +267,14 @@ const buildReservationEmailText = ({ title, intro, reservation }) => {
     "",
     intro,
     "",
-    `Lake: ${reservation.lake_name || "-"}`,
-    `Stay: ${formatEmailDate(reservation.arrival_date)} → ${formatEmailDate(reservation.departure_date)}`,
-    `Selected spots: ${spotNumbers.length ? spotNumbers.map((number) => `Spot ${number}`).join(", ") : `${reservation.requested_spots || 1} spot(s)`}`,
-    `Fishing days: ${fishingDates.length ? fishingDates.map(formatEmailDate).join(", ") : "None"}`,
-    `Night fishing: ${nightDates.length ? nightDates.map(formatEmailDate).join(", ") : "None"}`,
-    `Rooms: ${roomNames.length ? roomNames.join(", ") : "None"}`,
-    `Total: ${formatEmailCurrency(reservation.total_amount)}`,
-    `Notes: ${reservation.notes || "No notes"}`,
+    `Водоем: ${reservation.lake_name || "-"}`,
+    `Престой: ${formatEmailDate(reservation.arrival_date)} → ${formatEmailDate(reservation.departure_date)}`,
+    `Избрани места: ${spotNumbers.length ? spotNumbers.map((number) => `Място ${number}`).join(", ") : `${reservation.requested_spots || 1} място/места`}`,
+    `Дни за риболов: ${fishingDates.length ? fishingDates.map(formatEmailDate).join(", ") : "Няма"}`,
+    `Нощен риболов: ${nightDates.length ? nightDates.map(formatEmailDate).join(", ") : "Няма"}`,
+    `Стаи: ${roomNames.length ? roomNames.join(", ") : "Няма"}`,
+    `Общо: ${formatEmailCurrency(reservation.total_amount)}`,
+    `Бележки: ${reservation.notes || "Няма бележки"}`,
   ].join("\n");
 };
 
@@ -332,42 +332,42 @@ const withReservationEmailContext = async (reservationId, handler) => {
 const notifyReservationCreated = async (reservationId) => withReservationEmailContext(reservationId, async (reservation) => {
   await safeSendReservationEmail({
     to: reservation.owner_email,
-    subject: `New reservation request for ${reservation.lake_name}`,
-    title: "New reservation request",
-    intro: `${reservation.user_name || "A user"} submitted a reservation request for your lake.`,
+    subject: `Нова заявка за резервация за ${reservation.lake_name}`,
+    title: "Нова заявка за резервация",
+    intro: `${reservation.user_name || "Потребител"} изпрати заявка за резервация за вашия водоем.`,
     reservation,
     reason: "new request owner notification",
   });
 
   await safeSendReservationEmail({
     to: reservation.user_email,
-    subject: `Reservation request sent for ${reservation.lake_name}`,
-    title: "Reservation request sent",
-    intro: `Your reservation request for ${reservation.lake_name} was sent to the lake owner. You will be notified when it is approved or rejected.`,
+    subject: `Заявката за резервация е изпратена за ${reservation.lake_name}`,
+    title: "Заявката за резервация е изпратена",
+    intro: `Вашата заявка за резервация за ${reservation.lake_name} беше изпратена до собственика. Ще бъдете уведомени, когато бъде одобрена или отхвърлена.`,
     reservation,
     reason: "new request user confirmation",
   });
 });
 
 const notifyUserReservationStatusChanged = async (reservationId, status) => withReservationEmailContext(reservationId, async (reservation) => {
-  const readableStatus = status === "approved" ? "approved" : status === "rejected" ? "rejected" : "updated";
+  const readableStatus = status === "approved" ? "одобрена" : status === "rejected" ? "отхвърлена" : "обновена";
 
   await safeSendReservationEmail({
     to: reservation.user_email,
-    subject: `Your reservation was ${readableStatus}`,
-    title: `Reservation ${readableStatus}`,
-    intro: `Your reservation request for ${reservation.lake_name} was ${readableStatus}.`,
+    subject: `Вашата резервация беше ${readableStatus}`,
+    title: `Резервация ${readableStatus}`,
+    intro: `Вашата заявка за резервация за ${reservation.lake_name} беше ${readableStatus}.`,
     reservation,
-    reason: `user ${readableStatus} notification`,
+    reason: `известие за потребител ${readableStatus}`,
   });
 });
 
 const notifyOwnerReservationCancelled = async (reservationId) => withReservationEmailContext(reservationId, async (reservation) => {
   await safeSendReservationEmail({
     to: reservation.owner_email,
-    subject: `Reservation cancelled for ${reservation.lake_name}`,
-    title: "Reservation cancelled",
-    intro: `${reservation.user_name || "A user"} cancelled their reservation request.`,
+    subject: `Отказана резервация за ${reservation.lake_name}`,
+    title: "Резервацията е отказана",
+    intro: `${reservation.user_name || "Потребител"} отказа своята заявка за резервация.`,
     reservation,
     reason: "owner cancellation notification",
   });
@@ -553,18 +553,18 @@ const ensureSelectedSpotAvailability = async ({ spotIds, waterBodyId, arrival, d
 
   const selectedSpots = await getSelectedSpots(spotIds, waterBodyId);
   if (selectedSpots.length !== spotIds.length) {
-    throw new Error("One or more selected spots are invalid");
+    throw new Error("Едно или повече избрани места са невалидни");
   }
 
   const inactive = selectedSpots.filter((spot) => !spot.is_active);
   if (inactive.length) {
-    throw new Error(`These spots are inactive: ${inactive.map((spot) => spot.spot_number).join(', ')}`);
+    throw new Error(`Тези места са неактивни: ${inactive.map((spot) => spot.spot_number).join(', ')}`);
   }
 
   const reservedSpotIds = new Set(await getReservedSpotIds({ waterBodyId, arrival, departure, excludedReservationId }));
   const taken = selectedSpots.filter((spot) => reservedSpotIds.has(String(spot.id)));
   if (taken.length) {
-    throw new Error(`These spots are already reserved for the selected dates: ${taken.map((spot) => spot.spot_number).join(', ')}`);
+    throw new Error(`Тези места вече са резервирани за избраните дати: ${taken.map((spot) => spot.spot_number).join(', ')}`);
   }
 };
 
@@ -629,34 +629,34 @@ const buildPricing = ({ lake, requestedSpots, fishingDates, nightFishingDates, s
 
 const validateReservationInput = ({ lake, arrival, departure, requestedSpots, roomIds, fishingDates, nightFishingDates, selectedSpotIds = [] }) => {
   if (!arrival || !departure) {
-    throw new Error("arrival_date and departure_date are required");
+    throw new Error("Началната и крайната дата са задължителни");
   }
   if (new Date(`${departure}T00:00:00Z`) < new Date(`${arrival}T00:00:00Z`)) {
-    throw new Error("departure_date must be after or equal to arrival_date");
+    throw new Error("Крайната дата трябва да бъде след или равна на началната дата");
   }
   if (!Number.isInteger(requestedSpots) || requestedSpots < 1) {
-    throw new Error("requested_spots must be an integer greater than 0");
+    throw new Error("Броят заявени места трябва да бъде цяло число по-голямо от 0");
   }
   if (selectedSpotIds.length && selectedSpotIds.length !== requestedSpots) {
-    throw new Error("Selected spot count must match requested spots");
+    throw new Error("Броят на избраните места трябва да съвпада със заявените места");
   }
-  if (!lake.is_private) throw new Error("Reservations are only allowed for private lakes");
-  if (!lake.is_reservable) throw new Error("Reservations are currently disabled for this lake");
+  if (!lake.is_private) throw new Error("Резервации са позволени само за частни водоеми");
+  if (!lake.is_reservable) throw new Error("Резервациите за този водоем в момента са изключени");
   const lakeCapacity = Math.max(1, toNumber(lake.spots_count, toNumber(lake.capacity, 1)));
   if (requestedSpots > lakeCapacity) {
-    throw new Error(`This lake accepts up to ${lakeCapacity} spots per request`);
+    throw new Error(`Този водоем приема до ${lakeCapacity} места на заявка`);
   }
   if (roomIds.length && !lake.has_housing) {
-    throw new Error("This lake does not currently offer housing");
+    throw new Error("Този водоем в момента не предлага настаняване");
   }
   if (nightFishingDates.length && !lake.allows_night_fishing) {
-    throw new Error("Night fishing is not enabled for this lake");
+    throw new Error("Нощният риболов не е активиран за този водоем");
   }
   if (!fishingDates.length && !nightFishingDates.length && !roomIds.length) {
-    throw new Error("Select at least one fishing day, night fishing night, or room");
+    throw new Error("Изберете поне един ден за риболов, нощен риболов или стая");
   }
   if (!fishingDates.length && !nightFishingDates.length && roomIds.length) {
-    throw new Error("Accommodation-only reservations are not available yet");
+    throw new Error("Резервации само за настаняване все още не са налични");
   }
 };
 
@@ -705,7 +705,7 @@ const getMyReservations = async (req, res) => {
     `, [req.user]);
     res.json(q.rows);
   } catch (err) {
-    res.status(500).json({ error: err.message || "Failed to load reservations" });
+    res.status(500).json({ error: err.message || "Неуспешно зареждане на резервациите" });
   }
 };
 
@@ -763,7 +763,7 @@ const getIncomingReservations = async (req, res) => {
     `, [req.user]);
     res.json(q.rows);
   } catch (err) {
-    res.status(500).json({ error: err.message || "Failed to load incoming reservations" });
+    res.status(500).json({ error: err.message || "Неуспешно зареждане на входящите резервации" });
   }
 };
 
@@ -795,7 +795,7 @@ const getReservationBadgeCounts = async (req, res) => {
       owner_pending_reservations: Number(ownerCountQ.rows[0]?.count || 0),
     });
   } catch (err) {
-    res.status(500).json({ error: err.message || "Failed to load reservation badge counts" });
+    res.status(500).json({ error: err.message || "Неуспешно зареждане на брояча за резервации" });
   }
 };
 
@@ -804,7 +804,7 @@ const getMyReservationStatus = async (req, res) => {
     await ensureSchema();
     const { waterBodyId } = req.params;
     const lake = await getLakeBookingContext(waterBodyId);
-    if (!lake) return res.status(404).json({ error: "Lake not found" });
+    if (!lake) return res.status(404).json({ error: "Водоемът не е намерен" });
     if (!lake.is_private) return res.json({ is_private: false, reservation: null });
     const q = await pool.query(`
       SELECT id
@@ -816,7 +816,7 @@ const getMyReservationStatus = async (req, res) => {
     const reservation = q.rows[0] ? await getReservationById(q.rows[0].id) : null;
     res.json({ is_private: true, reservation });
   } catch (err) {
-    res.status(500).json({ error: err.message || "Failed to load reservation status" });
+    res.status(500).json({ error: err.message || "Неуспешно зареждане на статуса на резервацията" });
   }
 };
 
@@ -828,7 +828,7 @@ const estimateReservation = async (req, res) => {
     const fishingDates = normalizeDateList(req.body.fishing_dates);
     const nightFishingDates = normalizeDateList(req.body.night_fishing_dates);
     const lake = await getLakeBookingContext(water_body_id);
-    if (!lake) return res.status(404).json({ error: "Lake not found" });
+    if (!lake) return res.status(404).json({ error: "Водоемът не е намерен" });
     const normalizedRoomIds = Array.isArray(room_ids) ? [...new Set(room_ids.map((id) => String(id).trim()).filter(Boolean))] : [];
     const normalizedSpotIds = Array.isArray(spot_ids) ? [...new Set(spot_ids.map((id) => String(id).trim()).filter(Boolean))] : [];
     const selectedRooms = await getRooms(normalizedRoomIds, water_body_id);
@@ -837,20 +837,20 @@ const estimateReservation = async (req, res) => {
 
     const allowedFishingDates = new Set(getAllowedFishingDates(arrival, departure));
     const allowedNightDates = new Set(getAllowedNightDates(arrival, departure));
-    if (fishingDates.some((date) => !allowedFishingDates.has(date))) throw new Error("One or more fishing days are outside the selected trip range");
-    if (nightFishingDates.some((date) => !allowedNightDates.has(date))) throw new Error("One or more night fishing dates are outside the selected trip range");
+    if (fishingDates.some((date) => !allowedFishingDates.has(date))) throw new Error("Един или повече риболовни дни са извън избрания период");
+    if (nightFishingDates.some((date) => !allowedNightDates.has(date))) throw new Error("Една или повече дати за нощен риболов са извън избрания период");
 
     const blockedDates = await getBlockedDateStrings(water_body_id, arrival, departure);
     const usedDates = new Set([...fishingDates, ...nightFishingDates]);
     const blockedUsedDates = blockedDates.filter((date) => usedDates.has(date));
-    if (blockedUsedDates.length) throw new Error(`These dates are blocked: ${blockedUsedDates.join(', ')}`);
+    if (blockedUsedDates.length) throw new Error(`Тези дати са блокирани: ${blockedUsedDates.join(', ')}`);
 
     if (normalizedSpotIds.length) {
       await ensureSelectedSpotAvailability({ spotIds: normalizedSpotIds, waterBodyId: water_body_id, arrival, departure });
     } else {
       const reservedSpots = await getReservedSpotCount({ waterBodyId: water_body_id, arrival, departure });
       const maxSpots = Math.max(1, toNumber(lake.spots_count, toNumber(lake.capacity, 1)));
-      if (reservedSpots + requestedSpots > maxSpots) throw new Error("No remaining spot capacity for the selected dates");
+      if (reservedSpots + requestedSpots > maxSpots) throw new Error("Няма свободен капацитет за избраните дати");
     }
     await ensureRoomAvailability({ roomIds: normalizedRoomIds, arrival, departure });
 
@@ -876,7 +876,7 @@ const estimateReservation = async (req, res) => {
       ...pricing,
     });
   } catch (err) {
-    res.status(400).json({ error: err.message || "Failed to estimate reservation" });
+    res.status(400).json({ error: err.message || "Неуспешно изчисляване на резервацията" });
   }
 };
 
@@ -886,10 +886,10 @@ const createReservation = async (req, res) => {
     await ensureSchema();
     const { water_body_id, room_ids = [], spot_ids = [], notes } = req.body;
     const { arrival, departure } = normalizeTripDates(req.body);
-    if (!water_body_id) return res.status(400).json({ error: "water_body_id is required" });
+    if (!water_body_id) return res.status(400).json({ error: "Водоемът е задължителен" });
     const lake = await getLakeBookingContext(water_body_id);
-    if (!lake) return res.status(404).json({ error: "Lake not found" });
-    if (String(lake.owner_id) === String(req.user)) return res.status(400).json({ error: "Owner cannot reserve own lake" });
+    if (!lake) return res.status(404).json({ error: "Водоемът не е намерен" });
+    if (String(lake.owner_id) === String(req.user)) return res.status(400).json({ error: "Собственикът не може да резервира собствения си водоем" });
 
     const paymentMethod = String(req.body.payment_method || req.body.payment_preference || "on_arrival").trim().toLowerCase() === "online"
       ? "online"
@@ -900,20 +900,20 @@ const createReservation = async (req, res) => {
     const normalizedRoomIds = Array.isArray(room_ids) ? [...new Set(room_ids.map((id) => String(id).trim()).filter(Boolean))] : [];
     const normalizedSpotIds = Array.isArray(spot_ids) ? [...new Set(spot_ids.map((id) => String(id).trim()).filter(Boolean))] : [];
     const selectedRooms = await getRooms(normalizedRoomIds, water_body_id);
-    if (normalizedRoomIds.length !== selectedRooms.length) return res.status(400).json({ error: "One or more selected rooms are invalid" });
+    if (normalizedRoomIds.length !== selectedRooms.length) return res.status(400).json({ error: "Една или повече избрани стаи са невалидни" });
 
     const requestedSpots = Number(req.body.requested_spots || req.body.people_count || 1);
     validateReservationInput({ lake, arrival, departure, requestedSpots, roomIds: normalizedRoomIds, fishingDates, nightFishingDates, selectedSpotIds: normalizedSpotIds });
 
     const allowedFishingDates = new Set(getAllowedFishingDates(arrival, departure));
     const allowedNightDates = new Set(getAllowedNightDates(arrival, departure));
-    if (fishingDates.some((date) => !allowedFishingDates.has(date))) return res.status(400).json({ error: "One or more fishing days are outside the selected trip range" });
-    if (nightFishingDates.some((date) => !allowedNightDates.has(date))) return res.status(400).json({ error: "One or more night fishing dates are outside the selected trip range" });
+    if (fishingDates.some((date) => !allowedFishingDates.has(date))) return res.status(400).json({ error: "Един или повече риболовни дни са извън избрания период" });
+    if (nightFishingDates.some((date) => !allowedNightDates.has(date))) return res.status(400).json({ error: "Една или повече дати за нощен риболов са извън избрания период" });
 
     const blockedDates = await getBlockedDateStrings(water_body_id, arrival, departure);
     const usedDates = new Set([...fishingDates, ...nightFishingDates]);
     const blockedUsedDates = blockedDates.filter((date) => usedDates.has(date));
-    if (blockedUsedDates.length) return res.status(400).json({ error: `These dates are blocked: ${blockedUsedDates.join(', ')}` });
+    if (blockedUsedDates.length) return res.status(400).json({ error: `Тези дати са блокирани: ${blockedUsedDates.join(', ')}` });
 
     const selectedSpots = await getSelectedSpots(normalizedSpotIds, water_body_id);
     if (normalizedSpotIds.length) {
@@ -921,7 +921,7 @@ const createReservation = async (req, res) => {
     } else {
       const reservedSpots = await getReservedSpotCount({ waterBodyId: water_body_id, arrival, departure });
       const maxSpots = Math.max(1, toNumber(lake.spots_count, toNumber(lake.capacity, 1)));
-      if (reservedSpots + requestedSpots > maxSpots) return res.status(400).json({ error: "No remaining spot capacity for the selected dates" });
+      if (reservedSpots + requestedSpots > maxSpots) return res.status(400).json({ error: "Няма свободен капацитет за избраните дати" });
     }
     await ensureRoomAvailability({ roomIds: normalizedRoomIds, arrival, departure });
 
@@ -942,7 +942,7 @@ const createReservation = async (req, res) => {
       const onlinePayment = await canUseOnlinePayments(lake.owner_id);
       if (!onlinePayment.enabled) {
         return res.status(400).json({
-          error: onlinePayment.reason || "Online payment is not available for this lake. Choose pay at the lake instead.",
+          error: onlinePayment.reason || "Онлайн плащането не е налично за този водоем. Изберете плащане на място.",
         });
       }
       initialStatus = "approved_waiting_payment";
@@ -1027,7 +1027,7 @@ const createReservation = async (req, res) => {
     res.json(reservation);
   } catch (err) {
     await client.query("ROLLBACK");
-    res.status(400).json({ error: err.message || "Failed to create reservation" });
+    res.status(400).json({ error: err.message || "Неуспешно създаване на резервация" });
   } finally {
     client.release();
   }
@@ -1047,14 +1047,14 @@ const cancelReservation = async (req, res) => {
       LIMIT 1
     `, [reservationId, req.user]);
 
-    if (!existing.rows.length) return res.status(404).json({ error: "Reservation not found" });
+    if (!existing.rows.length) return res.status(404).json({ error: "Резервацията не е намерена" });
 
     const current = existing.rows[0];
     if (!canUserCancelReservation(current)) {
       return res.status(400).json({
         error: isReservationPast(current)
-          ? "Past reservations cannot be cancelled"
-          : "Only pending or approved reservations can be cancelled",
+          ? "Минали резервации не могат да бъдат отказани"
+          : "Само чакащи или одобрени резервации могат да бъдат отказани",
       });
     }
 
@@ -1064,7 +1064,7 @@ const cancelReservation = async (req, res) => {
     queueReservationEmail(() => notifyOwnerReservationCancelled(reservationId), "reservation cancellation notification");
     res.json(reservation);
   } catch (err) {
-    res.status(500).json({ error: err.message || "Failed to cancel reservation" });
+    res.status(500).json({ error: err.message || "Неуспешно отказване на резервацията" });
   }
 };
 
@@ -1073,19 +1073,19 @@ const updateReservationStatus = async (req, res) => {
     await ensureSchema();
     const { reservationId } = req.params;
     const { status } = req.body;
-    if (!MANAGEABLE_STATUSES.includes(status)) return res.status(400).json({ error: "Invalid reservation status" });
+    if (!MANAGEABLE_STATUSES.includes(status)) return res.status(400).json({ error: "Невалиден статус на резервация" });
     const reservation = await getReservationById(reservationId);
-    if (!reservation) return res.status(404).json({ error: "Reservation not found" });
+    if (!reservation) return res.status(404).json({ error: "Резервацията не е намерена" });
     if (isReservationPast(reservation)) {
-      return res.status(400).json({ error: "Past reservations cannot be changed" });
+      return res.status(400).json({ error: "Минали резервации не могат да бъдат променяни" });
     }
     const lake = await getLakeBookingContext(reservation.water_body_id);
-    if (!lake || String(lake.owner_id) !== String(req.user) || !lake.is_private) return res.status(403).json({ error: "Not allowed" });
+    if (!lake || String(lake.owner_id) !== String(req.user) || !lake.is_private) return res.status(403).json({ error: "Нямате разрешение" });
 
     const blockedDates = await getBlockedDateStrings(reservation.water_body_id, reservation.arrival_date, reservation.departure_date);
     const usedDates = [...(reservation.fishing_dates || []), ...(reservation.night_fishing_dates || [])];
     const blockedUsedDates = blockedDates.filter((date) => usedDates.includes(date));
-    if (status === 'approved' && blockedUsedDates.length) return res.status(400).json({ error: `These dates are blocked: ${blockedUsedDates.join(', ')}` });
+    if (status === 'approved' && blockedUsedDates.length) return res.status(400).json({ error: `Тези дати са блокирани: ${blockedUsedDates.join(', ')}` });
     if (status === 'approved') {
       const spotIds = Array.isArray(reservation.spots) ? reservation.spots.map((spot) => spot.id) : [];
       if (spotIds.length) {
@@ -1099,7 +1099,7 @@ const updateReservationStatus = async (req, res) => {
       } else {
         const reservedSpots = await getReservedSpotCount({ waterBodyId: reservation.water_body_id, arrival: reservation.arrival_date, departure: reservation.departure_date, excludedReservationId: reservationId });
         const maxSpots = Math.max(1, toNumber(lake.spots_count, toNumber(lake.capacity, 1)));
-        if (reservedSpots + Number(reservation.requested_spots || 1) > maxSpots) return res.status(400).json({ error: 'No remaining capacity for the selected dates' });
+        if (reservedSpots + Number(reservation.requested_spots || 1) > maxSpots) return res.status(400).json({ error: 'Няма свободен капацитет за избраните дати' });
       }
       const roomIds = Array.isArray(reservation.rooms) ? reservation.rooms.map((room) => room.id) : [];
       await ensureRoomAvailability({ roomIds, arrival: reservation.arrival_date, departure: reservation.departure_date, excludedReservationId: reservationId });
@@ -1132,11 +1132,11 @@ const updateReservationStatus = async (req, res) => {
     `, [reservationId, nextStatus, paymentRequired, paymentStatus]);
     const updated = await getReservationById(reservationId);
     if (status === "approved" || status === "rejected") {
-      queueReservationEmail(() => notifyUserReservationStatusChanged(reservationId, nextStatus), `reservation ${nextStatus} notification`);
+      queueReservationEmail(() => notifyUserReservationStatusChanged(reservationId, nextStatus), `известие за резервация ${nextStatus}`);
     }
     res.json(updated);
   } catch (err) {
-    res.status(400).json({ error: err.message || 'Failed to update reservation status' });
+    res.status(400).json({ error: err.message || 'Неуспешно обновяване на статуса на резервацията' });
   }
 };
 
@@ -1146,24 +1146,24 @@ const createReservationPaymentCheckout = async (req, res) => {
     await ensureSchema();
     const { reservationId } = req.params;
     const reservation = await getReservationById(reservationId);
-    if (!reservation) return res.status(404).json({ error: "Reservation not found" });
-    if (String(reservation.user_id) !== String(req.user)) return res.status(403).json({ error: "Not allowed" });
-    if (isReservationPast(reservation)) return res.status(400).json({ error: "Past reservations cannot be paid" });
+    if (!reservation) return res.status(404).json({ error: "Резервацията не е намерена" });
+    if (String(reservation.user_id) !== String(req.user)) return res.status(403).json({ error: "Нямате разрешение" });
+    if (isReservationPast(reservation)) return res.status(400).json({ error: "Минали резервации не могат да бъдат платени" });
     if (reservation.status !== "approved_waiting_payment") {
-      return res.status(400).json({ error: "This reservation is not waiting for online payment" });
+      return res.status(400).json({ error: "Тази резервация не чака онлайн плащане" });
     }
     if (reservation.payment_status === "paid") {
-      return res.status(400).json({ error: "This reservation is already paid" });
+      return res.status(400).json({ error: "Тази резервация вече е платена" });
     }
     if (toNumber(reservation.total_amount, 0) <= 0) {
-      return res.status(400).json({ error: "This reservation has no online payment amount" });
+      return res.status(400).json({ error: "Тази резервация няма сума за онлайн плащане" });
     }
 
     const lake = await getLakeBookingContext(reservation.water_body_id);
-    if (!lake?.owner_id) return res.status(400).json({ error: "Lake owner is missing" });
+    if (!lake?.owner_id) return res.status(400).json({ error: "Липсва собственик на водоема" });
     const onlinePayment = await canUseOnlinePayments(lake.owner_id);
     if (!onlinePayment.enabled) {
-      return res.status(403).json({ error: onlinePayment.reason || "Owner online payments are not available" });
+      return res.status(403).json({ error: onlinePayment.reason || "Онлайн плащанията към собственика не са налични" });
     }
 
     const stripe = requireStripe();
@@ -1198,8 +1198,8 @@ const createReservationPaymentCheckout = async (req, res) => {
           price_data: {
             currency,
             product_data: {
-              name: `Reservation at ${reservation.lake_name || "Fishing lake"}`,
-              description: `Stay: ${reservation.arrival_date} → ${reservation.departure_date}`,
+              name: `Резервация за ${reservation.lake_name || "риболовен водоем"}`,
+              description: `Престой: ${reservation.arrival_date} → ${reservation.departure_date}`,
             },
             unit_amount: totalCents,
           },
@@ -1248,7 +1248,7 @@ const createReservationPaymentCheckout = async (req, res) => {
 
     res.json({ url: session.url });
   } catch (err) {
-    res.status(400).json({ error: err.message || "Failed to start reservation payment" });
+    res.status(400).json({ error: err.message || "Неуспешно стартиране на плащането за резервация" });
   }
 };
 

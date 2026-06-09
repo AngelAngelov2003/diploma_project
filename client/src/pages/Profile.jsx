@@ -19,6 +19,12 @@ const DEFAULT_PROFILE = {
   created_at: "",
 };
 
+const getRoleLabel = (role) => ({
+  admin: "Администратор",
+  owner: "Собственик",
+  user: "Потребител",
+}[role] || role || "Потребител");
+
 const DEFAULT_PREFERENCES = {
   email_alerts_enabled: true,
   default_notification_frequency: "daily",
@@ -69,7 +75,7 @@ export default function Profile({ setCurrentUser }) {
         setCurrentUser(profileData || null);
         setPreferences(preferencesData || DEFAULT_PREFERENCES);
       } catch (error) {
-        notifyError(error, formatErrorMessage(error, "Failed to load profile"));
+        notifyError(error, formatErrorMessage(error, "Неуспешно зареждане на профила"));
       } finally {
         setLoading(false);
       }
@@ -85,12 +91,12 @@ export default function Profile({ setCurrentUser }) {
     const email = String(profile.email || "").trim();
 
     if (!fullName) {
-      notifyError(null, "Full name is required");
+      notifyError(null, "Пълното име е задължително");
       return;
     }
 
     if (!email) {
-      notifyError(null, "Email is required");
+      notifyError(null, "Имейлът е задължителен");
       return;
     }
 
@@ -104,11 +110,11 @@ export default function Profile({ setCurrentUser }) {
 
       setProfile((prev) => ({ ...prev, ...(updatedProfile || {}) }));
       setCurrentUser(updatedProfile || null);
-      notifySuccess("Profile updated");
+      notifySuccess("Профилът е обновен");
     } catch (error) {
       notifyError(
         error,
-        formatErrorMessage(error, "Failed to update profile"),
+        formatErrorMessage(error, "Неуспешно обновяване на профила"),
       );
     } finally {
       setSavingProfile(false);
@@ -121,17 +127,17 @@ export default function Profile({ setCurrentUser }) {
     const { current_password, new_password, confirm_password } = passwordForm;
 
     if (!current_password || !new_password || !confirm_password) {
-      notifyError(null, "All password fields are required");
+      notifyError(null, "Всички полета за парола са задължителни");
       return;
     }
 
     if (new_password.length < 6) {
-      notifyError(null, "New password must be at least 6 characters");
+      notifyError(null, "Новата парола трябва да е поне 6 символа");
       return;
     }
 
     if (new_password !== confirm_password) {
-      notifyError(null, "New password and confirm password do not match");
+      notifyError(null, "Новата парола и потвърждението не съвпадат");
       return;
     }
 
@@ -144,11 +150,11 @@ export default function Profile({ setCurrentUser }) {
       });
 
       setPasswordForm(DEFAULT_PASSWORD_FORM);
-      notifySuccess("Password changed successfully");
+      notifySuccess("Паролата е променена успешно");
     } catch (error) {
       notifyError(
         error,
-        formatErrorMessage(error, "Failed to change password"),
+        formatErrorMessage(error, "Неуспешна промяна на паролата"),
       );
     } finally {
       setSavingPassword(false);
@@ -168,13 +174,13 @@ export default function Profile({ setCurrentUser }) {
       });
 
       setPreferences(updatedPreferences || preferences);
-      notifySuccess("Notification preferences updated");
+      notifySuccess("Настройките за известия са обновени");
     } catch (error) {
       notifyError(
         error,
         formatErrorMessage(
           error,
-          "Failed to update notification preferences",
+          "Неуспешно обновяване на настройките за известия",
         ),
       );
     } finally {
@@ -183,17 +189,16 @@ export default function Profile({ setCurrentUser }) {
   };
 
   if (loading) {
-    return <div className={styles.loading}>Loading profile...</div>;
+    return <div className={styles.loading}>Зареждане на профил...</div>;
   }
 
   return (
     <div className={styles.page}>
       <div className={styles.shell}>
         <div className={styles.hero}>
-          <h2 className={styles.heroTitle}>Profile Settings</h2>
+          <h2 className={styles.heroTitle}>Настройки на профила</h2>
           <div className={styles.heroText}>
-            Manage your personal information, password, and notification
-            preferences.
+            Управлявайте личната си информация, паролата и настройките за известия.
           </div>
         </div>
 
@@ -201,14 +206,14 @@ export default function Profile({ setCurrentUser }) {
           <div className={styles.card}>
             <h3 className={styles.sectionTitle}>
               <FaUserCog />
-              Profile information
+              Информация за профила
             </h3>
 
             <form onSubmit={handleProfileSubmit}>
               <div className={styles.formGrid}>
                 <div>
                   <div className={styles.fieldLabel}>
-                    Full name
+                    Име и фамилия
                   </div>
                   <input
                     type="text"
@@ -225,7 +230,7 @@ export default function Profile({ setCurrentUser }) {
 
                 <div>
                   <div className={styles.fieldLabel}>
-                    Email
+                    Имейл
                   </div>
                   <input
                     type="email"
@@ -242,11 +247,11 @@ export default function Profile({ setCurrentUser }) {
 
                 <div>
                   <div className={styles.fieldLabel}>
-                    Role
+                    Роля
                   </div>
                   <input
                     type="text"
-                    value={profile.role || ""}
+                    value={getRoleLabel(profile.role)}
                     disabled
                     className={`${styles.input} ${styles.inputDisabled}`}
                   />
@@ -254,11 +259,11 @@ export default function Profile({ setCurrentUser }) {
 
                 <div>
                   <div className={styles.fieldLabel}>
-                    Verified
+                    Имейл потвърден
                   </div>
                   <input
                     type="text"
-                    value={profile.is_verified ? "Yes" : "No"}
+                    value={profile.is_verified ? "Да" : "Не"}
                     disabled
                     className={`${styles.input} ${styles.inputDisabled}`}
                   />
@@ -266,10 +271,10 @@ export default function Profile({ setCurrentUser }) {
               </div>
 
               <div className={styles.metaText} style={{ marginTop: 12 }}>
-                Member since:{" "}
+                Член от:{" "}
                 {profile.created_at
                   ? new Date(profile.created_at).toLocaleString()
-                  : "Unknown"}
+                  : "Неизвестно"}
               </div>
 
               <div className={styles.actionRow}>
@@ -279,7 +284,7 @@ export default function Profile({ setCurrentUser }) {
                   disabled={savingProfile}
                 >
                   <FaSave className="button-icon" style={{ marginRight: 8 }} />
-                  {savingProfile ? "Saving..." : "Save profile"}
+                  {savingProfile ? "Запазване..." : "Запази профила"}
                 </ActionButton>
               </div>
             </form>
@@ -288,14 +293,14 @@ export default function Profile({ setCurrentUser }) {
           <div className={styles.card}>
             <h3 className={styles.sectionTitle}>
               <FaLock />
-              Change password
+              Смяна на парола
             </h3>
 
             <form onSubmit={handlePasswordSubmit}>
               <div className={styles.formGrid}>
                 <div>
                   <div className={styles.fieldLabel}>
-                    Current password
+                    Текуща парола
                   </div>
                   <input
                     type="password"
@@ -312,7 +317,7 @@ export default function Profile({ setCurrentUser }) {
 
                 <div>
                   <div className={styles.fieldLabel}>
-                    New password
+                    Нова парола
                   </div>
                   <input
                     type="password"
@@ -329,7 +334,7 @@ export default function Profile({ setCurrentUser }) {
 
                 <div>
                   <div className={styles.fieldLabel}>
-                    Confirm new password
+                    Потвърди новата парола
                   </div>
                   <input
                     type="password"
@@ -352,7 +357,7 @@ export default function Profile({ setCurrentUser }) {
                   disabled={savingPassword}
                 >
                   <FaLock className="button-icon" style={{ marginRight: 8 }} />
-                  {savingPassword ? "Saving..." : "Change password"}
+                  {savingPassword ? "Запазване..." : "Смени паролата"}
                 </ActionButton>
               </div>
             </form>
@@ -361,14 +366,14 @@ export default function Profile({ setCurrentUser }) {
           <div className={styles.card}>
             <h3 className={styles.sectionTitle}>
               <FaBell />
-              Notification preferences
+              Настройки за известия
             </h3>
 
             <form onSubmit={handlePreferencesSubmit}>
               <div className={styles.formGrid}>
                 <div>
                   <div className={styles.fieldLabel}>
-                    Email alerts enabled
+                    Имейл известия
                   </div>
                   <select
                     value={preferences.email_alerts_enabled ? "true" : "false"}
@@ -380,14 +385,14 @@ export default function Profile({ setCurrentUser }) {
                     }
                     className={styles.input}
                   >
-                    <option value="true">Enabled</option>
-                    <option value="false">Disabled</option>
+                    <option value="true">Включени</option>
+                    <option value="false">Изключени</option>
                   </select>
                 </div>
 
                 <div>
                   <div className={styles.fieldLabel}>
-                    Default frequency
+                    Честота по подразбиране
                   </div>
                   <select
                     value={
@@ -401,8 +406,8 @@ export default function Profile({ setCurrentUser }) {
                     }
                     className={styles.input}
                   >
-                    <option value="daily">Daily</option>
-                    <option value="weekly">Weekly</option>
+                    <option value="daily">Дневно</option>
+                    <option value="weekly">Седмично</option>
                   </select>
                 </div>
               </div>
@@ -414,7 +419,7 @@ export default function Profile({ setCurrentUser }) {
                   disabled={savingPreferences}
                 >
                   <FaSave className="button-icon" style={{ marginRight: 8 }} />
-                  {savingPreferences ? "Saving..." : "Save preferences"}
+                  {savingPreferences ? "Запазване..." : "Запази настройките"}
                 </ActionButton>
               </div>
             </form>

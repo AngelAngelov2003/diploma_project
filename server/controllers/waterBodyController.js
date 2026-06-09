@@ -9,7 +9,7 @@ const getWaterBodies = async (req, res) => {
     res.json(rows);
   } catch (err) {
     console.error("getWaterBodies error:", err);
-    res.status(500).json({ error: "Failed to load water bodies" });
+    res.status(500).json({ error: "Неуспешно зареждане на водоемите" });
   }
 };
 
@@ -22,7 +22,7 @@ const getWaterBodiesInBounds = async (req, res) => {
     const zoom = Number(req.query.zoom || 0);
 
     if (![west, south, east, north, zoom].every(Number.isFinite)) {
-      return res.status(400).json({ error: "Invalid bounds" });
+      return res.status(400).json({ error: "Невалидни граници" });
     }
 
     const rows = await waterBodyService.getWaterBodiesInBounds({
@@ -42,7 +42,7 @@ const getWaterBodiesInBounds = async (req, res) => {
     res.json(rows);
   } catch (err) {
     console.error("getWaterBodiesInBounds error:", err);
-    res.status(500).json({ error: "Failed to load water bodies in bounds" });
+    res.status(500).json({ error: "Неуспешно зареждане на водоемите в избраните граници" });
   }
 };
 
@@ -56,7 +56,7 @@ const getForecastByLatLng = async (req, res) => {
     console.error("getForecastByLatLng error:", err);
     const status = err.status || 500;
     res.status(status).json({
-      error: err.publicMessage || err.message || "No weather data",
+      error: err.publicMessage || err.message || "Няма данни за времето",
       code: err.code || "FORECAST_ERROR",
     });
   }
@@ -72,7 +72,7 @@ const getWeeklyForecastByLatLng = async (req, res) => {
     console.error("getWeeklyForecastByLatLng error:", err);
     const status = err.status || 500;
     res.status(status).json({
-      error: err.publicMessage || err.message || "Failed to load weekly forecast",
+      error: err.publicMessage || err.message || "Неуспешно зареждане на седмичната прогноза",
       code: err.code || "FORECAST_ERROR",
     });
   }
@@ -84,14 +84,14 @@ const getWaterBodyWeeklyForecast = async (req, res) => {
     const coords = await waterBodyService.getWaterBodyCentroid(waterBodyId);
 
     if (!coords) {
-      return res.status(404).json({ error: "Water body not found" });
+      return res.status(404).json({ error: "Водоемът не е намерен" });
     }
 
     const lat = Number(coords.latitude);
     const lng = Number(coords.longitude);
 
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-      return res.status(400).json({ error: "Water body coordinates not available" });
+      return res.status(400).json({ error: "Координатите на водоема не са налични" });
     }
 
     const forecast = await fetchWeeklyForecastForLatLng(lat, lng);
@@ -100,7 +100,7 @@ const getWaterBodyWeeklyForecast = async (req, res) => {
     console.error("getWaterBodyWeeklyForecast error:", err);
     const status = err.status || 500;
     res.status(status).json({
-      error: err.publicMessage || err.message || "Failed to load weekly forecast",
+      error: err.publicMessage || err.message || "Неуспешно зареждане на седмичната прогноза",
       code: err.code || "FORECAST_ERROR",
     });
   }
@@ -112,13 +112,13 @@ const getWaterBodyById = async (req, res) => {
     const waterBody = await waterBodyService.getWaterBodyById(waterBodyId);
 
     if (!waterBody) {
-      return res.status(404).json({ error: "Water body not found" });
+      return res.status(404).json({ error: "Водоемът не е намерен" });
     }
 
     res.json(waterBody);
   } catch (err) {
     console.error("getWaterBodyById error:", err);
-    res.status(500).json({ error: "Failed to load water body details" });
+    res.status(500).json({ error: "Неуспешно зареждане на данните за водоема" });
   }
 };
 
@@ -128,14 +128,14 @@ const getWaterBodyForecast = async (req, res) => {
     const coords = await waterBodyService.getWaterBodyCentroid(waterBodyId);
 
     if (!coords) {
-      return res.status(404).json({ error: "Water body not found" });
+      return res.status(404).json({ error: "Водоемът не е намерен" });
     }
 
     const lat = Number(coords.latitude);
     const lng = Number(coords.longitude);
 
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-      return res.status(400).json({ error: "Water body coordinates not available" });
+      return res.status(400).json({ error: "Координатите на водоема не са налични" });
     }
 
     const forecast = await fetchForecastForLatLng(lat, lng);
@@ -144,7 +144,7 @@ const getWaterBodyForecast = async (req, res) => {
     console.error("getWaterBodyForecast error:", err);
     const status = err.status || 500;
     res.status(status).json({
-      error: err.publicMessage || err.message || "Failed to load forecast",
+      error: err.publicMessage || err.message || "Неуспешно зареждане на прогнозата",
       code: err.code || "FORECAST_ERROR",
     });
   }
@@ -182,7 +182,7 @@ const getWaterBodyCatches = async (req, res) => {
     res.json(q.rows);
   } catch (err) {
     console.error("getWaterBodyCatches error:", err);
-    res.status(500).json({ error: "Failed to load recent catches" });
+    res.status(500).json({ error: "Неуспешно зареждане на последните улови" });
   }
 };
 
@@ -198,7 +198,7 @@ const searchWaterBodies = async (req, res) => {
     res.json(rows);
   } catch (err) {
     console.error("searchWaterBodies error:", err);
-    res.status(500).json({ error: "Failed to search water bodies" });
+    res.status(500).json({ error: "Неуспешно търсене на водоеми" });
   }
 };
 
@@ -226,7 +226,7 @@ const getSpeciesSummary = async (req, res) => {
     res.json(q.rows);
   } catch (err) {
     console.error("getSpeciesSummary error:", err);
-    res.status(500).json({ error: "Failed to load species summary" });
+    res.status(500).json({ error: "Неуспешно зареждане на обобщението по видове" });
   }
 };
 
@@ -254,7 +254,7 @@ const getWaterBodyPhotos = async (req, res) => {
     res.json(q.rows);
   } catch (err) {
     console.error("getWaterBodyPhotos error:", err);
-    res.status(500).json({ error: "Failed to load photos" });
+    res.status(500).json({ error: "Неуспешно зареждане на снимките" });
   }
 };
 
@@ -281,7 +281,7 @@ const getReviews = async (req, res) => {
     res.json(q.rows);
   } catch (err) {
     console.error("getReviews error:", err);
-    res.status(500).json({ error: "Failed to load reviews" });
+    res.status(500).json({ error: "Неуспешно зареждане на отзивите" });
   }
 };
 
@@ -303,7 +303,7 @@ const getReviewsSummary = async (req, res) => {
     res.json(q.rows[0] || { reviews_count: 0, average_rating: null });
   } catch (err) {
     console.error("getReviewsSummary error:", err);
-    res.status(500).json({ error: "Failed to load review summary" });
+    res.status(500).json({ error: "Неуспешно зареждане на обобщението на отзивите" });
   }
 };
 
@@ -316,7 +316,7 @@ const upsertReview = async (req, res) => {
     const trimmedComment = String(comment || "").trim();
 
     if (!Number.isInteger(parsedRating) || parsedRating < 1 || parsedRating > 5) {
-      return res.status(400).json({ error: "Rating must be an integer between 1 and 5" });
+      return res.status(400).json({ error: "Оценката трябва да бъде цяло число между 1 и 5" });
     }
 
     const q = await pool.query(
@@ -336,7 +336,7 @@ const upsertReview = async (req, res) => {
     res.json(q.rows[0]);
   } catch (err) {
     console.error("upsertReview error:", err);
-    res.status(500).json({ error: "Failed to save review" });
+    res.status(500).json({ error: "Неуспешно запазване на отзива" });
   }
 };
 
@@ -355,7 +355,7 @@ const deleteMyReview = async (req, res) => {
     res.json({ ok: true });
   } catch (err) {
     console.error("deleteMyReview error:", err);
-    res.status(500).json({ error: "Failed to delete review" });
+    res.status(500).json({ error: "Неуспешно изтриване на отзива" });
   }
 };
 
@@ -382,7 +382,7 @@ const getBookingOptions = async (req, res) => {
     `, [waterBodyId]);
 
     if (!lakeQ.rows.length) {
-      return res.status(404).json({ error: "Water body not found" });
+      return res.status(404).json({ error: "Водоемът не е намерен" });
     }
 
     const [sectorsQ, roomsQ, spotsQ] = await Promise.all([
@@ -399,7 +399,7 @@ const getBookingOptions = async (req, res) => {
     });
   } catch (err) {
     console.error("getBookingOptions error:", err);
-    res.status(500).json({ error: "Failed to load booking options" });
+    res.status(500).json({ error: "Неуспешно зареждане на опциите за резервация" });
   }
 };
 
@@ -412,11 +412,11 @@ const getAvailability = async (req, res) => {
     const endDate = String(req.query.end_date || req.query.departure_date || startDate || "").trim();
 
     if (!startDate || !endDate) {
-      return res.status(400).json({ error: "start_date and end_date are required" });
+      return res.status(400).json({ error: "start_date и end_date са задължителни" });
     }
 
     if (new Date(`${endDate}T00:00:00Z`) < new Date(`${startDate}T00:00:00Z`)) {
-      return res.status(400).json({ error: "end_date must be after or equal to start_date" });
+      return res.status(400).json({ error: "Крайната дата трябва да бъде след или равна на началната дата" });
     }
 
     const lakeQ = await pool.query(`
@@ -427,7 +427,7 @@ const getAvailability = async (req, res) => {
     `, [waterBodyId]);
 
     if (!lakeQ.rows.length) {
-      return res.status(404).json({ error: "Water body not found" });
+      return res.status(404).json({ error: "Водоемът не е намерен" });
     }
 
     const lake = lakeQ.rows[0];
@@ -514,7 +514,7 @@ const getAvailability = async (req, res) => {
     });
   } catch (err) {
     console.error("getAvailability error:", err);
-    res.status(500).json({ error: "Failed to load availability" });
+    res.status(500).json({ error: "Неуспешно зареждане на наличността" });
   }
 };
 
@@ -527,11 +527,11 @@ const getUnavailableDates = async (req, res) => {
     const endDate = String(req.query.end_date || "").trim();
 
     if (!startDate || !endDate) {
-      return res.status(400).json({ error: "start_date and end_date are required" });
+      return res.status(400).json({ error: "start_date и end_date са задължителни" });
     }
 
     if (new Date(`${endDate}T00:00:00Z`) < new Date(`${startDate}T00:00:00Z`)) {
-      return res.status(400).json({ error: "end_date must be after or equal to start_date" });
+      return res.status(400).json({ error: "Крайната дата трябва да бъде след или равна на началната дата" });
     }
 
     const q = await pool.query(`
@@ -583,7 +583,7 @@ const getUnavailableDates = async (req, res) => {
     });
   } catch (err) {
     console.error("getUnavailableDates error:", err);
-    res.status(500).json({ error: "Failed to load unavailable dates" });
+    res.status(500).json({ error: "Неуспешно зареждане на недостъпните дати" });
   }
 };
 
@@ -604,7 +604,7 @@ const getBlockedDates = async (req, res) => {
     res.json(q.rows);
   } catch (err) {
     console.error("getBlockedDates error:", err);
-    res.status(500).json({ error: "Failed to load blocked dates" });
+    res.status(500).json({ error: "Неуспешно зареждане на блокираните дати" });
   }
 };
 

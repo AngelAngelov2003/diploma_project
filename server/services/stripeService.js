@@ -5,7 +5,7 @@ const stripe = stripeSecretKey ? Stripe(stripeSecretKey) : null;
 
 const requireStripe = () => {
   if (!stripe) {
-    const err = new Error("Stripe is not configured. Add STRIPE_SECRET_KEY to server/.env.");
+    const err = new Error("Stripe не е конфигуриран. Добавете STRIPE_SECRET_KEY в server/.env.");
     err.status = 500;
     throw err;
   }

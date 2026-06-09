@@ -14,13 +14,13 @@ const getProfile = async (req, res) => {
     );
 
     if (!q.rows.length) {
-      return res.status(404).json({ error: "User not found" });
+      return res.status(404).json({ error: "Потребителят не е намерен" });
     }
 
     const billing = await billingService.getUserPremiumState(req.user, q.rows[0].role);
     res.json({ ...q.rows[0], billing });
   } catch (err) {
-    res.status(500).json({ error: "Failed to load profile" });
+    res.status(500).json({ error: "Неуспешно зареждане на профила" });
   }
 };
 
@@ -65,7 +65,7 @@ const updateProfile = async (req, res) => {
 
     res.json(q.rows[0]);
   } catch (err) {
-    res.status(500).json({ error: "Failed to update profile" });
+    res.status(500).json({ error: "Неуспешно обновяване на профила" });
   }
 };
 
@@ -91,7 +91,7 @@ const changePassword = async (req, res) => {
     );
 
     if (!userQ.rows.length) {
-      return res.status(404).json({ error: "User not found" });
+      return res.status(404).json({ error: "Потребителят не е намерен" });
     }
 
     const validPassword = await bcrypt.compare(current_password, userQ.rows[0].password_hash);
@@ -113,7 +113,7 @@ const changePassword = async (req, res) => {
 
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: "Failed to change password" });
+    res.status(500).json({ error: "Неуспешна смяна на паролата" });
   }
 };
 
@@ -145,7 +145,7 @@ const getNotificationPreferences = async (req, res) => {
       }
     );
   } catch (err) {
-    res.status(500).json({ error: "Failed to load notification preferences" });
+    res.status(500).json({ error: "Неуспешно зареждане на настройките за известия" });
   }
 };
 
@@ -208,7 +208,7 @@ const updateNotificationPreferences = async (req, res) => {
 
     res.json(q.rows[0]);
   } catch (err) {
-    res.status(500).json({ error: "Failed to update notification preferences" });
+    res.status(500).json({ error: "Неуспешно обновяване на настройките за известия" });
   }
 };
 

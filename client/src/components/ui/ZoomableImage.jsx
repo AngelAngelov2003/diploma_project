@@ -155,7 +155,7 @@ export default function ZoomableImage({
         type="button"
         className={`${styles.trigger} ${className}`.trim()}
         onClick={() => setOpen(true)}
-        aria-label={`Open ${alt}`}
+        aria-label={`Отвори ${alt}`}
       >
         {children || (
           <img
@@ -178,7 +178,7 @@ export default function ZoomableImage({
             type="button"
             className={styles.close}
             onClick={closePreview}
-            aria-label="Close image preview"
+            aria-label="Затвори прегледа на снимката"
           >
             ×
           </button>
@@ -191,7 +191,7 @@ export default function ZoomableImage({
               type="button"
               onClick={zoomOut}
               disabled={zoom <= MIN_ZOOM}
-              aria-label="Zoom out"
+              aria-label="Намали"
             >
               −
             </button>
@@ -202,7 +202,7 @@ export default function ZoomableImage({
               type="button"
               onClick={zoomIn}
               disabled={zoom >= MAX_ZOOM}
-              aria-label="Zoom in"
+              aria-label="Увеличи"
             >
               +
             </button>

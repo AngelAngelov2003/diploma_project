@@ -18,7 +18,7 @@ const DEFAULT_FORM = {
 };
 
 const formatDateTime = (value) => {
-  if (!value) return "Unknown";
+  if (!value) return "Неизвестно";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
   return date.toLocaleString();
@@ -61,7 +61,7 @@ export default function BecomeOwner() {
         email: prev.email || profile?.email || "",
       }));
     } catch (error) {
-      notifyError(error, "Failed to load owner application page");
+      notifyError(error, "Неуспешно зареждане на страницата за заявка за собственик");
     } finally {
       setLoading(false);
     }
@@ -100,7 +100,7 @@ export default function BecomeOwner() {
 
         setSearchResults(normalizedResults);
       } catch (error) {
-        notifyError(error, "Failed to search lakes");
+        notifyError(error, "Неуспешно търсене на водоеми");
       } finally {
         setSearchLoading(false);
       }
@@ -111,17 +111,17 @@ export default function BecomeOwner() {
 
   const handleSelectLake = (lake) => {
     if (!lake?.is_private) {
-      notifyError(null, "Only private lakes can be requested");
+      notifyError(null, "Заявка може да се подаде само за частни водоеми");
       return;
     }
 
     if (!lake?.is_reservable) {
-      notifyError(null, "This lake is not reservable yet");
+      notifyError(null, "Този водоем все още не приема резервации");
       return;
     }
 
     if (lake?.owner_id) {
-      notifyError(null, "This lake already has an owner");
+      notifyError(null, "Този водоем вече има собственик");
       return;
     }
 
@@ -136,22 +136,22 @@ export default function BecomeOwner() {
     event.preventDefault();
 
     if (!claimForm.selectedLakeId) {
-      notifyError(null, "Please search for and select your lake first");
+      notifyError(null, "Първо потърси и избери своя водоем");
       return;
     }
 
     if (!claimForm.full_name.trim()) {
-      notifyError(null, "Full name is required");
+      notifyError(null, "Име и фамилия е задължително");
       return;
     }
 
     if (!claimForm.email.trim()) {
-      notifyError(null, "Email is required");
+      notifyError(null, "Имейлът е задължителен");
       return;
     }
 
     if (!claimForm.proof_document) {
-      notifyError(null, "Please upload a proof document");
+      notifyError(null, "Моля, качи документ за доказателство");
       return;
     }
 
@@ -168,7 +168,7 @@ export default function BecomeOwner() {
 
       await submitClaimRequest(formData);
 
-      notifySuccess("Owner application submitted successfully");
+      notifySuccess("Заявката за собственик беше изпратена успешно");
       setClaimForm((prev) => ({
         ...DEFAULT_FORM,
         full_name: prev.full_name,
@@ -177,14 +177,14 @@ export default function BecomeOwner() {
       setSearchResults([]);
       await loadPage();
     } catch (error) {
-      notifyError(error, "Failed to submit owner application");
+      notifyError(error, "Неуспешно изпращане на заявката за собственик");
     } finally {
       setSubmitting(false);
     }
   };
 
   if (loading) {
-    return <div className={styles.loading}>Loading owner application...</div>;
+    return <div className={styles.loading}>Зареждане на заявката за собственик...</div>;
   }
 
   return (
@@ -193,22 +193,22 @@ export default function BecomeOwner() {
         <div className={styles.hero}>
           <div className={styles.heroEyebrow}>
             <FaUserShield />
-            <span>Become an Owner</span>
+            <span>Стани собственик</span>
           </div>
-          <h2 className={styles.heroTitle}>Become an Owner</h2>
+          <h2 className={styles.heroTitle}>Стани собственик</h2>
         </div>
 
         <div className={styles.stack}>
           <div className={styles.card}>
-            <h3 className={styles.sectionTitle}>Owner verification form</h3>
+            <h3 className={styles.sectionTitle}>Форма за верификация на собственик</h3>
             <form onSubmit={handleSubmit} className={styles.formStack}>
               <div>
-                <div className={styles.fieldLabel}>Search for your lake</div>
+                <div className={styles.fieldLabel}>Търсене на вашия водоем</div>
                 <input
                   className={styles.input}
                   type="text"
                   value={claimForm.lakeSearch}
-                  placeholder="Start typing the lake name"
+                  placeholder="Започни да пишеш името на водоема"
                   onChange={(event) =>
                     setClaimForm((prev) => ({
                       ...prev,
@@ -218,13 +218,13 @@ export default function BecomeOwner() {
                   }
                 />
                 <div className={styles.helperText}>
-                  Search for the existing private lake you own or manage. Only private lakes are shown. A lake can be
-                  selected only if it is reservable and does not already have an owner.
+                  Потърсете съществуващия частен водоем, който притежавате или управлявате. Показват се само частни водоеми. Водоем може да бъде
+                  избран само ако приема резервации и все още няма собственик.
                 </div>
 
-                {searchLoading ? <div className={styles.helperText}>Searching lakes...</div> : null}
+                {searchLoading ? <div className={styles.helperText}>Търсене на водоеми...</div> : null}
                 {!searchLoading && claimForm.lakeSearch.trim() && !searchResults.length ? (
-                  <div className={styles.helperText}>No private lakes matched your search.</div>
+                  <div className={styles.helperText}>Няма намерени частни водоеми.</div>
                 ) : null}
 
                 {!!searchResults.length && (
@@ -243,20 +243,20 @@ export default function BecomeOwner() {
                         >
                           <span className={styles.resultTitle}>{lake.name}</span>
                           <span className={styles.resultMeta}>
-                            {lake.type || "No type"}
-                            {lake.is_private ? " · Private" : " · Public"}
-                            {lake.is_reservable ? " · Reservable" : " · Not reservable"}
-                            {lake.owner_id ? " · Owned" : " · No owner"}
-                            {lake.canRequestOwnership ? " · Eligible" : " · Not eligible"}
+                            {lake.type || "Няма тип"}
+                            {lake.is_private ? " · Частен" : " · Публичен"}
+                            {lake.is_reservable ? " · Приема резервации" : " · Не приема резервации"}
+                            {lake.owner_id ? " · Има собственик" : " · Без собственик"}
+                            {lake.canRequestOwnership ? " · Подходящ" : " · Неподходящ"}
                           </span>
 
                           {!lake.canRequestOwnership ? (
                             <span className={styles.resultHint}>
                               {lake.owner_id
-                                ? "This lake already has an owner."
+                                ? "Този водоем вече има собственик."
                                 : !lake.is_reservable
-                                ? "This lake is not reservable yet."
-                                : "This lake cannot be requested yet."}
+                                ? "Този водоем все още не приема резервации."
+                                : "За този водоем все още не може да се подаде заявка."}
                             </span>
                           ) : null}
                         </button>
@@ -267,16 +267,16 @@ export default function BecomeOwner() {
 
                 {selectedLake ? (
                   <div className={styles.selectedLakeBox}>
-                    <div className={styles.selectedLakeTitle}>Selected lake</div>
+                    <div className={styles.selectedLakeTitle}>Избран водоем</div>
                     <div className={styles.selectedLakeName}>{selectedLake.name}</div>
-                    <div className={styles.helperText}>{selectedLake.description || "No description"}</div>
+                    <div className={styles.helperText}>{selectedLake.description || "Няма описание"}</div>
                   </div>
                 ) : null}
               </div>
 
               <div className={styles.formGrid}>
                 <div>
-                  <div className={styles.fieldLabel}>Full name</div>
+                  <div className={styles.fieldLabel}>Име и фамилия</div>
                   <input
                     className={styles.input}
                     type="text"
@@ -288,7 +288,7 @@ export default function BecomeOwner() {
                 </div>
 
                 <div>
-                  <div className={styles.fieldLabel}>Email</div>
+                  <div className={styles.fieldLabel}>Имейл</div>
                   <input
                     className={styles.input}
                     type="email"
@@ -300,7 +300,7 @@ export default function BecomeOwner() {
                 </div>
 
                 <div>
-                  <div className={styles.fieldLabel}>Phone</div>
+                  <div className={styles.fieldLabel}>Телефон</div>
                   <input
                     className={styles.input}
                     type="text"
@@ -312,7 +312,7 @@ export default function BecomeOwner() {
                 </div>
 
                 <div>
-                  <div className={styles.fieldLabel}>Company name (optional)</div>
+                  <div className={styles.fieldLabel}>Име на фирма (по желание)</div>
                   <input
                     className={styles.input}
                     type="text"
@@ -325,7 +325,7 @@ export default function BecomeOwner() {
               </div>
 
               <div>
-                <div className={styles.fieldLabel}>Message for the admin (optional)</div>
+                <div className={styles.fieldLabel}>Съобщение до администратора (по желание)</div>
                 <textarea
                   className={styles.textarea}
                   rows={4}
@@ -333,14 +333,15 @@ export default function BecomeOwner() {
                   onChange={(event) =>
                     setClaimForm((prev) => ({ ...prev, message: event.target.value }))
                   }
-                  placeholder="Add details such as ownership type, lease agreement, or anything that helps with review."
+                  placeholder="Добавете детайли като тип собственост, договор за наем или друга информация, която помага при прегледа."
                 />
               </div>
 
               <div>
-                <div className={styles.fieldLabel}>Proof document</div>
+                <div className={styles.fieldLabel}>Документ за доказване</div>
                 <input
-                  className={styles.input}
+                  id="owner-proof-document"
+                  style={{ display: "none" }}
                   type="file"
                   accept=".pdf,.png,.jpg,.jpeg"
                   onChange={(event) =>
@@ -350,21 +351,25 @@ export default function BecomeOwner() {
                     }))
                   }
                 />
-                <div className={styles.helperText}>Accepted formats: PDF, PNG, JPG, JPEG.</div>
+                <label htmlFor="owner-proof-document" className={styles.secondaryButton}>Избери файл</label>
+                <span className={styles.helperText} style={{ marginLeft: 10 }}>
+                  {claimForm.proof_document?.name || "Няма избран файл"}
+                </span>
+                <div className={styles.helperText}>Позволени формати: PDF, PNG, JPG, JPEG.</div>
               </div>
 
               <div className={styles.actionRow}>
                 <button className={styles.submitButton} type="submit" disabled={submitting}>
-                  {submitting ? "Submitting..." : "Submit owner application"}
+                  {submitting ? "Изпращане..." : "Изпрати заявка за собственик"}
                 </button>
               </div>
             </form>
           </div>
 
           <div className={styles.card}>
-            <h3 className={styles.sectionTitle}>My owner applications</h3>
+            <h3 className={styles.sectionTitle}>Моите заявки за собственик</h3>
             {!claimRequests.length ? (
-              <div className={styles.emptyText}>You have not submitted any ownership applications yet.</div>
+              <div className={styles.emptyText}>Все още не сте изпратили заявки за собственост.</div>
             ) : (
               <div className={styles.requestList}>
                 {claimRequests.map((item) => {
@@ -374,20 +379,20 @@ export default function BecomeOwner() {
                       <div className={styles.requestHeader}>
                         <div>
                           <div className={styles.requestTitle}>{item.lake_name}</div>
-                          <div className={styles.requestMeta}>Submitted: {formatDateTime(item.created_at)}</div>
+                          <div className={styles.requestMeta}>Изпратена: {formatDateTime(item.created_at)}</div>
                         </div>
                         <span className={styles.statusBadge} style={tone}>
                           {item.status.toUpperCase()}
                         </span>
                       </div>
-                      <div className={styles.requestMeta}>Contact email: {item.email}</div>
-                      {item.phone ? <div className={styles.requestMeta}>Phone: {item.phone}</div> : null}
+                      <div className={styles.requestMeta}>Имейл за контакт: {item.email}</div>
+                      {item.phone ? <div className={styles.requestMeta}>Телефон: {item.phone}</div> : null}
                       {item.company_name ? (
-                        <div className={styles.requestMeta}>Company: {item.company_name}</div>
+                        <div className={styles.requestMeta}>Фирма: {item.company_name}</div>
                       ) : null}
-                      {item.message ? <div className={styles.requestNote}>Your note: {item.message}</div> : null}
+                      {item.message ? <div className={styles.requestNote}>Вашата бележка: {item.message}</div> : null}
                       {item.admin_note ? (
-                        <div className={styles.requestNote}>Admin note: {item.admin_note}</div>
+                        <div className={styles.requestNote}>Бележка от администратор: {item.admin_note}</div>
                       ) : null}
                     </div>
                   );

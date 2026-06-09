@@ -114,14 +114,14 @@ def get_moon_phase_label(moon_phase):
     try:
         phase = float(moon_phase)
     except Exception:
-        return "unknown moon phase"
+        return "неизвестна лунна фаза"
     if phase <= 5 or phase >= 95:
-        return "new moon"
+        return "новолуние"
     if 45 <= phase <= 55:
-        return "full moon"
+        return "пълнолуние"
     if phase < 45:
-        return "waxing moon"
-    return "waning moon"
+        return "нарастваща луна"
+    return "намаляваща луна"
 
 
 def build_forecast_explanation(temp, pressure, wind, moon_phase, weather_score, moon_score, total_score, used_model):
@@ -129,49 +129,49 @@ def build_forecast_explanation(temp, pressure, wind, moon_phase, weather_score, 
     warnings = []
 
     if 15 <= temp <= 25:
-        reasons.append("Temperature is in a strong fishing range")
+        reasons.append("Температурата е в благоприятен диапазон за риболов")
     elif temp < 5:
-        warnings.append("Very cold water conditions may reduce activity")
+        warnings.append("Много студената вода може да намали активността")
     elif temp > 30:
-        warnings.append("High temperature may reduce fish activity during the day")
+        warnings.append("Високата температура може да намали активността на рибата през деня")
     else:
-        reasons.append("Temperature is usable but not ideal")
+        reasons.append("Температурата е приемлива, но не е идеална")
 
     if 1012 <= pressure <= 1018:
-        reasons.append("Air pressure is stable and favorable")
+        reasons.append("Атмосферното налягане е стабилно и благоприятно")
     elif pressure < 1000 or pressure > 1030:
-        warnings.append("Pressure is outside the preferred range")
+        warnings.append("Налягането е извън предпочитания диапазон")
     else:
-        reasons.append("Pressure is acceptable")
+        reasons.append("Налягането е приемливо")
 
     if wind < 10:
-        reasons.append("Low wind should make fishing conditions easier")
+        reasons.append("Слабият вятър прави условията за риболов по-лесни")
     elif wind > 30:
-        warnings.append("Strong wind may make fishing harder")
+        warnings.append("Силният вятър може да затрудни риболова")
     else:
-        reasons.append("Wind is moderate")
+        reasons.append("Вятърът е умерен")
 
     if moon_score >= 80:
-        reasons.append(f"Moon phase is favorable ({get_moon_phase_label(moon_phase)})")
+        reasons.append(f"Лунната фаза е благоприятна ({get_moon_phase_label(moon_phase)})")
     elif moon_score <= 30:
-        warnings.append(f"Moon phase is less favorable ({get_moon_phase_label(moon_phase)})")
+        warnings.append(f"Лунната фаза е по-неблагоприятна ({get_moon_phase_label(moon_phase)})")
     else:
-        reasons.append(f"Moon phase is neutral ({get_moon_phase_label(moon_phase)})")
+        reasons.append(f"Лунната фаза е неутрална ({get_moon_phase_label(moon_phase)})")
 
     if total_score >= 80:
-        summary = "Excellent fishing conditions expected."
+        summary = "Очакват се отлични условия за риболов."
     elif total_score >= 65:
-        summary = "Good fishing conditions expected."
+        summary = "Очакват се добри условия за риболов."
     elif total_score >= 50:
-        summary = "Average fishing conditions expected."
+        summary = "Очакват се средни условия за риболов."
     else:
-        summary = "Weak fishing conditions expected."
+        summary = "Очакват се слаби условия за риболов."
 
     return {
         "summary": summary,
         "reasons": reasons,
         "warnings": warnings,
-        "model_note": "Score combines ML prediction with weather and moon factors." if used_model else "ML model was unavailable, so a heuristic forecast was used.",
+        "model_note": "Оценката комбинира ML прогноза с фактори от времето и луната." if used_model else "ML моделът не беше наличен, затова беше използвана евристична прогноза.",
         "factors": {
             "weather_score": clamp_score(weather_score),
             "moon_score": clamp_score(moon_score),

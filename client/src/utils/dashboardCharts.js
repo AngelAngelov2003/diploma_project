@@ -3,7 +3,7 @@ import { toDateOnlyKey } from "./date";
 export const buildTopSpecies = (logs, limit = 10) => {
   const group = new Map();
   for (const c of logs) {
-    const key = c.species || "Unknown";
+    const key = c.species || "Неизвестно";
     group.set(key, (group.get(key) || 0) + 1);
   }
   return Array.from(group.entries())
@@ -15,7 +15,7 @@ export const buildTopSpecies = (logs, limit = 10) => {
 export const buildTopLakes = (logs, limit = 10) => {
   const group = new Map();
   for (const c of logs) {
-    const key = c.lake_name || c.water_body_name || "Unknown";
+    const key = c.lake_name || c.water_body_name || "Неизвестно";
     group.set(key, (group.get(key) || 0) + 1);
   }
   return Array.from(group.entries())
@@ -40,7 +40,7 @@ export const buildTrendByDay = (logs) => {
 export const buildAvgWeightBySpecies = (logs, limit = 10) => {
   const sums = new Map();
   for (const c of logs) {
-    const sp = c.species || "Unknown";
+    const sp = c.species || "Неизвестно";
     const w = c.weight_kg != null ? Number(c.weight_kg) : NaN;
     if (!Number.isFinite(w)) continue;
     const cur = sums.get(sp) || { sum: 0, count: 0 };

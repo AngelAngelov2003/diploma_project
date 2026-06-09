@@ -30,6 +30,7 @@ import { notifyError, notifySuccess } from "../ui/toast";
 import { formatCurrency } from "../utils/formatCurrency";
 import DatePicker from "../components/ui/DatePicker";
 import ZoomableImage from "../components/ui/ZoomableImage";
+import Pagination from "../components/ui/Pagination";
 import styles from "./OwnerPanel.module.css";
 
 const DEFAULT_ROOM_FORM = {
@@ -40,9 +41,19 @@ const DEFAULT_ROOM_FORM = {
   sort_order: 0,
 };
 
+const DEFAULT_ROOM_BULK_FORM = {
+  prefix: "Стая",
+  from: 1,
+  to: 5,
+  capacity: 2,
+  price_per_night: 30,
+  is_active: true,
+};
+
 const SPOTS_PAGE_SIZE = 12;
 const BILLING_TRANSACTIONS_PAGE_SIZE = 8;
 const MONTHLY_REPORTS_PAGE_SIZE = 4;
+const ROOMS_PAGE_SIZE = 5;
 
 const getUploadUrl = (imageUrl) => {
   if (!imageUrl) return "";
@@ -53,13 +64,13 @@ const getUploadUrl = (imageUrl) => {
 const parseMoneyInput = (value) => value.replace(/[^0-9.]/g, "").replace(/(\..*)\./g, "$1");
 
 const TAB_ITEMS = [
-  { key: "overview", label: "Overview" },
-  { key: "reservations", label: "Reservations" },
-  { key: "spots", label: "Fishing Spots" },
-  { key: "rooms", label: "Housing / Rooms" },
-  { key: "gallery", label: "Gallery & Media" },
-  { key: "blocked", label: "Blocked Dates" },
-  { key: "billing", label: "Billing & Earnings" },
+  { key: "overview", label: "Обзор" },
+  { key: "reservations", label: "Резервации" },
+  { key: "spots", label: "Риболовни места" },
+  { key: "rooms", label: "Настаняване / стаи" },
+  { key: "gallery", label: "Галерия и медия" },
+  { key: "blocked", label: "Блокирани дати" },
+  { key: "billing", label: "Плащания и приходи" },
 ];
 
 const normalizeLakePayload = (lake) => ({
@@ -80,17 +91,17 @@ const normalizeLakePayload = (lake) => ({
 });
 
 const formatDate = (value) => {
-  if (!value) return "Unknown date";
+  if (!value) return "Неизвестна дата";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
   return date.toLocaleDateString();
 };
 
 const formatDateTime = (value) => {
-  if (!value) return "Unknown time";
+  if (!value) return "Неизвестен час";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString();
+  return date.toLocaleString("bg-BG");
 };
 
 const getTodayDateString = () => new Date().toISOString().slice(0, 10);
@@ -108,16 +119,16 @@ const getReservedSpotNumbers = (item) => (
 
 const formatReservedSpots = (item) => {
   const numbers = getReservedSpotNumbers(item);
-  if (numbers.length) return `${numbers.length} selected`;
+  if (numbers.length) return `${numbers.length} избрани`;
   const count = Number(item?.requested_spots || item?.people_count || 1);
-  return `${count} requested`;
+  return `${count} заявени`;
 };
 
 const getReservationPaymentLabel = (reservation) => {
-  if (reservation?.payment_status === "paid") return "Paid";
-  if (reservation?.status === "approved_waiting_payment") return "Waiting for user payment";
-  if (reservation?.payment_status === "checkout_started") return "Checkout started";
-  return reservation?.payment_required ? "Payment required" : "Manual / unpaid";
+  if (reservation?.payment_status === "paid") return "Платено";
+  if (reservation?.status === "approved_waiting_payment") return "Очаква плащане от потребителя";
+  if (reservation?.payment_status === "checkout_started") return "Плащането е започнато";
+  return reservation?.payment_required ? "Изисква се плащане" : "Ръчно / неплатено";
 };
 
 function ReservedSpotsBadge({ reservation }) {
@@ -125,14 +136,14 @@ function ReservedSpotsBadge({ reservation }) {
 
   return (
     <span className={`${styles.mutedBadge} ${styles.reservationSpotBadge}`}>
-      <span>Reserved spots: {formatReservedSpots(reservation)}</span>
+      <span>Запазени места: {formatReservedSpots(reservation)}</span>
       {numbers.length ? (
         <details className={styles.reservationSpotDetails}>
-          <summary>View spot numbers</summary>
+          <summary>Виж номерата на местата</summary>
           <span className={styles.reservationSpotList}>
             {numbers.map((value) => (
               <span key={value} className={styles.reservationSpotPill}>
-                Spot {value}
+                Място {value}
               </span>
             ))}
           </span>
@@ -145,32 +156,32 @@ function ReservedSpotsBadge({ reservation }) {
 const OWNER_RESERVATION_FILTERS = ["pending", "approved_waiting_payment", "approved", "rejected", "cancelled", "all"];
 
 const getLakeModeLabel = (lake) => {
-  if (lake.is_private && lake.is_reservable) return "Private & reservable";
-  if (lake.is_private) return "Private";
-  if (lake.is_reservable) return "Reservable";
-  return "Public";
+  if (lake.is_private && lake.is_reservable) return "Частен и с резервации";
+  if (lake.is_private) return "Частен";
+  if (lake.is_reservable) return "Приема резервации";
+  return "Публичен";
 };
 
 const getTabDescription = (tabKey) => {
   if (tabKey === "overview") {
-    return "Manage the main lake settings, booking rules, and pricing from one focused place.";
+    return "Управлявайте основните настройки, правилата за резервации и цените на водоема от едно място.";
   }
   if (tabKey === "reservations") {
-    return "Review booking requests and check spot availability for selected dates.";
+    return "Преглеждайте заявки за резервации и проверявайте наличността за избрани дати.";
   }
   if (tabKey === "spots") {
-    return "Create and manage individual fishing spots for this lake.";
+    return "Създавайте и управлявайте отделни риболовни места за този водоем.";
   }
   if (tabKey === "rooms") {
-    return "Create accommodation options like cabins or bungalows for guests.";
+    return "Създавайте опции за настаняване като къщи или бунгала за гости.";
   }
   if (tabKey === "gallery") {
-    return "Upload and manage the media shown for this lake.";
+    return "Качвайте и управлявайте медията, която се показва за този водоем.";
   }
   if (tabKey === "blocked") {
-    return "Prevent reservations on dates reserved for maintenance, events, or private use.";
+    return "Предотвратете резервации за дати, запазени за поддръжка, събития или частно ползване.";
   }
-  return "Track lake revenue, platform fees, owner earnings, monthly reports, and Stripe payout readiness.";
+  return "Следете приходи от водоема, такси на платформата, печалба на собственика, месечни отчети и готовност за Stripe изплащания.";
 };
 
 const LabeledInput = ({ label, children, hint }) => (
@@ -216,6 +227,8 @@ export default function OwnerPanel() {
   const [activeTabByLake, setActiveTabByLake] = useState({});
   const [roomModalByLake, setRoomModalByLake] = useState({});
   const [roomDraftByLake, setRoomDraftByLake] = useState({});
+  const [roomBulkDraftByLake, setRoomBulkDraftByLake] = useState({});
+  const [roomPageByLake, setRoomPageByLake] = useState({});
   const [spotPageByLake, setSpotPageByLake] = useState({});
   const [billingTransactionPageByLake, setBillingTransactionPageByLake] = useState({});
   const [monthlyReportPageByLake, setMonthlyReportPageByLake] = useState({});
@@ -308,13 +321,13 @@ export default function OwnerPanel() {
 
       if (shouldOpenBilling) {
         if (params.get("checkout") === "success") {
-          notifySuccess("Payout setup updated.");
+          notifySuccess("Настройката за изплащания е обновена.");
         }
         if (params.get("connect") === "return") {
-          notifySuccess("Stripe Connect onboarding returned. Refresh payout status to confirm the latest state.");
+          notifySuccess("Stripe Connect настройката се върна. Обновете статуса, за да потвърдите последното състояние.");
         }
         if (params.get("connect") === "refresh") {
-          notifyError("Stripe onboarding link expired. Please start onboarding again.");
+          notifyError("Stripe onboarding линкът е изтекъл. Стартирайте настройката отново.");
         }
         window.history.replaceState({}, "", "/owner");
       }
@@ -331,7 +344,7 @@ export default function OwnerPanel() {
         Object.fromEntries(normalizedLakes.map((lake) => [lake.id, "pending"]))
       );
     } catch (error) {
-      notifyError(error, "Failed to load owner lakes");
+      notifyError(error, "Неуспешно зареждане на водоемите на собственика");
       setLakes([]);
     } finally {
       setLoading(false);
@@ -380,7 +393,7 @@ export default function OwnerPanel() {
 
   const handleSaveLake = async (lake) => {
     if (lake.allows_night_fishing && Number(lake.night_fishing_price || 0) <= 0) {
-      notifyError(null, "Add a valid night fishing price before saving");
+      notifyError(null, "Добавете валидна цена за нощен риболов преди запазване");
       return;
     }
 
@@ -390,9 +403,9 @@ export default function OwnerPanel() {
       setLakes((prev) =>
         prev.map((item) => (item.id === lake.id ? { ...item, ...updatedLake } : item))
       );
-      notifySuccess("Lake settings updated");
+      notifySuccess("Настройките на водоема са обновени");
     } catch (error) {
-      notifyError(error, "Failed to update lake settings");
+      notifyError(error, "Неуспешно обновяване на настройките на водоема");
     } finally {
       setSavingId("");
     }
@@ -404,7 +417,7 @@ export default function OwnerPanel() {
     const reason = blockedReasonInputs[lakeId] || "";
 
     if (!start_date || !end_date) {
-      notifyError(null, "Choose a start and end date first");
+      notifyError(null, "Първо изберете начална и крайна дата");
       return;
     }
 
@@ -421,9 +434,9 @@ export default function OwnerPanel() {
       setBlockedDateInputs((prev) => ({ ...prev, [lakeId]: "" }));
       setBlockedEndDateInputs((prev) => ({ ...prev, [lakeId]: "" }));
       setBlockedReasonInputs((prev) => ({ ...prev, [lakeId]: "" }));
-      notifySuccess("Blocked date range saved");
+      notifySuccess("Диапазонът от блокирани дати е запазен");
     } catch (error) {
-      notifyError(error, "Failed to save blocked date range");
+      notifyError(error, "Неуспешно запазване на блокираните дати");
     } finally {
       setBusyLakeId("");
     }
@@ -437,9 +450,9 @@ export default function OwnerPanel() {
         ...prev,
         [lakeId]: (prev[lakeId] || []).filter((item) => item.id !== blockedDateId),
       }));
-      notifySuccess("Blocked date removed");
+      notifySuccess("Блокираната дата е премахната");
     } catch (error) {
-      notifyError(error, "Failed to delete blocked date");
+      notifyError(error, "Неуспешно изтриване на блокираната дата");
     } finally {
       setBusyLakeId("");
     }
@@ -449,7 +462,7 @@ export default function OwnerPanel() {
     const spotsCount = Number(lake.spots_count || 0);
 
     if (!Number.isInteger(spotsCount) || spotsCount < 0) {
-      notifyError(null, "Spots count must be 0 or more");
+      notifyError(null, "Броят места трябва да е 0 или повече");
       return;
     }
 
@@ -470,9 +483,9 @@ export default function OwnerPanel() {
         )
       );
 
-      notifySuccess("Fishing spots updated");
+      notifySuccess("Риболовните места са обновени");
     } catch (error) {
-      notifyError(error, "Failed to generate fishing spots");
+      notifyError(error, "Неуспешно генериране на риболовни места");
     } finally {
       setBusyLakeId("");
     }
@@ -492,18 +505,41 @@ export default function OwnerPanel() {
         ),
       }));
 
-      notifySuccess("Spot updated");
+      notifySuccess("Мястото е обновено");
     } catch (error) {
-      notifyError(error, "Failed to update spot");
+      notifyError(error, "Неуспешно обновяване на мястото");
     } finally {
       setBusyLakeId("");
     }
   };
 
+  const getNextRoomNumber = (lakeId) => {
+    const rooms = roomsByLake[lakeId] || [];
+    const highestNumber = rooms.reduce((max, room) => {
+      const match = String(room.name || "").match(/(\d+)\s*$/);
+      return match ? Math.max(max, Number(match[1])) : max;
+    }, 0);
+    return highestNumber + 1;
+  };
+
   const openCreateRoomModal = (lakeId) => {
+    const nextRoomNumber = getNextRoomNumber(lakeId);
+    const defaultSingleRoom = {
+      ...(newRoomByLake[lakeId] || DEFAULT_ROOM_FORM),
+      name: `Стая ${nextRoomNumber}`,
+    };
+
     setRoomDraftByLake((prev) => ({
       ...prev,
-      [lakeId]: { ...(newRoomByLake[lakeId] || DEFAULT_ROOM_FORM) },
+      [lakeId]: defaultSingleRoom,
+    }));
+    setRoomBulkDraftByLake((prev) => ({
+      ...prev,
+      [lakeId]: {
+        ...(prev[lakeId] || DEFAULT_ROOM_BULK_FORM),
+        from: nextRoomNumber,
+        to: nextRoomNumber + 4,
+      },
     }));
     setRoomModalByLake((prev) => ({ ...prev, [lakeId]: true }));
   };
@@ -522,11 +558,21 @@ export default function OwnerPanel() {
     }));
   };
 
+  const handleRoomBulkDraftChange = (lakeId, field, value) => {
+    setRoomBulkDraftByLake((prev) => ({
+      ...prev,
+      [lakeId]: {
+        ...(prev[lakeId] || DEFAULT_ROOM_BULK_FORM),
+        [field]: value,
+      },
+    }));
+  };
+
   const handleCreateRoom = async (lakeId) => {
     const payload = roomDraftByLake[lakeId] || newRoomByLake[lakeId] || DEFAULT_ROOM_FORM;
 
     if (!String(payload.name || "").trim()) {
-      notifyError(null, "Add a room name first");
+      notifyError(null, "Първо добавете име на стая");
       return;
     }
 
@@ -546,9 +592,68 @@ export default function OwnerPanel() {
         [lakeId]: { ...DEFAULT_ROOM_FORM },
       }));
       setRoomModalByLake((prev) => ({ ...prev, [lakeId]: false }));
-      notifySuccess("Room added");
+      notifySuccess("Стаята е добавена");
     } catch (error) {
-      notifyError(error, "Failed to create room");
+      notifyError(error, "Неуспешно създаване на стая");
+    } finally {
+      setBusyLakeId("");
+    }
+  };
+
+  const handleCreateRoomBatch = async (lakeId) => {
+    const draft = roomBulkDraftByLake[lakeId] || DEFAULT_ROOM_BULK_FORM;
+    const prefix = String(draft.prefix || "Стая").trim();
+    const from = Number(draft.from || 1);
+    const to = Number(draft.to || from);
+    const capacity = Number(draft.capacity || 1);
+    const pricePerNight = Number(draft.price_per_night || 0);
+
+    if (!prefix) {
+      notifyError(null, "Добавете префикс за имената");
+      return;
+    }
+    if (!Number.isInteger(from) || !Number.isInteger(to) || from < 1 || to < from) {
+      notifyError(null, "Въведете валиден диапазон от номера");
+      return;
+    }
+    if (to - from + 1 > 100) {
+      notifyError(null, "Можете да добавите максимум 100 стаи наведнъж");
+      return;
+    }
+    if (!Number.isInteger(capacity) || capacity < 1) {
+      notifyError(null, "Капацитетът трябва да е поне 1");
+      return;
+    }
+    if (!Number.isFinite(pricePerNight) || pricePerNight < 0) {
+      notifyError(null, "Цената трябва да е 0 или повече");
+      return;
+    }
+
+    try {
+      setBusyLakeId(lakeId);
+      const createdRooms = [];
+      for (let number = from; number <= to; number += 1) {
+        const created = await createLakeRoom(lakeId, {
+          name: `${prefix} ${number}`,
+          capacity,
+          price_per_night: pricePerNight,
+          is_active: Boolean(draft.is_active),
+          sort_order: number,
+        });
+        createdRooms.push(created);
+      }
+      setRoomsByLake((prev) => ({
+        ...prev,
+        [lakeId]: [...(prev[lakeId] || []), ...createdRooms],
+      }));
+      setRoomBulkDraftByLake((prev) => ({
+        ...prev,
+        [lakeId]: { ...DEFAULT_ROOM_BULK_FORM, from: to + 1, to: to + 5 },
+      }));
+      setRoomModalByLake((prev) => ({ ...prev, [lakeId]: false }));
+      notifySuccess(`Добавени са ${createdRooms.length} стаи`);
+    } catch (error) {
+      notifyError(error, "Неуспешно добавяне на стаи");
     } finally {
       setBusyLakeId("");
     }
@@ -564,9 +669,9 @@ export default function OwnerPanel() {
           item.id === room.id ? updated : item
         ),
       }));
-      notifySuccess("Room updated");
+      notifySuccess("Стаята е обновена");
     } catch (error) {
-      notifyError(error, "Failed to update room");
+      notifyError(error, "Неуспешно обновяване на стаята");
     } finally {
       setBusyLakeId("");
     }
@@ -580,9 +685,9 @@ export default function OwnerPanel() {
         ...prev,
         [lakeId]: (prev[lakeId] || []).filter((item) => item.id !== roomId),
       }));
-      notifySuccess("Room removed");
+      notifySuccess("Стаята е премахната");
     } catch (error) {
-      notifyError(error, "Failed to delete room");
+      notifyError(error, "Неуспешно изтриване на стаята");
     } finally {
       setBusyLakeId("");
     }
@@ -592,7 +697,7 @@ export default function OwnerPanel() {
     const files = photoFilesByLake[lakeId] || [];
 
     if (!files.length) {
-      notifyError(null, "Choose at least one image first");
+      notifyError(null, "Първо избери поне една снимка");
       return;
     }
 
@@ -613,12 +718,12 @@ export default function OwnerPanel() {
       setPhotoCaptionsByLake((prev) => ({ ...prev, [lakeId]: [] }));
       setPhotoPreviewsByLake((prev) => ({ ...prev, [lakeId]: [] }));
       if (failedItems.length) {
-        notifySuccess(`${uploadedItems.length} uploaded, ${failedItems.length} failed`);
+        notifySuccess(`${uploadedItems.length} качени, ${failedItems.length} неуспешни`);
       } else {
-        notifySuccess(uploadedItems.length > 1 ? "Lake photos uploaded" : "Lake photo uploaded");
+        notifySuccess(uploadedItems.length > 1 ? "Снимките на водоема са качени" : "Снимката на водоема е качена");
       }
     } catch (error) {
-      notifyError(error, "Failed to upload photo");
+      notifyError(error, "Неуспешно качване на снимка");
     } finally {
       setBusyLakeId("");
     }
@@ -632,9 +737,9 @@ export default function OwnerPanel() {
         ...prev,
         [lakeId]: (prev[lakeId] || []).filter((item) => item.id !== photoId),
       }));
-      notifySuccess("Photo removed");
+      notifySuccess("Снимката е премахната");
     } catch (error) {
-      notifyError(error, "Failed to delete photo");
+      notifyError(error, "Неуспешно изтриване на снимка");
     } finally {
       setBusyLakeId("");
     }
@@ -648,9 +753,9 @@ export default function OwnerPanel() {
         ...prev,
         [lakeId]: (prev[lakeId] || []).filter((item) => item.id !== catchId),
       }));
-      notifySuccess("User catch photo removed");
+      notifySuccess("Снимката към улова на потребителя е премахната");
     } catch (error) {
-      notifyError(error, "Failed to remove user catch photo");
+      notifyError(error, "Неуспешно премахване на снимката към улова на потребителя");
     } finally {
       setBusyLakeId("");
     }
@@ -666,7 +771,7 @@ export default function OwnerPanel() {
     try {
       setBusyLakeId(lakeId);
       await updateReservationStatus(reservationId, status);
-      notifySuccess("Reservation updated");
+      notifySuccess("Резервацията е обновена");
       await refreshOwnerLakeReservations(lakeId);
       const selectedDate = spotAvailabilityDateByLake[lakeId];
       if (selectedDate) {
@@ -674,7 +779,7 @@ export default function OwnerPanel() {
         setSpotAvailabilityByLake((prev) => ({ ...prev, [lakeId]: availability }));
       }
     } catch (error) {
-      notifyError(error, "Failed to update reservation");
+      notifyError(error, "Неуспешно обновяване на резервацията");
     } finally {
       setBusyLakeId("");
     }
@@ -693,7 +798,7 @@ export default function OwnerPanel() {
       const availability = await getOwnerLakeSpotAvailability(lakeId, nextDate);
       setSpotAvailabilityByLake((prev) => ({ ...prev, [lakeId]: availability }));
     } catch (error) {
-      notifyError(error, "Failed to load spot availability");
+      notifyError(error, "Неуспешно зареждане на наличност на местата");
       setSpotAvailabilityByLake((prev) => ({ ...prev, [lakeId]: null }));
     } finally {
       setBusyLakeId("");
@@ -720,15 +825,15 @@ export default function OwnerPanel() {
   );
 
   const handleReportCatchUser = async (lakeId, catchItem) => {
-    const reason = window.prompt("Why do you want to report this user/catch photo?");
+    const reason = window.prompt("Защо искате да докладвате този потребител/снимка на улов?");
     if (!reason || !reason.trim()) return;
 
     try {
       setBusyLakeId(lakeId);
       await reportOwnerLakeCatch(lakeId, catchItem.id, { reason: reason.trim() });
-      notifySuccess("Report sent to admin");
+      notifySuccess("Сигналът е изпратен до администратор");
     } catch (error) {
-      notifyError(error, "Failed to report user");
+      notifyError(error, "Неуспешно докладване на потребителя");
     } finally {
       setBusyLakeId("");
     }
@@ -743,9 +848,9 @@ export default function OwnerPanel() {
       setMonthlyReportPageByLake((prev) => ({ ...prev, [lakeId]: 1 }));
       const revenueSummary = await getOwnerRevenueSummary().catch(() => null);
       if (revenueSummary) setOwnerRevenue(revenueSummary);
-      notifySuccess("Earnings refreshed");
+      notifySuccess("Приходите са обновени");
     } catch (error) {
-      notifyError(error, "Failed to refresh earnings");
+      notifyError(error, "Неуспешно обновяване на приходите");
     } finally {
       setBusyLakeId("");
     }
@@ -762,7 +867,7 @@ export default function OwnerPanel() {
         ]);
         setOwnerBilling(state);
         if (revenueSummary) setOwnerRevenue(revenueSummary);
-        notifySuccess("Payout status refreshed");
+        notifySuccess("Статусът за изплащания е обновен");
         return;
       }
       if (action === "portal" || action === "upgrade") {
@@ -775,7 +880,7 @@ export default function OwnerPanel() {
       const data = await billingApi.startOwnerConnectOnboarding();
       if (data?.url) window.location.href = data.url;
     } catch (error) {
-      notifyError(error, "Billing action failed");
+      notifyError(error, "Неуспешно действие за плащания");
     } finally {
       setBusyLakeId("");
     }
@@ -783,7 +888,7 @@ export default function OwnerPanel() {
 
 
   if (loading) {
-    return <div className={styles.loading}>Loading owner panel...</div>;
+    return <div className={styles.loading}>Зареждане на панела на собственика...</div>;
   }
 
   return (
@@ -792,14 +897,14 @@ export default function OwnerPanel() {
         <div className={styles.hero}>
           <div className={styles.heroEyebrow}>
             <FaUserCog />
-            <span>Owner Panel</span>
+            <span>Панел на собственика</span>
           </div>
-          <h2 className={styles.heroTitle}>Owner Panel</h2>
+          <h2 className={styles.heroTitle}>Панел на собственика</h2>
         </div>
 
         {!lakes.length ? (
           <div className={styles.card}>
-            <h3 className={styles.sectionTitle}>No approved lakes yet</h3>
+            <h3 className={styles.sectionTitle}>Все още няма одобрени водоеми</h3>
             <div className={styles.emptyState}>
               When an administrator approves your ownership request, your lakes will
               appear here.
@@ -810,7 +915,12 @@ export default function OwnerPanel() {
             {lakes.map((lake) => {
               const activeTab = activeTabByLake[lake.id] || "overview";
               const spotCount = spotsByLake[lake.id]?.length || 0;
-              const roomCount = roomsByLake[lake.id]?.length || 0;
+              const allRooms = roomsByLake[lake.id] || [];
+              const roomCount = allRooms.length;
+              const roomPage = Math.min(Math.max(1, roomPageByLake[lake.id] || 1), Math.max(1, Math.ceil(roomCount / ROOMS_PAGE_SIZE)));
+              const roomStartIndex = (roomPage - 1) * ROOMS_PAGE_SIZE;
+              const paginatedRooms = allRooms.slice(roomStartIndex, roomStartIndex + ROOMS_PAGE_SIZE);
+              const roomTotalPages = Math.max(1, Math.ceil(roomCount / ROOMS_PAGE_SIZE));
               const photoCount = photosByLake[lake.id]?.length || 0;
               const blockedCount = blockedDatesByLake[lake.id]?.length || 0;
               const ownerReservations = reservationsByLake[lake.id] || [];
@@ -823,6 +933,7 @@ export default function OwnerPanel() {
               const spotAvailability = spotAvailabilityByLake[lake.id] || null;
               const roomModalOpen = Boolean(roomModalByLake[lake.id]);
               const roomDraft = roomDraftByLake[lake.id] || DEFAULT_ROOM_FORM;
+              const roomBulkDraft = roomBulkDraftByLake[lake.id] || DEFAULT_ROOM_BULK_FORM;
               const sortedSpots = [...(spotsByLake[lake.id] || [])].sort(
                 (a, b) => Number(a.spot_number) - Number(b.spot_number)
               );
@@ -858,38 +969,37 @@ export default function OwnerPanel() {
                         <h3 className={styles.lakeTitle}>{lake.name}</h3>
                         <span className={styles.modeBadge}>{getLakeModeLabel(lake)}</span>
                         {lake.allows_night_fishing ? (
-                          <span className={styles.successBadge}>Night fishing</span>
+                          <span className={styles.successBadge}>Нощен риболов</span>
                         ) : null}
                         {lake.has_housing ? (
-                          <span className={styles.warningBadge}>Housing</span>
+                          <span className={styles.warningBadge}>Настаняване</span>
                         ) : null}
                       </div>
 
                       <div className={styles.metaText}>
-                        {lake.type || "No type"} · {formatCurrency(lake.price_per_day || 0)} per
-                        day · fallback capacity {lake.capacity || 1}
+                        {lake.type || "Няма тип"} · {formatCurrency(lake.price_per_day || 0)} на ден · резервен капацитет {lake.capacity || 1}
                       </div>
                     </div>
 
                     <div className={styles.headerMetrics}>
                       <div className={styles.metricPill}>
-                        <span className={styles.metricLabel}>Spots</span>
+                        <span className={styles.metricLabel}>Места</span>
                         <span className={styles.metricValue}>{spotCount}</span>
                       </div>
                       <div className={styles.metricPill}>
-                        <span className={styles.metricLabel}>Rooms</span>
+                        <span className={styles.metricLabel}>Стаи</span>
                         <span className={styles.metricValue}>{roomCount}</span>
                       </div>
                       <div className={styles.metricPill}>
-                        <span className={styles.metricLabel}>Photos</span>
+                        <span className={styles.metricLabel}>Снимки</span>
                         <span className={styles.metricValue}>{photoCount}</span>
                       </div>
                       <div className={styles.metricPill}>
-                        <span className={styles.metricLabel}>Pending</span>
+                        <span className={styles.metricLabel}>Чакащи</span>
                         <span className={styles.metricValue}>{pendingReservationCount}</span>
                       </div>
                       <div className={styles.metricPill}>
-                        <span className={styles.metricLabel}>Blocked</span>
+                        <span className={styles.metricLabel}>Блокирани</span>
                         <span className={styles.metricValue}>{blockedCount}</span>
                       </div>
                     </div>
@@ -922,10 +1032,10 @@ export default function OwnerPanel() {
                   {!hasOwnerPro ? (
                     <div className={styles.ownerProNotice}>
                       <div>
-                        <strong>Commission model</strong>
-                        <span> Owners do not pay a monthly subscription. Online payments require completed Stripe payout setup.</span>
+                        <strong>Модел на комисиона</strong>
+                        <span> Собствениците не плащат месечен абонамент. Онлайн плащанията изискват завършена Stripe настройка за изплащания.</span>
                       </div>
-                      <button type="button" onClick={goToOwnerBilling}>Upgrade</button>
+                      <button type="button" onClick={goToOwnerBilling}>Надгради</button>
                     </div>
                   ) : null}
 
@@ -935,7 +1045,7 @@ export default function OwnerPanel() {
                         {!hasOwnerPro ? (
                           <SectionCard
                             title="Owner business tools"
-                            subtitle="These tools use the commission model instead of an owner subscription."
+                            subtitle="Тези инструменти използват модел с комисиона вместо абонамент за собственика."
                           >
                             <div className={styles.ownerProLockGrid}>
                               {renderOwnerProLock({
@@ -955,21 +1065,21 @@ export default function OwnerPanel() {
                         ) : (
                           <SectionCard
                             title="Owner business tools"
-                            subtitle="Your owner tools are active for this lake."
+                            subtitle="Инструментите за собственика са активни за този водоем."
                           >
                             <div className={styles.ownerProActiveGrid}>
                               <div className={styles.ownerProActiveTile}>
                                 <FaChartLine />
                                 <div>
-                                  <strong>Revenue analytics active</strong>
-                                  <span>Reservation and earnings dashboards are ready for the next payment phase.</span>
+                                  <strong>Анализите на приходите са активни</strong>
+                                  <span>Таблата за резервации и приходи са готови за следващия етап с плащания.</span>
                                 </div>
                               </div>
                               <div className={styles.ownerProActiveTile}>
                                 <FaMoneyBillWave />
                                 <div>
-                                  <strong>Paid booking foundation active</strong>
-                                  <span>This lake can use Stripe reservation checkout after payout onboarding is complete.</span>
+                                  <strong>Основата за платени резервации е активна</strong>
+                                  <span>Този водоем може да използва Stripe плащане за резервации след завършване на настройката за изплащания.</span>
                                 </div>
                               </div>
                             </div>
@@ -978,7 +1088,7 @@ export default function OwnerPanel() {
 
                         <SectionCard
                           title="Booking settings"
-                          subtitle="High-impact controls for reservations, night fishing, and housing."
+                          subtitle="Основни настройки за резервации, нощен риболов и настаняване."
                           actions={
                             <button
                               type="button"
@@ -986,7 +1096,7 @@ export default function OwnerPanel() {
                               disabled={savingId === lake.id}
                               onClick={() => handleSaveLake(lake)}
                             >
-                              {savingId === lake.id ? "Saving..." : "Save changes"}
+                              {savingId === lake.id ? "Запазване..." : "Запази changes"}
                             </button>
                           }
                         >
@@ -1000,7 +1110,7 @@ export default function OwnerPanel() {
                                 }
                               />
                               <div>
-                                <div className={styles.settingTitle}>Private lake</div>
+                                <div className={styles.settingTitle}>Частен водоем</div>
                                 <div className={styles.settingText}>
                                   Restrict the lake as a private managed location.
                                 </div>
@@ -1020,7 +1130,7 @@ export default function OwnerPanel() {
                                 }
                               />
                               <div>
-                                <div className={styles.settingTitle}>Accept reservations</div>
+                                <div className={styles.settingTitle}>Приема резервации</div>
                                 <div className={styles.settingText}>
                                   Allow users to submit booking requests.
                                 </div>
@@ -1040,7 +1150,7 @@ export default function OwnerPanel() {
                                 }
                               />
                               <div>
-                                <div className={styles.settingTitle}>Night fishing</div>
+                                <div className={styles.settingTitle}>Нощен риболов</div>
                                 <div className={styles.settingText}>
                                   Reveal a separate night fishing price only when enabled.
                                 </div>
@@ -1056,9 +1166,9 @@ export default function OwnerPanel() {
                                 }
                               />
                               <div>
-                                <div className={styles.settingTitle}>Housing / rooms</div>
+                                <div className={styles.settingTitle}>Настаняване / стаи</div>
                                 <div className={styles.settingText}>
-                                  Enable accommodation and the dedicated rooms tab.
+                                  Включва настаняване и отделен раздел за стаи.
                                 </div>
                               </div>
                             </label>
@@ -1066,10 +1176,10 @@ export default function OwnerPanel() {
 
                           {lake.allows_night_fishing ? (
                             <div className={styles.revealCard}>
-                              <div className={styles.revealTitle}>Night fishing price</div>
+                              <div className={styles.revealTitle}>Цена за нощен риболов</div>
                               <div className={styles.formGrid}>
                                 <LabeledInput
-                                  label="Night fishing price (€)"
+                                  label="Цена за нощен риболов (€)"
                                   hint="Required when night fishing is enabled."
                                 >
                                   <input
@@ -1093,7 +1203,7 @@ export default function OwnerPanel() {
 
                         <SectionCard
                           title="Lake overview"
-                          subtitle="Core public information and fallback pricing details."
+                          subtitle="Основна публична информация и резервни ценови настройки."
                         >
                           <div className={styles.formGrid}>
                             <LabeledInput label="Lake name">
@@ -1118,7 +1228,7 @@ export default function OwnerPanel() {
                               />
                             </LabeledInput>
 
-                            <LabeledInput label="Base price per day (€)">
+                            <LabeledInput label="Базова цена на ден (€)">
                               <input
                                 className={styles.input}
                                 type="text"
@@ -1130,7 +1240,7 @@ export default function OwnerPanel() {
                               />
                             </LabeledInput>
 
-                            <LabeledInput label="Fallback capacity">
+                            <LabeledInput label="Резервен капацитет">
                               <input
                                 className={styles.input}
                                 type="number"
@@ -1186,8 +1296,8 @@ export default function OwnerPanel() {
                         ) : null}
 
                         <SectionCard
-                          title="Reservation requests"
-                          subtitle="Approve, reject, or return booking requests to pending. Completed Stripe payouts can turn approval into paid checkout for the user."
+                          title="Заявки за резервации"
+                          subtitle="Одобряване, отказване или връщане на заявки за резервация в изчакване. При завършена Stripe настройка одобрението може да доведе до онлайн плащане от потребителя."
                         >
                           <div className={styles.filterRow}>
                             {OWNER_RESERVATION_FILTERS.map((filter) => (
@@ -1212,7 +1322,7 @@ export default function OwnerPanel() {
                           </div>
 
                           {!filteredOwnerReservations.length ? (
-                            <div className={styles.emptyState}>No reservations match this status.</div>
+                            <div className={styles.emptyState}>Няма резервации с този статус.</div>
                           ) : (
                             <div className={styles.itemList}>
                               {filteredOwnerReservations.map((reservation) => (
@@ -1220,21 +1330,21 @@ export default function OwnerPanel() {
                                   <div className={styles.ownerReservationDetails}>
                                     <div className={styles.itemTitle}>{reservation.lake_name || lake.name}</div>
                                     <div className={styles.metaText}>
-                                      User: {reservation.full_name || "Unknown"}{reservation.email ? ` (${reservation.email})` : ""}
+                                      Потребител: {reservation.full_name || "Неизвестен"}{reservation.email ? ` (${reservation.email})` : ""}
                                     </div>
                                     <div className={styles.metaText}>
                                       Stay: {formatDate(reservation.arrival_date || reservation.start_date)} → {formatDate(reservation.departure_date || reservation.end_date)}
                                     </div>
                                     <div className={styles.ownerReservationBadges}>
-                                      <span className={styles.mutedBadge}>Created: {formatDateTime(reservation.created_at)}</span>
+                                      <span className={styles.mutedBadge}>Създадена: {formatDateTime(reservation.created_at)}</span>
                                       <ReservedSpotsBadge reservation={reservation} />
-                                      <span className={styles.mutedBadge}>Fishing days: {(reservation.fishing_dates || []).length || 0}</span>
-                                      <span className={styles.mutedBadge}>Night fishing: {(reservation.night_fishing_dates || []).length || 0}</span>
-                                      <span className={styles.mutedBadge}>Rooms: {(reservation.room_names || []).length ? reservation.room_names.join(", ") : "None"}</span>
-                                      <span className={styles.mutedBadge}>Total: {formatCurrency(reservation.total_amount || 0)}</span>
-                                      <span className={styles.mutedBadge}>Payment: {getReservationPaymentLabel(reservation)}</span>
-                                      <span className={styles.mutedBadge}>Platform fee: {formatCurrency(reservation.platform_fee_amount || 0)}</span>
-                                      <span className={styles.mutedBadge}>Owner amount: {formatCurrency(reservation.owner_amount || 0)}</span>
+                                      <span className={styles.mutedBadge}>Дни за риболов: {(reservation.fishing_dates || []).length || 0}</span>
+                                      <span className={styles.mutedBadge}>Нощен риболов: {(reservation.night_fishing_dates || []).length || 0}</span>
+                                      <span className={styles.mutedBadge}>Стаи: {(reservation.room_names || []).length ? reservation.room_names.join(", ") : "Няма"}</span>
+                                      <span className={styles.mutedBadge}>Общо: {formatCurrency(reservation.total_amount || 0)}</span>
+                                      <span className={styles.mutedBadge}>Плащане: {getReservationPaymentLabel(reservation)}</span>
+                                      <span className={styles.mutedBadge}>Комисиона на платформата: {formatCurrency(reservation.platform_fee_amount || 0)}</span>
+                                      <span className={styles.mutedBadge}>Сума за собственика: {formatCurrency(reservation.owner_amount || 0)}</span>
                                     </div>
                                     <div className={styles.metaText} style={{ marginTop: "10px" }}>
                                       Notes: {reservation.notes || "No notes"}
@@ -1252,7 +1362,7 @@ export default function OwnerPanel() {
                                       {String(reservation.status || "pending").toUpperCase()}
                                     </span>
                                     {isReservationPast(reservation) ? (
-                                      <span className={styles.mutedBadge}>Past reservation</span>
+                                      <span className={styles.mutedBadge}>Минала резервация</span>
                                     ) : (
                                       <div className={styles.ownerReservationButtonRow}>
                                         <button
@@ -1286,11 +1396,26 @@ export default function OwnerPanel() {
                               ))}
                             </div>
                           )}
+                          {roomCount > ROOMS_PAGE_SIZE ? (
+                            <Pagination
+                              currentPage={roomPage}
+                              totalPages={roomTotalPages}
+                              totalItems={roomCount}
+                              startIndex={roomStartIndex}
+                              endIndex={Math.min(roomStartIndex + ROOMS_PAGE_SIZE, roomCount)}
+                              onPageChange={(page) =>
+                                setRoomPageByLake((prev) => ({
+                                  ...prev,
+                                  [lake.id]: Math.min(Math.max(1, page), roomTotalPages),
+                                }))
+                              }
+                            />
+                          ) : null}
                         </SectionCard>
 
                         <SectionCard
-                          title="Spot availability by date"
-                          subtitle="Choose a date to see which numbered spots are free, pending, approved, blocked, or inactive."
+                          title="Наличност на местата по дата"
+                          subtitle="Изберете дата, за да видите кои номерирани места са свободни, чакащи, одобрени, блокирани или неактивни."
                           actions={
                             <button
                               type="button"
@@ -1298,12 +1423,12 @@ export default function OwnerPanel() {
                               disabled={!selectedAvailabilityDate || busyLakeId === lake.id}
                               onClick={() => handleLoadSpotAvailability(lake.id, selectedAvailabilityDate)}
                             >
-                              Refresh
+                              Обнови
                             </button>
                           }
                         >
                           <div className={styles.formGrid}>
-                            <LabeledInput label="Availability date">
+                            <LabeledInput label="Дата за проверка">
                               <DatePicker
                                 value={selectedAvailabilityDate}
                                 onChange={(nextValue) => handleLoadSpotAvailability(lake.id, nextValue)}
@@ -1312,14 +1437,14 @@ export default function OwnerPanel() {
                           </div>
 
                           {!selectedAvailabilityDate ? (
-                            <div className={styles.emptyState}>Choose a date to inspect spot availability.</div>
+                            <div className={styles.emptyState}>Изберете дата, за да проверите наличността на местата.</div>
                           ) : !spotAvailability ? (
-                            <div className={styles.emptyState}>No availability loaded for this date yet.</div>
+                            <div className={styles.emptyState}>Все още няма заредена наличност за тази дата.</div>
                           ) : (
                             <>
                               {spotAvailability.blocked ? (
                                 <div className={styles.emptyState} style={{ marginBottom: "12px" }}>
-                                  This date is blocked{spotAvailability.blocked.reason ? `: ${spotAvailability.blocked.reason}` : "."}
+                                  Тази дата е блокирана{spotAvailability.blocked.reason ? `: ${spotAvailability.blocked.reason}` : "."}
                                 </div>
                               ) : null}
                               <div className={styles.spotGrid}>
@@ -1334,7 +1459,7 @@ export default function OwnerPanel() {
                                     <div key={spot.id} className={styles.spotCard}>
                                       <div className={styles.spotCardHeader}>
                                         <div>
-                                          <div className={styles.itemTitle}>Spot {spot.spot_number}</div>
+                                          <div className={styles.itemTitle}>Място {spot.spot_number}</div>
                                           <div className={styles.metaText}>
                                             {spot.user_name ? `${spot.user_name}${spot.user_email ? ` (${spot.user_email})` : ""}` : status === "free" ? "Available" : status}
                                           </div>
@@ -1347,7 +1472,7 @@ export default function OwnerPanel() {
                               </div>
                               {Array.isArray(spotAvailability.capacity_reservations) && spotAvailability.capacity_reservations.length ? (
                                 <div className={styles.emptyState} style={{ marginTop: "12px" }}>
-                                  There are {spotAvailability.capacity_reservations.length} capacity-based reservation(s) without exact spot numbers on this date.
+                                  Има {spotAvailability.capacity_reservations.length} резервации по капацитет без избрани конкретни места за тази дата.
                                 </div>
                               ) : null}
                             </>
@@ -1359,8 +1484,8 @@ export default function OwnerPanel() {
                     {activeTab === "spots" ? (
                       <>
                         <SectionCard
-                          title="Spot configuration"
-                          subtitle="Set the desired number of fishing spots and sync the generated list."
+                          title="Настройки на местата"
+                          subtitle="Задайте желания брой риболовни места и обновете генерирания списък."
                           actions={
                             <button
                               type="button"
@@ -1368,12 +1493,12 @@ export default function OwnerPanel() {
                               disabled={busyLakeId === lake.id}
                               onClick={() => handleGenerateSpots(lake)}
                             >
-                              {busyLakeId === lake.id ? "Updating..." : "Generate / Update spots"}
+                              {busyLakeId === lake.id ? "Обновяване..." : "Генерирай / обнови местата"}
                             </button>
                           }
                         >
                           <div className={styles.formGrid}>
-                            <LabeledInput label="Desired number of spots">
+                            <LabeledInput label="Желан брой места">
                               <input
                                 className={styles.input}
                                 type="number"
@@ -1389,11 +1514,11 @@ export default function OwnerPanel() {
                         </SectionCard>
 
                         <SectionCard
-                          title="Generated spots"
-                          subtitle="Activate or deactivate individual spot entries created for this lake."
+                          title="Генерирани места"
+                          subtitle="Активирайте или деактивирайте отделните места, създадени за този водоем."
                         >
                           {!spotsByLake[lake.id]?.length ? (
-                            <div className={styles.emptyState}>No spots generated yet.</div>
+                            <div className={styles.emptyState}>Все още няма генерирани места.</div>
                           ) : (
                             <>
                               <div className={styles.spotGrid}>
@@ -1401,9 +1526,9 @@ export default function OwnerPanel() {
                                   <div key={spot.id} className={styles.spotCard}>
                                     <div className={styles.spotCardHeader}>
                                       <div>
-                                        <div className={styles.itemTitle}>Spot {spot.spot_number}</div>
+                                        <div className={styles.itemTitle}>Място {spot.spot_number}</div>
                                         <div className={styles.metaText}>
-                                          {spot.is_active ? "Visible and bookable" : "Hidden or unavailable"}
+                                          {spot.is_active ? "Видимо и резервируемо" : "Скрито или недостъпно"}
                                         </div>
                                       </div>
                                       <span
@@ -1411,7 +1536,7 @@ export default function OwnerPanel() {
                                           spot.is_active ? styles.successBadge : styles.mutedBadge
                                         }
                                       >
-                                        {spot.is_active ? "Active" : "Inactive"}
+                                        {spot.is_active ? "Активно" : "Неактивно"}
                                       </span>
                                     </div>
 
@@ -1423,45 +1548,25 @@ export default function OwnerPanel() {
                                       disabled={busyLakeId === lake.id}
                                       onClick={() => handleToggleSpotActive(lake.id, spot)}
                                     >
-                                      {spot.is_active ? "Deactivate" : "Activate"}
+                                      {spot.is_active ? "Деактивирай" : "Активирай"}
                                     </button>
                                   </div>
                                 ))}
                               </div>
                               {spotTotalPages > 1 ? (
-                                <div className={styles.paginationBar}>
-                                  <span>
-                                    Page {spotPage} of {spotTotalPages} · {sortedSpots.length} spots
-                                  </span>
-                                  <div className={styles.paginationActions}>
-                                    <button
-                                      type="button"
-                                      className={styles.filterButton}
-                                      disabled={spotPage <= 1}
-                                      onClick={() =>
-                                        setSpotPageByLake((prev) => ({
-                                          ...prev,
-                                          [lake.id]: Math.max(1, spotPage - 1),
-                                        }))
-                                      }
-                                    >
-                                      Previous
-                                    </button>
-                                    <button
-                                      type="button"
-                                      className={styles.primaryButton}
-                                      disabled={spotPage >= spotTotalPages}
-                                      onClick={() =>
-                                        setSpotPageByLake((prev) => ({
-                                          ...prev,
-                                          [lake.id]: Math.min(spotTotalPages, spotPage + 1),
-                                        }))
-                                      }
-                                    >
-                                      Next
-                                    </button>
-                                  </div>
-                                </div>
+                                <Pagination
+                                  currentPage={spotPage}
+                                  totalPages={spotTotalPages}
+                                  totalItems={sortedSpots.length}
+                                  startIndex={(spotPage - 1) * SPOTS_PAGE_SIZE}
+                                  endIndex={Math.min(spotPage * SPOTS_PAGE_SIZE, sortedSpots.length)}
+                                  onPageChange={(nextPage) =>
+                                    setSpotPageByLake((prev) => ({
+                                      ...prev,
+                                      [lake.id]: nextPage,
+                                    }))
+                                  }
+                                />
                               ) : null}
                             </>
                           )}
@@ -1472,8 +1577,8 @@ export default function OwnerPanel() {
                     {activeTab === "rooms" && lake.has_housing ? (
                       <>
                         <SectionCard
-                          title="Accommodation"
-                          subtitle="Create and manage cabins, bungalows, or other room types for guests."
+                          title="Настаняване"
+                          subtitle="Създаване и управление на вили, бунгала или други типове стаи за гости."
                           actions={
                             <button
                               type="button"
@@ -1481,26 +1586,26 @@ export default function OwnerPanel() {
                               disabled={busyLakeId === lake.id}
                               onClick={() => openCreateRoomModal(lake.id)}
                             >
-                              + Add new room / cabin
+                              + Добави стаи
                             </button>
                           }
                         >
                           {!roomsByLake[lake.id]?.length ? (
-                            <div className={styles.emptyState}>No rooms added yet.</div>
+                            <div className={styles.emptyState}>Все още няма добавени стаи.</div>
                           ) : (
                             <div className={styles.roomsTableWrap}>
                               <table className={styles.roomsTable}>
                                 <thead>
                                   <tr>
-                                    <th>Type / Name</th>
-                                    <th>Capacity</th>
-                                    <th>Price / Night</th>
-                                    <th>Status</th>
-                                    <th>Actions</th>
+                                    <th>Тип / Име</th>
+                                    <th>Капацитет</th>
+                                    <th>Цена / Нощувка</th>
+                                    <th>Статус</th>
+                                    <th>Действия</th>
                                   </tr>
                                 </thead>
                                 <tbody>
-                                  {roomsByLake[lake.id].map((room) => (
+                                  {paginatedRooms.map((room) => (
                                     <tr key={room.id}>
                                       <td>
                                         <input
@@ -1569,7 +1674,7 @@ export default function OwnerPanel() {
                                               )
                                             }
                                           />
-                                          <span>{room.is_active ? "Active" : "Inactive"}</span>
+                                          <span>{room.is_active ? "Активно" : "Неактивно"}</span>
                                         </label>
                                       </td>
                                       <td>
@@ -1580,7 +1685,7 @@ export default function OwnerPanel() {
                                             disabled={busyLakeId === lake.id}
                                             onClick={() => handleSaveRoom(lake.id, room)}
                                           >
-                                            Save
+                                            Запази
                                           </button>
                                           <button
                                             type="button"
@@ -1588,7 +1693,7 @@ export default function OwnerPanel() {
                                             disabled={busyLakeId === lake.id}
                                             onClick={() => handleDeleteRoom(lake.id, room.id)}
                                           >
-                                            Delete
+                                            Изтрий
                                           </button>
                                         </div>
                                       </td>
@@ -1598,6 +1703,21 @@ export default function OwnerPanel() {
                               </table>
                             </div>
                           )}
+                          {roomCount > ROOMS_PAGE_SIZE ? (
+                            <Pagination
+                              currentPage={roomPage}
+                              totalPages={roomTotalPages}
+                              totalItems={roomCount}
+                              startIndex={roomStartIndex}
+                              endIndex={Math.min(roomStartIndex + ROOMS_PAGE_SIZE, roomCount)}
+                              onPageChange={(page) =>
+                                setRoomPageByLake((prev) => ({
+                                  ...prev,
+                                  [lake.id]: Math.min(Math.max(1, page), roomTotalPages),
+                                }))
+                              }
+                            />
+                          ) : null}
                         </SectionCard>
 
                         {roomModalOpen ? (
@@ -1605,9 +1725,9 @@ export default function OwnerPanel() {
                             <div className={styles.modalCard}>
                               <div className={styles.modalHeader}>
                                 <div>
-                                  <h4 className={styles.subsectionTitle}>Add new room</h4>
+                                  <h4 className={styles.subsectionTitle}>Добави нова стая</h4>
                                   <div className={styles.sectionSubtitle}>
-                                    Create a housing option without taking space in the main layout.
+                                    Добавете една стая или създайте много стаи наведнъж с еднакъв капацитет и цена.
                                   </div>
                                 </div>
                                 <button
@@ -1615,73 +1735,145 @@ export default function OwnerPanel() {
                                   className={styles.filterButton}
                                   onClick={() => closeRoomModal(lake.id)}
                                 >
-                                  Close
+                                  Затвори
                                 </button>
                               </div>
 
-                              <div className={styles.formGrid}>
-                                <LabeledInput label="Room name">
-                                  <input
-                                    className={styles.input}
-                                    type="text"
-                                    value={roomDraft.name || ""}
-                                    onChange={(event) =>
-                                      handleRoomDraftChange(lake.id, "name", event.target.value)
-                                    }
-                                  />
-                                </LabeledInput>
+                              <div className={styles.roomCreateGrid}>
+                                <div className={styles.roomCreateCard}>
+                                <h5 className={styles.editorTitle}>Добавяне на много стаи</h5>
+                                <div className={styles.sectionSubtitle}>
+                                  Бързо създаване на последователни стаи с еднакъв капацитет и цена. След това всяка стая може да се редактира отделно.
+                                </div>
+                                <div className={styles.formGrid}>
+                                  <LabeledInput label="Префикс">
+                                    <input
+                                      className={styles.input}
+                                      type="text"
+                                      value={roomBulkDraft.prefix || ""}
+                                      onChange={(event) => handleRoomBulkDraftChange(lake.id, "prefix", event.target.value)}
+                                    />
+                                  </LabeledInput>
+                                  <LabeledInput label="От номер">
+                                    <input
+                                      className={styles.input}
+                                      type="number"
+                                      min="1"
+                                      step="1"
+                                      value={roomBulkDraft.from ?? 1}
+                                      onChange={(event) => handleRoomBulkDraftChange(lake.id, "from", event.target.value)}
+                                    />
+                                  </LabeledInput>
+                                  <LabeledInput label="До номер">
+                                    <input
+                                      className={styles.input}
+                                      type="number"
+                                      min="1"
+                                      step="1"
+                                      value={roomBulkDraft.to ?? 5}
+                                      onChange={(event) => handleRoomBulkDraftChange(lake.id, "to", event.target.value)}
+                                    />
+                                  </LabeledInput>
+                                  <LabeledInput label="Капацитет">
+                                    <input
+                                      className={styles.input}
+                                      type="number"
+                                      min="1"
+                                      step="1"
+                                      value={roomBulkDraft.capacity ?? 2}
+                                      onChange={(event) => handleRoomBulkDraftChange(lake.id, "capacity", event.target.value)}
+                                    />
+                                  </LabeledInput>
+                                  <LabeledInput label="Цена за нощувка (€)">
+                                    <input
+                                      className={styles.input}
+                                      type="number"
+                                      min="0"
+                                      step="0.01"
+                                      value={roomBulkDraft.price_per_night ?? 0}
+                                      onChange={(event) => handleRoomBulkDraftChange(lake.id, "price_per_night", event.target.value)}
+                                    />
+                                  </LabeledInput>
+                                </div>
+                                <div className={styles.modalActions}>
+                                  <button
+                                    type="button"
+                                    className={styles.primaryButton}
+                                    disabled={busyLakeId === lake.id}
+                                    onClick={() => handleCreateRoomBatch(lake.id)}
+                                  >
+                                    {busyLakeId === lake.id ? "Добавяне..." : "Създай стаите"}
+                                  </button>
+                                </div>
+                                </div>
 
-                                <LabeledInput label="Capacity">
-                                  <input
-                                    className={styles.input}
-                                    type="number"
-                                    min="1"
-                                    step="1"
-                                    value={roomDraft.capacity ?? 1}
-                                    onChange={(event) =>
-                                      handleRoomDraftChange(
-                                        lake.id,
-                                        "capacity",
-                                        event.target.value
-                                      )
-                                    }
-                                  />
-                                </LabeledInput>
+                                <div className={styles.roomCreateCard}>
+                                <h5 className={styles.editorTitle}>Добавяне на една стая</h5>
+                                <div className={styles.formGrid}>
+                                  <LabeledInput label="Име на стаята">
+                                    <input
+                                      className={styles.input}
+                                      type="text"
+                                      value={roomDraft.name || ""}
+                                      onChange={(event) =>
+                                        handleRoomDraftChange(lake.id, "name", event.target.value)
+                                      }
+                                    />
+                                  </LabeledInput>
 
-                                <LabeledInput label="Price per night (€)">
-                                  <input
-                                    className={styles.input}
-                                    type="number"
-                                    min="0"
-                                    step="0.01"
-                                    value={roomDraft.price_per_night ?? 0}
-                                    onChange={(event) =>
-                                      handleRoomDraftChange(
-                                        lake.id,
-                                        "price_per_night",
-                                        event.target.value
-                                      )
-                                    }
-                                  />
-                                </LabeledInput>
-                              </div>
+                                  <LabeledInput label="Капацитет">
+                                    <input
+                                      className={styles.input}
+                                      type="number"
+                                      min="1"
+                                      step="1"
+                                      value={roomDraft.capacity ?? 1}
+                                      onChange={(event) =>
+                                        handleRoomDraftChange(
+                                          lake.id,
+                                          "capacity",
+                                          event.target.value
+                                        )
+                                      }
+                                    />
+                                  </LabeledInput>
 
-                              <div className={styles.modalActions}>
-                                <button
-                                  type="button"
-                                  className={styles.filterButton}
-                                  onClick={() => closeRoomModal(lake.id)}
-                                >
-                                  Cancel
-                                </button>
-                                <button
-                                  type="button"
-                                  className={styles.primaryButton}
-                                  disabled={busyLakeId === lake.id}
-                                  onClick={() => handleCreateRoom(lake.id)}
-                                >
-                                  {busyLakeId === lake.id ? "Saving..." : "Create room"}
-                                </button>
+                                  <LabeledInput label="Цена за нощувка (€)">
+                                    <input
+                                      className={styles.input}
+                                      type="number"
+                                      min="0"
+                                      step="0.01"
+                                      value={roomDraft.price_per_night ?? 0}
+                                      onChange={(event) =>
+                                        handleRoomDraftChange(
+                                          lake.id,
+                                          "price_per_night",
+                                          event.target.value
+                                        )
+                                      }
+                                    />
+                                  </LabeledInput>
+                                </div>
+
+                                <div className={styles.modalActions}>
+                                  <button
+                                    type="button"
+                                    className={styles.filterButton}
+                                    onClick={() => closeRoomModal(lake.id)}
+                                  >
+                                    Откажи
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className={styles.primaryButton}
+                                    disabled={busyLakeId === lake.id}
+                                    onClick={() => handleCreateRoom(lake.id)}
+                                  >
+                                    {busyLakeId === lake.id ? "Запазване..." : "Създай стая"}
+                                  </button>
+                                </div>
+                                </div>
                               </div>
                             </div>
                           </div>
@@ -1691,24 +1883,24 @@ export default function OwnerPanel() {
 
                     {activeTab === "gallery" ? (
                       <SectionCard
-                        title="Lake gallery"
-                        subtitle="Upload owner-managed photos that can be shown in the public lake view."
+                        title="Галерия на водоема"
+                        subtitle="Качете снимки от собственика, които могат да се показват в публичната страница на водоема."
                       >
                         <div className={styles.editorCard}>
                           <div className={styles.editorHeader}>
-                            <h5 className={styles.editorTitle}>Upload new photos</h5>
+                            <h5 className={styles.editorTitle}>Качи нови снимки</h5>
                             <button
                               type="button"
                               className={styles.secondaryButton}
                               disabled={busyLakeId === lake.id}
                               onClick={() => handleUploadPhoto(lake.id)}
                             >
-                              Upload selected photos
+                              Качи избраните снимки
                             </button>
                           </div>
 
                           <div className={styles.formGrid}>
-                            <LabeledInput label="Image files" hint="You can select one or many images at once.">
+                            <LabeledInput label="Файлове със снимки" hint="Можете да изберете една или няколко снимки наведнъж.">
                               <input
                                 className={styles.input}
                                 type="file"
@@ -1734,11 +1926,11 @@ export default function OwnerPanel() {
                                   <ZoomableImage src={preview.url} alt={preview.name} imageClassName={styles.photoThumb} />
                                   <div className={styles.photoManagerBody}>
                                     <div className={styles.blockedDate}>{preview.name}</div>
-                                    <div className={styles.metaText}>Ready to upload</div>
+                                    <div className={styles.metaText}>Готово за качване</div>
                                     <input
                                       className={styles.input}
                                       type="text"
-                                      placeholder="Optional caption"
+                                      placeholder="Описание по избор"
                                       value={(photoCaptionsByLake[lake.id] || [])[index] || ""}
                                       onChange={(event) =>
                                         setPhotoCaptionsByLake((prev) => {
@@ -1756,22 +1948,22 @@ export default function OwnerPanel() {
                         </div>
 
                         {!photosByLake[lake.id]?.length ? (
-                          <div className={styles.emptyState}>No lake gallery photos uploaded yet.</div>
+                          <div className={styles.emptyState}>Все още няма качени снимки в галерията на водоема.</div>
                         ) : (
                           <div className={styles.itemList}>
                             {photosByLake[lake.id].map((photo) => (
                               <div key={photo.id} className={styles.photoManagerCard}>
                                 <ZoomableImage
                                   src={getUploadUrl(photo.image_url)}
-                                  alt={photo.caption || "Lake photo"}
+                                  alt={photo.caption || "Снимка на водоема"}
                                   imageClassName={styles.photoThumb}
                                 />
                                 <div className={styles.photoManagerBody}>
                                   <div className={styles.blockedDate}>
-                                    {photo.caption || "Untitled photo"}
+                                    {photo.caption || "Снимка без заглавие"}
                                   </div>
                                   <div className={styles.metaText}>
-                                    Uploaded {formatDate(photo.created_at)}
+                                    Качено на {formatDate(photo.created_at)}
                                   </div>
                                   <div className={styles.photoUrl}>{photo.image_url}</div>
                                 </div>
@@ -1781,7 +1973,7 @@ export default function OwnerPanel() {
                                   disabled={busyLakeId === lake.id}
                                   onClick={() => handleDeletePhoto(lake.id, photo.id)}
                                 >
-                                  Remove
+                                  Премахни
                                 </button>
                               </div>
                             ))}
@@ -1791,26 +1983,26 @@ export default function OwnerPanel() {
                         <div className={styles.galleryDivider} />
 
                         <SectionCard
-                          title="User catch photos"
-                          subtitle="These come from users' catch logs. They are separated from owner lake photos."
+                          title="Потребителски снимки на улови"
+                          subtitle="Тези снимки идват от риболовните дневници на потребителите. Те са отделени от снимките, качени от собственика."
                         >
                           {!catchPhotosByLake[lake.id]?.length ? (
-                            <div className={styles.emptyState}>No user catch photos for this lake yet.</div>
+                            <div className={styles.emptyState}>Все още няма потребителски снимки на улови за този водоем.</div>
                           ) : (
                             <div className={styles.itemList}>
                               {catchPhotosByLake[lake.id].map((item) => (
                                 <div key={item.id} className={styles.photoManagerCard}>
                                   <ZoomableImage
                                     src={getUploadUrl(item.image_url)}
-                                    alt={item.species || "User catch"}
+                                    alt={item.species || "Потребителски улов"}
                                     imageClassName={styles.photoThumb}
                                   />
                                   <div className={styles.photoManagerBody}>
                                     <div className={styles.blockedDate}>
-                                      {item.species || "User catch photo"}
+                                      {item.species || "Снимка на потребителски улов"}
                                     </div>
                                     <div className={styles.metaText}>
-                                      By {item.full_name || "Unknown user"} · {item.weight_kg ?? "-"} kg · {formatDate(item.catch_time || item.created_at)}
+                                      От {item.full_name || "Неизвестен потребител"} · {item.weight_kg ?? "-"} кг · {formatDate(item.catch_time || item.created_at)}
                                     </div>
                                     {item.notes ? <div className={styles.photoUrl}>{item.notes}</div> : null}
                                   </div>
@@ -1821,7 +2013,7 @@ export default function OwnerPanel() {
                                       disabled={busyLakeId === lake.id}
                                       onClick={() => handleReportCatchUser(lake.id, item)}
                                     >
-                                      Report user
+                                      Докладвай потребител
                                     </button>
                                     <button
                                       type="button"
@@ -1829,7 +2021,7 @@ export default function OwnerPanel() {
                                       disabled={busyLakeId === lake.id}
                                       onClick={() => handleDeleteCatchPhoto(lake.id, item.id)}
                                     >
-                                      Remove photo
+                                      Премахни снимката
                                     </button>
                                   </div>
                                 </div>
@@ -1843,8 +2035,8 @@ export default function OwnerPanel() {
 
                     {activeTab === "billing" ? (
                       <SectionCard
-                        title="Billing & Earnings"
-                        subtitle="Revenue belongs inside the owner management workflow because it comes from reservations, spots, night fishing, and rooms."
+                        title="Плащания и приходи"
+                        subtitle="Приходите са част от управлението на собственика, защото идват от резервации, места, нощен риболов и стаи."
                         actions={
                           <button
                             type="button"
@@ -1852,48 +2044,48 @@ export default function OwnerPanel() {
                             disabled={busyLakeId === lake.id}
                             onClick={() => handleRefreshLakeEarnings(lake.id)}
                           >
-                            {busyLakeId === lake.id ? "Refreshing..." : "Refresh earnings"}
+                            {busyLakeId === lake.id ? "Обновяване..." : "Обнови приходите"}
                           </button>
                         }
                       >
                         <div className={styles.earningsSummaryGrid}>
                           <div className={styles.earningsCard}>
-                            <span>Total owner earnings</span>
+                            <span>Общи приходи на собственика</span>
                             <strong>{formatCurrency(ownerRevenue?.total_earnings || 0)}</strong>
                           </div>
                           <div className={styles.earningsCard}>
-                            <span>Stripe pending balance</span>
+                            <span>Чакащ Stripe баланс</span>
                             <strong>{formatCurrency(ownerRevenue?.pending_balance || 0)}</strong>
                           </div>
                           <div className={styles.earningsCard}>
-                            <span>Stripe available balance</span>
+                            <span>Наличен Stripe баланс</span>
                             <strong>{formatCurrency(ownerRevenue?.available_balance || 0)}</strong>
                           </div>
                           <div className={styles.earningsCard}>
-                            <span>Estimated next payout</span>
-                            <strong className={styles.earningsSmallText}>{ownerRevenue?.estimated_next_payout || "Weekly automatic payouts"}</strong>
+                            <span>Следващо плащане</span>
+                            <strong className={styles.earningsSmallText}>{ownerRevenue?.estimated_next_payout || "Седмични автоматични изплащания"}</strong>
                           </div>
                         </div>
 
                         <div className={styles.earningsSummaryGrid}>
                           <div className={styles.earningsCard}>
-                            <span>This month revenue</span>
+                            <span>Приходи този месец</span>
                             <strong>{formatCurrency(currentMonth.total_revenue || 0)}</strong>
                           </div>
                           <div className={styles.earningsCard}>
-                            <span>Platform fee</span>
+                            <span>Комисиона на платформата</span>
                             <strong>{formatCurrency(currentMonth.platform_fee || 0)}</strong>
                           </div>
                           <div className={styles.earningsCard}>
-                            <span>Net owner earnings</span>
+                            <span>Нетни приходи на собственика</span>
                             <strong>{formatCurrency(currentMonth.owner_earnings || 0)}</strong>
                           </div>
                           <div className={styles.earningsCard}>
-                            <span>Paid reservations</span>
+                            <span>Платени резервации</span>
                             <strong>{currentMonth.paid_reservations || 0}</strong>
                           </div>
                           <div className={styles.earningsCard}>
-                            <span>Pending payouts</span>
+                            <span>Чакащи изплащания</span>
                             <strong>{formatCurrency(currentMonth.pending_payouts || 0)}</strong>
                           </div>
                         </div>
@@ -1901,7 +2093,7 @@ export default function OwnerPanel() {
                         <div className={styles.billingSubgrid}>
                           <div className={styles.editorCard}>
                             <div className={styles.editorHeader}>
-                              <h5 className={styles.editorTitle}>Stripe payout setup</h5>
+                              <h5 className={styles.editorTitle}>Настройка за Stripe изплащания</h5>
                               <span className={ownerBilling?.connect_ready ? styles.successBadge : styles.warningBadge}>
                                 {payoutStatus}
                               </span>
@@ -1920,7 +2112,7 @@ export default function OwnerPanel() {
                                     <FaPlug /> {ownerBilling?.stripe_connected_account_id ? "Continue payouts" : "Set up payouts"}
                                   </button>
                                   <button type="button" className={styles.filterButton} onClick={() => handleOwnerConnect("refresh")}>
-                                    Refresh status
+                                    Обнови status
                                   </button>
                                   {ownerBilling?.subscription_status !== "inactive" ? (
                                     <button type="button" className={styles.filterButton} onClick={() => handleOwnerConnect("portal")}>
@@ -1934,54 +2126,34 @@ export default function OwnerPanel() {
 
                           <div className={styles.editorCard}>
                             <div className={styles.editorHeader}>
-                              <h5 className={styles.editorTitle}>Monthly reports</h5>
+                              <h5 className={styles.editorTitle}>Месечни отчети</h5>
                             </div>
                             {!monthlyReports.length ? (
-                              <div className={styles.emptyState}>No paid monthly reports yet.</div>
+                              <div className={styles.emptyState}>Все още няма платени месечни отчети.</div>
                             ) : (
                               <>
                                 <div className={styles.reportList}>
                                   {visibleMonthlyReports.map((report) => (
                                     <div key={report.month_key} className={styles.reportRow}>
-                                      <strong>{report.month_label} report</strong>
-                                      <span>{formatCurrency(report.owner_earnings || 0)} owner earnings</span>
+                                      <strong>Отчет за {report.month_label}</strong>
+                                      <span>{formatCurrency(report.owner_earnings || 0)} приходи за собственика</span>
                                     </div>
                                   ))}
                                 </div>
                                 {monthlyReportTotalPages > 1 ? (
-                                  <div className={`${styles.paginationBar} ${styles.compactPagination}`}>
-                                    <span>
-                                      Page {monthlyReportPage} of {monthlyReportTotalPages} · {monthlyReports.length} reports
-                                    </span>
-                                    <div className={styles.paginationActions}>
-                                      <button
-                                        type="button"
-                                        className={styles.filterButton}
-                                        disabled={monthlyReportPage <= 1}
-                                        onClick={() =>
-                                          setMonthlyReportPageByLake((prev) => ({
-                                            ...prev,
-                                            [lake.id]: Math.max(1, monthlyReportPage - 1),
-                                          }))
-                                        }
-                                      >
-                                        Previous
-                                      </button>
-                                      <button
-                                        type="button"
-                                        className={styles.primaryButton}
-                                        disabled={monthlyReportPage >= monthlyReportTotalPages}
-                                        onClick={() =>
-                                          setMonthlyReportPageByLake((prev) => ({
-                                            ...prev,
-                                            [lake.id]: Math.min(monthlyReportTotalPages, monthlyReportPage + 1),
-                                          }))
-                                        }
-                                      >
-                                        Next
-                                      </button>
-                                    </div>
-                                  </div>
+                                  <Pagination
+                                    currentPage={monthlyReportPage}
+                                    totalPages={monthlyReportTotalPages}
+                                    totalItems={monthlyReports.length}
+                                    startIndex={(monthlyReportPage - 1) * MONTHLY_REPORTS_PAGE_SIZE}
+                                    endIndex={Math.min(monthlyReportPage * MONTHLY_REPORTS_PAGE_SIZE, monthlyReports.length)}
+                                    onPageChange={(nextPage) =>
+                                      setMonthlyReportPageByLake((prev) => ({
+                                        ...prev,
+                                        [lake.id]: nextPage,
+                                      }))
+                                    }
+                                  />
                                 ) : null}
                               </>
                             )}
@@ -1989,20 +2161,20 @@ export default function OwnerPanel() {
                         </div>
 
                         {!billingTransactions.length ? (
-                          <div className={styles.emptyState}>No paid reservation transactions yet.</div>
+                          <div className={styles.emptyState}>Все още няма транзакции от платени резервации.</div>
                         ) : (
                           <>
                             <div className={styles.earningsTableWrap}>
                               <table className={styles.earningsTable}>
                                 <thead>
                                   <tr>
-                                    <th>Date</th>
-                                    <th>Lake</th>
-                                    <th>Customer</th>
-                                    <th>Reservation total</th>
-                                    <th>Platform fee</th>
-                                    <th>Owner amount</th>
-                                    <th>Status</th>
+                                    <th>Дата</th>
+                                    <th>Водоем</th>
+                                    <th>Клиент</th>
+                                    <th>Обща сума</th>
+                                    <th>Комисиона на платформата</th>
+                                    <th>Сума за собственика</th>
+                                    <th>Статус</th>
                                   </tr>
                                 </thead>
                                 <tbody>
@@ -2010,50 +2182,30 @@ export default function OwnerPanel() {
                                     <tr key={item.id}>
                                       <td>{formatDate(item.paid_at || item.created_at)}</td>
                                       <td>{item.lake_name || lake.name}</td>
-                                      <td>{item.customer_name || item.customer_email || "Customer"}</td>
+                                      <td>{item.customer_name || item.customer_email || "Клиент"}</td>
                                       <td>{formatCurrency(item.total_amount || 0)}</td>
                                       <td>{formatCurrency(item.platform_fee_amount || 0)}</td>
                                       <td>{formatCurrency(item.owner_amount || 0)}</td>
-                                      <td><span className={styles.successBadge}>{item.payment_status || "paid"}</span></td>
+                                      <td><span className={styles.successBadge}>{getReservationPaymentLabel(item) || "платено"}</span></td>
                                     </tr>
                                   ))}
                                 </tbody>
                               </table>
                             </div>
                             {billingTransactionTotalPages > 1 ? (
-                              <div className={styles.paginationBar}>
-                                <span>
-                                  Page {billingTransactionPage} of {billingTransactionTotalPages} · {billingTransactions.length} transactions
-                                </span>
-                                <div className={styles.paginationActions}>
-                                  <button
-                                    type="button"
-                                    className={styles.filterButton}
-                                    disabled={billingTransactionPage <= 1}
-                                    onClick={() =>
-                                      setBillingTransactionPageByLake((prev) => ({
-                                        ...prev,
-                                        [lake.id]: Math.max(1, billingTransactionPage - 1),
-                                      }))
-                                    }
-                                  >
-                                    Previous
-                                  </button>
-                                  <button
-                                    type="button"
-                                    className={styles.primaryButton}
-                                    disabled={billingTransactionPage >= billingTransactionTotalPages}
-                                    onClick={() =>
-                                      setBillingTransactionPageByLake((prev) => ({
-                                        ...prev,
-                                        [lake.id]: Math.min(billingTransactionTotalPages, billingTransactionPage + 1),
-                                      }))
-                                    }
-                                  >
-                                    Next
-                                  </button>
-                                </div>
-                              </div>
+                              <Pagination
+                                currentPage={billingTransactionPage}
+                                totalPages={billingTransactionTotalPages}
+                                totalItems={billingTransactions.length}
+                                startIndex={(billingTransactionPage - 1) * BILLING_TRANSACTIONS_PAGE_SIZE}
+                                endIndex={Math.min(billingTransactionPage * BILLING_TRANSACTIONS_PAGE_SIZE, billingTransactions.length)}
+                                onPageChange={(nextPage) =>
+                                  setBillingTransactionPageByLake((prev) => ({
+                                    ...prev,
+                                    [lake.id]: nextPage,
+                                  }))
+                                }
+                              />
                             ) : null}
                           </>
                         )}
@@ -2062,24 +2214,24 @@ export default function OwnerPanel() {
 
                     {activeTab === "blocked" ? (
                       <SectionCard
-                        title="Blocked dates"
-                        subtitle="Keep maintenance, private events, and unavailable dates out of reservation flow."
+                        title="Блокирани дати"
+                        subtitle="Изключете поддръжка, частни събития и недостъпни дати от процеса на резервация."
                       >
                         <div className={styles.editorCard}>
                           <div className={styles.editorHeader}>
-                            <h5 className={styles.editorTitle}>Add blocked date range</h5>
+                            <h5 className={styles.editorTitle}>Добави блокиран период</h5>
                             <button
                               type="button"
                               className={styles.secondaryButton}
                               disabled={busyLakeId === lake.id}
                               onClick={() => handleAddBlockedDate(lake.id)}
                             >
-                              {busyLakeId === lake.id ? "Saving..." : "Add blocked range"}
+                              {busyLakeId === lake.id ? "Запазване..." : "Добави блокиран период"}
                             </button>
                           </div>
 
                           <div className={styles.formGrid}>
-                            <LabeledInput label="Start date">
+                            <LabeledInput label="Начална дата">
                               <DatePicker
                                 value={blockedDateInputs[lake.id] || ""}
                                 onChange={(nextValue) =>
@@ -2091,7 +2243,7 @@ export default function OwnerPanel() {
                               />
                             </LabeledInput>
 
-                            <LabeledInput label="End date">
+                            <LabeledInput label="Крайна дата">
                               <DatePicker
                                 value={blockedEndDateInputs[lake.id] || ""}
                                 min={blockedDateInputs[lake.id] || undefined}
@@ -2104,7 +2256,7 @@ export default function OwnerPanel() {
                               />
                             </LabeledInput>
 
-                            <LabeledInput label="Reason">
+                            <LabeledInput label="Причина">
                               <input
                                 className={styles.input}
                                 type="text"
@@ -2115,14 +2267,14 @@ export default function OwnerPanel() {
                                     [lake.id]: event.target.value,
                                   }))
                                 }
-                                placeholder="Maintenance, event, private booking..."
+                                placeholder="Поддръжка, събитие, частна резервация..."
                               />
                             </LabeledInput>
                           </div>
                         </div>
 
                         {!blockedDatesByLake[lake.id]?.length ? (
-                          <div className={styles.emptyState}>No blocked dates added yet.</div>
+                          <div className={styles.emptyState}>Все още няма добавени блокирани дати.</div>
                         ) : (
                           <div className={styles.itemList}>
                             {blockedDatesByLake[lake.id].map((item) => (
@@ -2132,7 +2284,7 @@ export default function OwnerPanel() {
                                     {formatDate(item.blocked_date)}
                                   </div>
                                   <div className={styles.metaText}>
-                                    {item.reason || "No reason added"}
+                                    {item.reason || "Няма добавена причина"}
                                   </div>
                                 </div>
                                 <button
@@ -2141,7 +2293,7 @@ export default function OwnerPanel() {
                                   disabled={busyLakeId === lake.id}
                                   onClick={() => handleDeleteBlockedDate(lake.id, item.id)}
                                 >
-                                  Remove
+                                  Премахни
                                 </button>
                               </div>
                             ))}

@@ -201,15 +201,10 @@ function FishingMap() {
     const latitude = Number(lake.latitude);
     const longitude = Number(lake.longitude);
 
+    // Clicking a lake marker should open the lake view only.
+    // The region focus/mask must be activated only by clicking a region polygon.
     if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
-      const matchedRegion = findRegionFeatureByPoint(bulgariaRegions, {
-        latitude,
-        longitude,
-      });
-
-      setSelectedRegion(
-        matchedRegion ? getRegionNameFromFeature(matchedRegion) : null,
-      );
+      setSelectedRegion(null);
     }
   }, []);
 
@@ -262,8 +257,8 @@ function FishingMap() {
     } catch (err) {
       if (requestId !== latestBoundsRequestIdRef.current) return;
 
-      setServerError("Failed to load water bodies in bounds");
-      notifyError(err, "Failed to load water bodies in bounds");
+      setServerError("Неуспешно зареждане на водоеми в избраната зона");
+      notifyError(err, "Неуспешно зареждане на водоеми в избраната зона");
     } finally {
       if (requestId === latestBoundsRequestIdRef.current) {
         setLoadingWaterBodies(false);
@@ -322,8 +317,8 @@ function FishingMap() {
     } catch (err) {
       if (requestId !== latestSearchRequestIdRef.current) return;
 
-      setServerError("Search failed");
-      notifyError(err, "Search failed");
+      setServerError("Търсенето е неуспешно");
+      notifyError(err, "Търсенето е неуспешно");
     } finally {
       if (requestId === latestSearchRequestIdRef.current) {
         setLoadingSearchMatches(false);
@@ -334,7 +329,7 @@ function FishingMap() {
   const getCurrentUserLocation = useCallback(() => {
     return new Promise((resolve, reject) => {
       if (!navigator.geolocation) {
-        reject(new Error("Geolocation is not supported in this browser"));
+        reject(new Error("Геолокацията не се поддържа от този браузър"));
         return;
       }
 
@@ -538,7 +533,7 @@ function FishingMap() {
         navigate(location.pathname, { replace: true, state: {} });
         releaseRouteOpeningState();
       } catch (err) {
-        notifyError(err, "Failed to open the selected lake");
+        notifyError(err, "Неуспешно отваряне на избрания водоем");
         setOpeningLakeFromRoute(false);
       } finally {
         setLoadingWaterBodies(false);
@@ -719,13 +714,13 @@ function FishingMap() {
       if (shouldActivateDistanceAfterLocation) {
         setDistanceKm(String(sliderDistanceKm || DEFAULT_DISTANCE_KM));
         setShouldActivateDistanceAfterLocation(false);
-        notifySuccess("Location detected and distance filter activated");
+        notifySuccess("Местоположението е открито и филтърът по разстояние е активиран");
       } else {
-        notifySuccess("Location detected. Nearby lakes are now shown.");
+        notifySuccess("Местоположението е засечено. Показани са близките водоеми.");
       }
     } catch (error) {
       const message =
-        error?.message === "Geolocation is not supported in this browser"
+        error?.message === "Геолокацията не се поддържа от този браузър"
           ? error.message
           : getLocationErrorMessage(error);
 
@@ -756,7 +751,7 @@ function FishingMap() {
       focusMapOnUserArea(nextLocation, radiusToUse);
     } catch (error) {
       const message =
-        error?.message === "Geolocation is not supported in this browser"
+        error?.message === "Геолокацията не се поддържа от този браузър"
           ? error.message
           : getLocationErrorMessage(error);
 

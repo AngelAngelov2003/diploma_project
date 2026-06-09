@@ -3,10 +3,10 @@ import styles from "./CatchLogItem.module.css";
 import CatchLogItem from "./CatchLogItem";
 
 export default function CatchLogList({ logs, onLakeClick, onUpdate, onDelete, savingId, loading, hasAnyCatches }) {
-  if (loading) return <p>Loading catches…</p>;
+  if (loading) return <p>Зареждане на улови…</p>;
 
   if (!logs.length) {
-    return <p>{hasAnyCatches ? "No catches match your filters." : "No catches logged yet."}</p>;
+    return <p>{hasAnyCatches ? "Няма улови, които съвпадат с филтрите." : "Все още няма записани улови."}</p>;
   }
 
   return (

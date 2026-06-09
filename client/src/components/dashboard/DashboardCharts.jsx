@@ -22,11 +22,11 @@ function ChartsLoadingSkeleton() {
   return (
     <div className={styles.skeletonGrid}>
       <div className={styles.skeletonCard}>
-        <div className={styles.skeletonTitle}>Charts loading…</div>
+        <div className={styles.skeletonTitle}>Зареждане на графиките…</div>
         <div className={styles.skeletonBar} style={{ height: 260 }} />
       </div>
       <div className={styles.skeletonCard}>
-        <div className={styles.skeletonTitle}>Charts loading…</div>
+        <div className={styles.skeletonTitle}>Зареждане на графиките…</div>
         <div className={styles.skeletonBar} style={{ height: 260 }} />
       </div>
     </div>
@@ -42,7 +42,7 @@ const formatDateLabel = (value) => {
   if (!value) return "";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  return date.toLocaleDateString("bg-BG", { month: "short", day: "numeric" });
 };
 
 function CustomTooltip({ active, payload, label, valueSuffix = "", labelFormatter }) {
@@ -120,9 +120,9 @@ export default function DashboardCharts({
             opacity: disableLoadCharts ? 0.65 : 1,
             cursor: disableLoadCharts ? "not-allowed" : "pointer",
           }}
-          title={disableLoadCharts ? "Loading your catches…" : undefined}
+          title={disableLoadCharts ? "Зареждане на уловите…" : undefined}
         >
-          {showCharts ? "Hide charts" : loading ? "Loading…" : "Load charts"}
+          {showCharts ? "Скрий графиките" : loading ? "Зареждане…" : "Зареди графиките"}
         </button>
 
         <div className={styles.countText}>{countText}</div>
@@ -137,7 +137,7 @@ export default function DashboardCharts({
                 checked={showChartSpecies}
                 onChange={(e) => setShowChartSpecies(e.target.checked)}
               />
-              Top species
+              Топ видове
             </label>
 
             <label className={styles.checkboxLabel}>
@@ -146,7 +146,7 @@ export default function DashboardCharts({
                 checked={showChartLakes}
                 onChange={(e) => setShowChartLakes(e.target.checked)}
               />
-              Top lakes
+              Топ водоеми
             </label>
 
             <label className={styles.checkboxLabel}>
@@ -155,7 +155,7 @@ export default function DashboardCharts({
                 checked={showChartTrend}
                 onChange={(e) => setShowChartTrend(e.target.checked)}
               />
-              Catches over time
+              Улови във времето
             </label>
 
             <label className={styles.checkboxLabel}>
@@ -164,23 +164,23 @@ export default function DashboardCharts({
                 checked={showChartAvgWeight}
                 onChange={(e) => setShowChartAvgWeight(e.target.checked)}
               />
-              Avg weight by species
+              Средно тегло по вид риба
             </label>
           </div>
 
           {loading ? (
             <ChartsLoadingSkeleton />
           ) : !anyChartSelected ? (
-            <div className={styles.emptyState}>Select at least one chart.</div>
+            <div className={styles.emptyState}>Изберете поне една графика.</div>
           ) : (
             <div className={styles.chartGrid}>
               {showChartSpecies && (
                 <ChartCard
-                  title="Top species"
-                  subtitle="Most frequently logged species"
+                  title="Топ видове"
+                  subtitle="Най-често записвани видове"
                 >
                   {chartSpeciesTop.length === 0 ? (
-                    <div className={styles.noData}>No data.</div>
+                    <div className={styles.noData}>Няма данни.</div>
                   ) : (
                     <ResponsiveContainer width="100%" height={260}>
                       <BarChart
@@ -204,7 +204,7 @@ export default function DashboardCharts({
                           tickLine={false}
                           axisLine={false}
                         />
-                        <Tooltip content={<CustomTooltip valueSuffix=" catches" />} />
+                        <Tooltip content={<CustomTooltip valueSuffix=" улова" />} />
                         <Bar dataKey="value" fill="#2563eb" radius={[10, 10, 0, 0]} />
                       </BarChart>
                     </ResponsiveContainer>
@@ -213,9 +213,9 @@ export default function DashboardCharts({
               )}
 
               {showChartLakes && (
-                <ChartCard title="Top lakes" subtitle="Lakes with the most catches">
+                <ChartCard title="Топ водоеми" subtitle="Водоеми с най-много улови">
                   {chartLakesTop.length === 0 ? (
-                    <div className={styles.noData}>No data.</div>
+                    <div className={styles.noData}>Няма данни.</div>
                   ) : (
                     <ResponsiveContainer width="100%" height={260}>
                       <BarChart
@@ -239,7 +239,7 @@ export default function DashboardCharts({
                           tickLine={false}
                           axisLine={false}
                         />
-                        <Tooltip content={<CustomTooltip valueSuffix=" catches" />} />
+                        <Tooltip content={<CustomTooltip valueSuffix=" улова" />} />
                         <Bar dataKey="value" fill="#0ea5e9" radius={[10, 10, 0, 0]} />
                       </BarChart>
                     </ResponsiveContainer>
@@ -249,11 +249,11 @@ export default function DashboardCharts({
 
               {showChartTrend && (
                 <ChartCard
-                  title="Catches over time"
-                  subtitle="How your fishing activity changes by day"
+                  title="Улови във времето"
+                  subtitle="Как се променя риболовната ви активност по дни"
                 >
                   {chartTrendByDay.length === 0 ? (
-                    <div className={styles.noData}>No data.</div>
+                    <div className={styles.noData}>Няма данни.</div>
                   ) : (
                     <ResponsiveContainer width="100%" height={260}>
                       <LineChart
@@ -278,7 +278,7 @@ export default function DashboardCharts({
                         <Tooltip
                           content={
                             <CustomTooltip
-                              valueSuffix=" catches"
+                              valueSuffix=" улова"
                               labelFormatter={formatDateLabel}
                             />
                           }
@@ -299,11 +299,11 @@ export default function DashboardCharts({
 
               {showChartAvgWeight && (
                 <ChartCard
-                  title="Average weight by species"
-                  subtitle="Average catch weight in kilograms"
+                  title="Средно тегло по видове"
+                  subtitle="Средно тегло на улова в килограми"
                 >
                   {chartAvgWeightBySpecies.length === 0 ? (
-                    <div className={styles.noData}>No weights available.</div>
+                    <div className={styles.noData}>Няма налични тегла.</div>
                   ) : (
                     <ResponsiveContainer width="100%" height={260}>
                       <BarChart
@@ -326,7 +326,7 @@ export default function DashboardCharts({
                           tickLine={false}
                           axisLine={false}
                         />
-                        <Tooltip content={<CustomTooltip valueSuffix=" kg" />} />
+                        <Tooltip content={<CustomTooltip valueSuffix=" кг" />} />
                         <Bar dataKey="value" fill="#8b5cf6" radius={[10, 10, 0, 0]} />
                       </BarChart>
                     </ResponsiveContainer>

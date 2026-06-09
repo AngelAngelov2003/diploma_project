@@ -12,13 +12,13 @@ const register = async (req, res) => {
     const passwordCheck = validateStrongPassword(password);
     if (!passwordCheck.isValid) {
       return res.status(400).json({
-        error: `Password must contain ${passwordCheck.errors.join(", ")}.`,
+        error: `Паролата трябва да съдържа: ${passwordCheck.errors.join(", ")}.`,
       });
     }
 
     const user = await pool.query("SELECT * FROM users WHERE email = $1", [email]);
     if (user.rows.length > 0) {
-      return res.status(401).json("User already exists");
+      return res.status(401).json("Потребителят вече съществува");
     }
 
     const bcryptPassword = await bcrypt.hash(password, 10);
@@ -41,6 +41,12 @@ const register = async (req, res) => {
       [newUser.rows[0].id]
     );
 
+    try {
+      await sendVerificationEmail(newUser.rows[0]);
+    } catch (emailErr) {
+      console.error("verification email error:", emailErr);
+    }
+
     const token = jwt.sign(
       { user_id: newUser.rows[0].id },
       process.env.JWT_SECRET || "secret_key",
@@ -62,16 +68,16 @@ const login = async (req, res) => {
 
     const user = await pool.query("SELECT * FROM users WHERE email = $1", [email]);
     if (user.rows.length === 0) {
-      return res.status(401).json("Password or Email is incorrect");
+      return res.status(401).json("Паролата или имейлът са неправилни");
     }
 
     if (user.rows[0].is_active === false) {
-      return res.status(403).json({ error: "Your account is inactive" });
+      return res.status(403).json({ error: "Вашият акаунт е неактивен" });
     }
 
     const validPassword = await bcrypt.compare(password, user.rows[0].password_hash);
     if (!validPassword) {
-      return res.status(401).json("Password or Email is incorrect");
+      return res.status(401).json("Паролата или имейлът са неправилни");
     }
 
     const token = jwt.sign(
@@ -110,13 +116,13 @@ const me = async (req, res) => {
     );
 
     if (!q.rows.length) {
-      return res.status(404).json({ error: "User not found" });
+      return res.status(404).json({ error: "Потребителят не е намерен" });
     }
 
     const billing = await billingService.getUserPremiumState(req.user, q.rows[0].role);
     res.json({ ...q.rows[0], billing });
   } catch (err) {
-    res.status(500).json({ error: "Failed to load current user" });
+    res.status(500).json({ error: "Неуспешно зареждане на текущия потребител" });
   }
 };
 
@@ -127,13 +133,92 @@ const getClientBaseUrl = () => (
 
 const hashResetToken = (token) => crypto.createHash("sha256").update(token).digest("hex");
 
+
+const sendVerificationEmail = async (user) => {
+  const token = crypto.randomBytes(32).toString("hex");
+  const tokenHash = hashResetToken(token);
+  const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+  await pool.query(
+    `UPDATE email_verification_tokens SET used_at = NOW() WHERE user_id = $1 AND used_at IS NULL`,
+    [user.id]
+  );
+
+  await pool.query(
+    `INSERT INTO email_verification_tokens (user_id, token_hash, expires_at) VALUES ($1, $2, $3)`,
+    [user.id, tokenHash, expiresAt]
+  );
+
+  const verifyUrl = `${process.env.API_PUBLIC_URL || process.env.SERVER_URL || "http://localhost:5000"}/auth/verify-email?token=${token}`;
+
+  await sendEmail({
+    to: user.email,
+    subject: "Потвърждение на имейл във Fishing Atlas",
+    text: `Потвърдете имейл адреса си чрез този линк. Линкът изтича след 24 часа: ${verifyUrl}`,
+    html: `
+      <div style="font-family:Arial,sans-serif;line-height:1.5;color:#0f172a">
+        <h2>Потвърждение на имейл</h2>
+        <p>Здравейте, ${user.full_name || "риболовец"},</p>
+        <p>Натиснете бутона по-долу, за да потвърдите имейл адреса си във Fishing Atlas.</p>
+        <p><a href="${verifyUrl}" style="display:inline-block;background:#2563eb;color:white;padding:12px 16px;border-radius:10px;text-decoration:none;font-weight:700">Потвърди имейла</a></p>
+        <p>Линкът изтича след 24 часа. Ако не сте създавали акаунт, можете да игнорирате този имейл.</p>
+      </div>
+    `,
+  });
+};
+
+
+const verifyEmail = async (req, res) => {
+  const redirectBase = getClientBaseUrl();
+  try {
+    const token = String(req.query?.token || "").trim();
+    if (!token) {
+      return res.redirect(`${redirectBase}/login?verified=missing`);
+    }
+
+    const tokenHash = hashResetToken(token);
+    const tokenResult = await pool.query(
+      `
+        SELECT evt.id, evt.user_id, u.is_active
+        FROM email_verification_tokens evt
+        JOIN users u ON u.id = evt.user_id
+        WHERE evt.token_hash = $1
+          AND evt.used_at IS NULL
+          AND evt.expires_at > NOW()
+        LIMIT 1
+      `,
+      [tokenHash]
+    );
+
+    if (!tokenResult.rows.length || tokenResult.rows[0].is_active === false) {
+      return res.redirect(`${redirectBase}/login?verified=invalid`);
+    }
+
+    const userId = tokenResult.rows[0].user_id;
+    await pool.query("BEGIN");
+    try {
+      await pool.query("UPDATE users SET is_verified = TRUE, updated_at = NOW() WHERE id = $1", [userId]);
+      await pool.query("UPDATE email_verification_tokens SET used_at = NOW() WHERE user_id = $1 AND used_at IS NULL", [userId]);
+      await pool.query("COMMIT");
+    } catch (err) {
+      await pool.query("ROLLBACK");
+      throw err;
+    }
+
+    return res.redirect(`${redirectBase}/login?verified=success`);
+  } catch (err) {
+    console.error("verifyEmail error:", err);
+    return res.redirect(`${redirectBase}/login?verified=error`);
+  }
+};
+
 const forgotPassword = async (req, res) => {
-  const genericMessage = "If an account exists, a password reset link has been sent.";
+  const genericMessage = "Ако съществува акаунт, е изпратен линк за нулиране на паролата.";
 
   try {
     const email = String(req.body?.email || "").trim().toLowerCase();
     if (!email) {
-      return res.status(400).json({ error: "Email is required" });
+      return res.status(400).json({ error: "Имейлът е задължителен" });
     }
 
     const userResult = await pool.query(
@@ -164,15 +249,15 @@ const forgotPassword = async (req, res) => {
 
     await sendEmail({
       to: user.email,
-      subject: "Reset your Fishing Atlas password",
-      text: `Use this link to reset your password. It expires in 1 hour: ${resetUrl}`,
+      subject: "Нулиране на паролата във Fishing Atlas",
+      text: `Използвайте този линк, за да нулирате паролата си. Линкът изтича след 1 час: ${resetUrl}`,
       html: `
         <div style="font-family:Arial,sans-serif;line-height:1.5;color:#0f172a">
-          <h2>Password reset</h2>
-          <p>Hello ${user.full_name || "there"},</p>
-          <p>Use the secure link below to reset your Fishing Atlas password. The link expires in 1 hour.</p>
-          <p><a href="${resetUrl}" style="display:inline-block;background:#2563eb;color:white;padding:12px 16px;border-radius:10px;text-decoration:none;font-weight:700">Reset password</a></p>
-          <p>If you did not request this, you can ignore this email.</p>
+          <h2>Нулиране на паролата</h2>
+          <p>Здравейте, ${user.full_name || "риболовец"},</p>
+          <p>Използвайте защитения линк по-долу, за да нулирате паролата си във Fishing Atlas. Линкът изтича след 1 час.</p>
+          <p><a href="${resetUrl}" style="display:inline-block;background:#2563eb;color:white;padding:12px 16px;border-radius:10px;text-decoration:none;font-weight:700">Нулирай паролата</a></p>
+          <p>Ако не сте заявявали това действие, можете да игнорирате този имейл.</p>
         </div>
       `,
     });
@@ -180,7 +265,7 @@ const forgotPassword = async (req, res) => {
     res.json({ message: genericMessage });
   } catch (err) {
     console.error("forgotPassword error:", err);
-    res.status(500).json({ error: "Failed to send reset email" });
+    res.status(500).json({ error: "Неуспешно изпращане на имейл за нулиране" });
   }
 };
 
@@ -189,11 +274,11 @@ const resetPassword = async (req, res) => {
     const token = String(req.body?.token || "").trim();
     const password = String(req.body?.password || "");
 
-    if (!token) return res.status(400).json({ error: "Reset token is required" });
+    if (!token) return res.status(400).json({ error: "Линкът за нулиране е задължителен" });
 
     const passwordCheck = validateStrongPassword(password);
     if (!passwordCheck.isValid) {
-      return res.status(400).json({ error: `Password must contain ${passwordCheck.errors.join(", ")}.` });
+      return res.status(400).json({ error: `Паролата трябва да съдържа: ${passwordCheck.errors.join(", ")}.` });
     }
 
     const tokenHash = hashResetToken(token);
@@ -211,7 +296,7 @@ const resetPassword = async (req, res) => {
     );
 
     if (!tokenResult.rows.length || tokenResult.rows[0].is_active === false) {
-      return res.status(400).json({ error: "Reset link is invalid or expired" });
+      return res.status(400).json({ error: "Линкът за нулиране е невалиден или изтекъл" });
     }
 
     const bcryptPassword = await bcrypt.hash(password, 10);
@@ -227,10 +312,10 @@ const resetPassword = async (req, res) => {
       throw err;
     }
 
-    res.json({ message: "Password changed successfully. You can now log in." });
+    res.json({ message: "Паролата е променена успешно. Вече можете да влезете." });
   } catch (err) {
     console.error("resetPassword error:", err);
-    res.status(500).json({ error: "Failed to reset password" });
+    res.status(500).json({ error: "Неуспешно нулиране на паролата" });
   }
 };
 
@@ -239,5 +324,6 @@ module.exports = {
   login,
   me,
   forgotPassword,
+  verifyEmail,
   resetPassword,
 };

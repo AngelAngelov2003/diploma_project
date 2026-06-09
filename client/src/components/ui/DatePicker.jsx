@@ -2,9 +2,9 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { FaCalendarAlt } from "react-icons/fa";
 import styles from "./DatePicker.module.css";
 
-const MONTH_FORMATTER = new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric" });
-const DISPLAY_FORMATTER = new Intl.DateTimeFormat("en-US", { year: "numeric", month: "2-digit", day: "2-digit" });
-const WEEKDAYS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+const MONTH_FORMATTER = new Intl.DateTimeFormat("bg-BG", { month: "long", year: "numeric" });
+const DISPLAY_FORMATTER = new Intl.DateTimeFormat("bg-BG", { year: "numeric", month: "2-digit", day: "2-digit" });
+const WEEKDAYS = ["Нд", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб"];
 
 const toDateOnly = (value) => {
   if (!value) return null;
@@ -34,15 +34,15 @@ export default function DatePicker({
   min,
   max,
   disabled,
-  placeholder = "Choose date",
+  placeholder = "Изберете дата",
   className = "",
   range = false,
   startValue = "",
   endValue = "",
   onRangeChange,
   disabledDates = [],
-  rangeStartHint = "Choose the first fishing day",
-  rangeEndHint = "Choose the last fishing day",
+  rangeStartHint = "Избери първия ден за риболов",
+  rangeEndHint = "Избери последния ден за риболов",
 }) {
   const selectedDate = toDateOnly(value);
   const rangeStartDate = toDateOnly(startValue);
@@ -168,15 +168,15 @@ export default function DatePicker({
       </button>
 
       {open ? (
-        <div className={styles.popover} role="dialog" aria-label={range ? "Choose date range" : "Choose date"}>
+        <div className={styles.popover} role="dialog" aria-label={range ? "Изберете период" : "Изберете дата"}>
           <div className={styles.header}>
             <div>
               <div className={styles.monthTitle}>{MONTH_FORMATTER.format(visibleMonth)}</div>
               {range ? <div className={styles.rangeHint}>{rangeStep === "end" ? rangeEndHint : rangeStartHint}</div> : null}
             </div>
             <div className={styles.navGroup}>
-              <button type="button" className={styles.navButton} onClick={() => setVisibleMonth((prev) => addMonths(prev, -1))} aria-label="Previous month">‹</button>
-              <button type="button" className={styles.navButton} onClick={() => setVisibleMonth((prev) => addMonths(prev, 1))} aria-label="Next month">›</button>
+              <button type="button" className={styles.navButton} onClick={() => setVisibleMonth((prev) => addMonths(prev, -1))} aria-label="Предишен месец">‹</button>
+              <button type="button" className={styles.navButton} onClick={() => setVisibleMonth((prev) => addMonths(prev, 1))} aria-label="Следващ месец">›</button>
             </div>
           </div>
 
@@ -227,7 +227,7 @@ export default function DatePicker({
                 Clear
               </button>
             ) : null}
-            <button type="button" className={styles.footerButton} onClick={() => setOpen(false)}>Close</button>
+            <button type="button" className={styles.footerButton} onClick={() => setOpen(false)}>Затвори</button>
           </div>
         </div>
       ) : null}

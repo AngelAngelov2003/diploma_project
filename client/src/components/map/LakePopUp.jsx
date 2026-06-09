@@ -32,10 +32,10 @@ const toLocalDateTimeValue = (date) => {
 };
 
 const formatForecastDay = (value) => {
-  if (!value) return "Unknown";
+  if (!value) return "Неизвестно";
   const date = new Date(`${value}T00:00:00`);
   if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+  return date.toLocaleDateString("bg-BG", { weekday: "short", month: "short", day: "numeric" });
 };
 
 
@@ -241,7 +241,7 @@ const LakePopup = ({ lake, map }) => {
       if (alertEnabled) {
         await api.delete(`/alerts/${lake.id}`);
         setAlertEnabled(false);
-        notifySuccess("Alert disabled");
+        notifySuccess("Известието е изключено");
       } else {
         await api.post("/alerts", {
           water_body_id: lake.id,
@@ -249,17 +249,17 @@ const LakePopup = ({ lake, map }) => {
           notification_frequency: "daily",
         });
         setAlertEnabled(true);
-        notifySuccess("Alert enabled");
+        notifySuccess("Известието е включено");
       }
     } catch (err) {
       if (err?.response?.data?.code === "PREMIUM_REQUIRED") {
         setAlertLocked(true);
         setActivePanel("premium-alert");
-        notifyError(null, "Premium subscription required for smart alerts. Open Billing / Premium from the menu.");
+        notifyError(null, "За умни известия е нужен Premium абонамент. Отворете Плащания / Premium от менюто.");
       } else {
         notifyError(
           err,
-          alertEnabled ? "Failed to disable alert" : "Failed to enable alert",
+          alertEnabled ? "Неуспешно изключване на известието" : "Неуспешно включване на известието",
         );
       }
     } finally {
@@ -277,18 +277,18 @@ const LakePopup = ({ lake, map }) => {
       if (favoriteEnabled) {
         await api.delete(`/favorites/${lake.id}`);
         setFavoriteEnabled(false);
-        notifySuccess("Removed from favorites");
+        notifySuccess("Премахнато от любими");
       } else {
         await api.post("/favorites", { water_body_id: lake.id });
         setFavoriteEnabled(true);
-        notifySuccess("Added to favorites");
+        notifySuccess("Добавено в любими");
       }
     } catch (err) {
       notifyError(
         err,
         favoriteEnabled
-          ? "Failed to remove favorite"
-          : "Failed to add favorite",
+          ? "Неуспешно премахване от любими"
+          : "Неуспешно добавяне в любими",
       );
     } finally {
       setAlertLoading(false);
@@ -299,7 +299,7 @@ const LakePopup = ({ lake, map }) => {
     setMsg("");
 
     if (!lake?.id || !hasValidCoords) {
-      notifyError(null, "Lake coordinates are not available");
+      notifyError(null, "Координатите на водоема не са налични");
       return;
     }
 
@@ -318,9 +318,9 @@ const LakePopup = ({ lake, map }) => {
         setForecast(null);
         setForecastLocked(true);
         setActivePanel("forecast");
-        notifyError(null, "Premium subscription required to unlock the forecast. Open Billing / Premium from the menu.");
+        notifyError(null, "За отключване на прогнозата е нужен Premium абонамент. Отворете Плащания / Premium от менюто.");
       } else {
-        notifyError(err, "Error fetching forecast");
+        notifyError(err, "Грешка при зареждане на прогнозата");
       }
     } finally {
       setLoading(false);
@@ -360,9 +360,9 @@ const LakePopup = ({ lake, map }) => {
         setWeeklyForecast([]);
         setForecastLocked(true);
         setActivePanel("forecast");
-        notifyError(null, "Premium subscription required to unlock the weekly forecast. Open Billing / Premium from the menu.");
+        notifyError(null, "За седмичната прогноза е нужен Premium абонамент. Отворете Плащания / Premium от менюто.");
       } else {
-        notifyError(err, "Error fetching weekly forecast");
+        notifyError(err, "Грешка при зареждане на седмичната прогноза");
       }
     } finally {
       setLoading(false);
@@ -378,8 +378,8 @@ const LakePopup = ({ lake, map }) => {
     }
 
     if (file.size > MAX_IMAGE_SIZE_BYTES) {
-      setMsg("Image must be 5 MB or smaller");
-      notifyError(null, "Image must be 5 MB or smaller");
+      setMsg("Снимката трябва да е 5 MB или по-малка");
+      notifyError(null, "Снимката трябва да е 5 MB или по-малка");
       e.target.value = "";
       return;
     }
@@ -396,22 +396,22 @@ const LakePopup = ({ lake, map }) => {
     const parsedWeight = Number.parseFloat(weight);
 
     if (!trimmedSpecies) {
-      setMsg("Species is required");
+      setMsg("Видът риба е задължителен");
       return;
     }
 
     if (!Number.isFinite(parsedWeight) || parsedWeight <= 0) {
-      setMsg("Weight must be greater than 0");
+      setMsg("Теглото трябва да е по-голямо от 0");
       return;
     }
 
     if (notes.length > MAX_NOTES_LENGTH) {
-      setMsg(`Notes must be ${MAX_NOTES_LENGTH} characters or less`);
+      setMsg(`Бележките трябва да са до ${MAX_NOTES_LENGTH} символа`);
       return;
     }
 
     if (image && image.size > MAX_IMAGE_SIZE_BYTES) {
-      setMsg("Image must be 5 MB or smaller");
+      setMsg("Снимката трябва да е 5 MB или по-малка");
       return;
     }
 
@@ -439,16 +439,16 @@ const LakePopup = ({ lake, map }) => {
       await api.post("/catch", formData, {
         headers: { "Content-Type": "multipart/form-data" },
       });
-      notifySuccess("Catch saved");
-      setMsg("Saved successfully");
+      notifySuccess("Уловът е запазен");
+      setMsg("Запазено успешно");
 
       setTimeout(() => {
         resetForm();
         setActivePanel(null);
       }, 900);
     } catch (err) {
-      notifyError(err, "Error saving catch");
-      setMsg("Error saving");
+      notifyError(err, "Грешка при запазване на улова");
+      setMsg("Грешка при запазване");
     } finally {
       setSaving(false);
     }
@@ -469,8 +469,8 @@ const LakePopup = ({ lake, map }) => {
           ref={activePanelRef}
           className="lake-popup-panel-card"
           compact
-          title="Forecast Score: Premium Required"
-          message="Unlock the full AI fishing forecast, daily prediction details, and smart lake alerts."
+          title="Оценка на прогнозата: нужен е Premium"
+          message="Отключете пълната AI риболовна прогноза, дневните детайли и умните известия за водоема."
           onUpgrade={() => navigate("/billing")}
           onClose={() => {
             setForecastLocked(false);
@@ -504,16 +504,16 @@ const LakePopup = ({ lake, map }) => {
         <div className="lake-popup-section-heading">
           <div className="lake-popup-section-title">
             <FaChartBar />
-            <span>Fishing forecast</span>
+            <span>Риболовна прогноза</span>
           </div>
-          <p>Live conditions and AI scoring for this water body.</p>
+          <p>Актуални условия и AI оценка за този водоем.</p>
           <button
             type="button"
             className="lake-popup-weekly-toggle"
             onClick={toggleWeeklyForecast}
             disabled={loading || !hasValidCoords}
           >
-            {showWeeklyForecast ? "Hide weekly forecast" : "Show weekly forecast"}
+            {showWeeklyForecast ? "Скрий седмичната прогноза" : "Покажи седмичната прогноза"}
           </button>
         </div>
 
@@ -547,7 +547,7 @@ const LakePopup = ({ lake, map }) => {
               })()
             ) : (
               <div className="lake-popup-weekly-empty">
-                {loading ? "Loading weekly forecast..." : "No weekly forecast available."}
+                {loading ? "Зареждане на седмичната прогноза..." : "Няма налична седмична прогноза."}
               </div>
             )}
           </div>
@@ -559,7 +559,7 @@ const LakePopup = ({ lake, map }) => {
               <FaThermometerHalf />
             </div>
             <div>
-              <div className="lake-popup-score-label">Weather score</div>
+              <div className="lake-popup-score-label">Оценка на времето</div>
               <div className="lake-popup-score-value">
                 {displayedBreakdown.weather_score ?? 0}/100
               </div>
@@ -571,7 +571,7 @@ const LakePopup = ({ lake, map }) => {
               <FaMoon />
             </div>
             <div>
-              <div className="lake-popup-score-label">Moon score</div>
+              <div className="lake-popup-score-label">Оценка на луната</div>
               <div className="lake-popup-score-value">
                 {displayedBreakdown.moon_score ?? 0}/100
               </div>
@@ -580,25 +580,25 @@ const LakePopup = ({ lake, map }) => {
         </div>
 
         <div className="lake-popup-total-score">
-          <span>Total index</span>
+          <span>Общ индекс</span>
           <strong>{displayedForecast?.total_score ?? 0}%</strong>
         </div>
 
         <div className="lake-popup-metric-grid">
           <div className="lake-popup-metric-item">
-            <span>Temperature</span>
+            <span>Температура</span>
             <strong>{formatForecastNumber(displayedForecast?.temp, 1)}°C</strong>
           </div>
           <div className="lake-popup-metric-item">
-            <span>Wind</span>
-            <strong>{formatForecastNumber(displayedForecast?.wind, 1)} m/s</strong>
+            <span>Вятър</span>
+            <strong>{formatForecastNumber(displayedForecast?.wind, 1)} м/с</strong>
           </div>
           <div className="lake-popup-metric-item">
-            <span>Pressure</span>
-            <strong>{formatForecastNumber(displayedForecast?.pressure, 0)} hPa</strong>
+            <span>Налягане</span>
+            <strong>{formatForecastNumber(displayedForecast?.pressure, 0)} хПа</strong>
           </div>
           <div className="lake-popup-metric-item">
-            <span>Humidity</span>
+            <span>Влажност</span>
             <strong>{formatForecastNumber(displayedForecast?.humidity, 0)}%</strong>
           </div>
         </div>
@@ -614,9 +614,9 @@ const LakePopup = ({ lake, map }) => {
         ref={activePanelRef}
         className="lake-popup-panel-card"
         compact
-        title="Smart Alerts: Premium Required"
-        message="Unlock automatic forecast alerts and smart lake notifications."
-        bullets={["Daily or weekly forecast alerts", "Smart updates for saved lakes"]}
+        title="Умни известия: нужен е Premium"
+        message="Отключете автоматични известия за прогноза и умни известия за водоема."
+        bullets={["Дневни или седмични известия за прогноза", "Умни известия за любими водоеми"]}
         onUpgrade={() => navigate("/billing")}
         onClose={() => {
           setAlertLocked(false);
@@ -650,17 +650,17 @@ const LakePopup = ({ lake, map }) => {
         <div className="lake-popup-section-heading">
           <div className="lake-popup-section-title">
             <FaMapMarkedAlt />
-            <span>Log catch</span>
+            <span>Запиши улов</span>
           </div>
-          <p>Record species, weight, time and notes.</p>
+          <p>Запишете вид риба, тегло, време и бележки.</p>
         </div>
 
         <div className="lake-popup-form-grid">
           <div className="lake-popup-field">
-            <label>Species</label>
+            <label>Вид риба</label>
             <input
               type="text"
-              placeholder="Species"
+              placeholder="Вид риба"
               value={species}
               onChange={(e) => setSpecies(e.target.value)}
               required
@@ -670,11 +670,11 @@ const LakePopup = ({ lake, map }) => {
           </div>
 
           <div className="lake-popup-field">
-            <label>Weight (kg)</label>
+            <label>Тегло (кг)</label>
             <input
               type="text"
               inputMode="decimal"
-              placeholder="Weight (kg)"
+              placeholder="Тегло (кг)"
               value={weight}
               onChange={(e) =>
                 setWeight(e.target.value.replace(/[^0-9.]/g, ""))
@@ -686,7 +686,7 @@ const LakePopup = ({ lake, map }) => {
         </div>
 
         <div className="lake-popup-field">
-          <label>Catch time</label>
+          <label>Време на улова</label>
           <input
             type="datetime-local"
             value={catchTime}
@@ -696,7 +696,7 @@ const LakePopup = ({ lake, map }) => {
         </div>
 
         <div className="lake-popup-field">
-          <label>Notes</label>
+          <label>Бележки</label>
           <textarea
             value={notes}
             onChange={(e) =>
@@ -705,7 +705,7 @@ const LakePopup = ({ lake, map }) => {
             rows={2}
             disabled={saving}
             maxLength={MAX_NOTES_LENGTH}
-            placeholder="Bait, method, spot, extra info..."
+            placeholder="Стръв, метод, място, допълнителна информация..."
           />
           <div className="lake-popup-field-meta">
             {notes.length}/{MAX_NOTES_LENGTH}
@@ -715,14 +715,14 @@ const LakePopup = ({ lake, map }) => {
         <div className="lake-popup-field">
           <label className="lake-popup-photo-label">
             <FaCamera />
-            <span>Add photo</span>
+            <span>Добави снимка</span>
           </label>
 
           {imagePreviewUrl ? (
             <div className="lake-popup-image-preview-wrap">
               <ZoomableImage
                 src={imagePreviewUrl}
-                alt="Preview"
+                alt="Преглед"
                 imageClassName="lake-popup-image-preview"
               />
               <button
@@ -731,19 +731,20 @@ const LakePopup = ({ lake, map }) => {
                 disabled={saving}
                 className="lake-popup-secondary-button"
               >
-                Remove photo
+                Премахни снимката
               </button>
             </div>
           ) : (
             <label className="lake-popup-upload-box">
               <input
+                style={{ display: "none" }}
                 type="file"
                 accept="image/*"
                 disabled={saving}
                 onChange={handleImageChange}
               />
-              <span>Choose photo</span>
-              <small>JPG, PNG, WEBP up to 5 MB</small>
+              <span>Избери снимка</span>
+              <small>JPG, PNG, WEBP до 5 MB</small>
             </label>
           )}
         </div>
@@ -753,7 +754,7 @@ const LakePopup = ({ lake, map }) => {
           disabled={saving}
           className="lake-popup-primary-submit"
         >
-          {saving ? "Saving..." : "Save catch"}
+          {saving ? "Запазване..." : "Запази улова"}
         </button>
 
         {msg && (
@@ -799,7 +800,7 @@ const LakePopup = ({ lake, map }) => {
                 fontWeight: 800,
               }}
             >
-              {descriptionExpanded ? "Show less" : "Show more"}
+              {descriptionExpanded ? "Покажи по-малко" : "Покажи повече"}
             </button>
           ) : null}
         </div>
@@ -815,7 +816,7 @@ const LakePopup = ({ lake, map }) => {
             }`}
           >
             <FaChartBar />
-            <span>{loading ? "Loading..." : "Forecast"}</span>
+            <span>{loading ? "Зареждане..." : "Прогноза"}</span>
           </button>
 
           <button
@@ -831,7 +832,7 @@ const LakePopup = ({ lake, map }) => {
             className="lake-popup-action-button forecast-week"
           >
             <FaCalendarAlt />
-            <span>{loading ? "Loading..." : "Week"}</span>
+            <span>{loading ? "Зареждане..." : "Седмица"}</span>
           </button>
 
           <button
@@ -846,7 +847,7 @@ const LakePopup = ({ lake, map }) => {
             }`}
           >
             <FaCamera />
-            <span>Log Catch</span>
+            <span>Запиши улов</span>
           </button>
 
           <button
@@ -860,10 +861,10 @@ const LakePopup = ({ lake, map }) => {
             <FaBell />
             <span>
               {alertLoading
-                ? "Please wait..."
+                ? "Моля, изчакайте..."
                 : alertEnabled
-                  ? "Disable Alert"
-                  : "Enable Alert"}
+                  ? "Изключи известие"
+                  : "Включи известие"}
             </span>
           </button>
 
@@ -876,7 +877,7 @@ const LakePopup = ({ lake, map }) => {
             }`}
           >
             <FaStar />
-            <span>{favoriteEnabled ? "Unfavorite" : "Favorite"}</span>
+            <span>{favoriteEnabled ? "Премахни от любими" : "Любими"}</span>
           </button>
         </div>
         )}
@@ -890,7 +891,7 @@ const LakePopup = ({ lake, map }) => {
           onClick={openDetails}
           className="lake-popup-details-button"
         >
-          View Details
+          Виж детайли
         </button>
       </div>
 

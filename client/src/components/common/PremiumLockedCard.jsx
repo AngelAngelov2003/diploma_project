@@ -12,7 +12,7 @@ const PremiumLockedCard = React.forwardRef(
       onClose,
       compact = false,
       className = "",
-      closeLabel = "Close premium prompt",
+      closeLabel = "Затвори Premium прозореца",
     },
     ref
   ) => {
@@ -41,7 +41,7 @@ const PremiumLockedCard = React.forwardRef(
 
         <div className="locked-card__content">
           <div className="locked-card__badge locked-card__badge--premium">
-            <FaCrown /> Premium feature
+            <FaCrown /> Premium функция
           </div>
 
           <div className="locked-card__layout">
@@ -62,7 +62,7 @@ const PremiumLockedCard = React.forwardRef(
                 </ul>
               ) : null}
               <button type="button" onClick={handleUpgrade} className="locked-card__button locked-card__button--premium">
-                <FaCrown /> Upgrade to Premium
+                <FaCrown /> Надгради до Premium
               </button>
             </div>
           </div>

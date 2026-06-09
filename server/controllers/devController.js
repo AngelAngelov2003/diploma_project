@@ -69,7 +69,7 @@ const getMlTrainingData = async (req, res) => {
     res.json(rows);
   } catch (err) {
     console.error("getMlTrainingData failed:", err);
-    res.status(500).json({ error: "Failed to load ML training data" });
+    res.status(500).json({ error: "Неуспешно зареждане на данните за обучение на ML" });
   }
 };
 

@@ -132,7 +132,7 @@ const getWaterBodiesInBounds = async ({
       Number.isFinite,
     )
   ) {
-    throw new Error("Invalid bounds or zoom passed to getWaterBodiesInBounds");
+    throw new Error("Подадени са невалидни граници или zoom към getWaterBodiesInBounds");
   }
 
   const minWest = Math.min(parsedWest, parsedEast);

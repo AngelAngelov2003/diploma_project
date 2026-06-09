@@ -14,7 +14,7 @@ export default function Pagination({ currentPage, totalPages, totalItems, startI
   return (
     <div className={ui.paginationWrap}>
       <div className={ui.paginationMeta}>
-        Showing <strong>{totalItems === 0 ? 0 : startIndex + 1}</strong>–<strong>{endIndex}</strong> of <strong>{totalItems}</strong>
+        Показани <strong>{totalItems === 0 ? 0 : startIndex + 1}</strong>–<strong>{endIndex}</strong> от <strong>{totalItems}</strong>
       </div>
 
       <div className={ui.paginationControls}>

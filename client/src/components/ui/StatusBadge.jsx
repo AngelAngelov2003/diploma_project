@@ -21,7 +21,7 @@ export default function StatusBadge({ status, className = "" }) {
         .filter(Boolean)
         .join(" ")}
     >
-      {normalizedStatus || "unknown"}
+      {{ pending: "чакаща", approved: "одобрена", approved_waiting_payment: "одобрена, чака плащане", rejected: "отхвърлена", cancelled: "отказана", canceled: "отказана" }[normalizedStatus] || "неизвестен статус"}
     </span>
   );
 }

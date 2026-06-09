@@ -134,7 +134,7 @@ const Navigation = ({ isAuthenticated, onLogout, currentUser }) => {
     setSeenOwnerPages(true);
   };
 
-  const NewBadge = () => <span className="nav-new-badge">NEW</span>;
+  const NewBadge = () => <span className="nav-new-badge">НОВО</span>;
 
   const Badge = ({ count }) => {
     if (!count) return null;
@@ -153,37 +153,37 @@ const Navigation = ({ isAuthenticated, onLogout, currentUser }) => {
   return (
     <>
       <nav className="main-navigation">
-        <div className="main-navigation-brand">
+        <button type="button" className="main-navigation-brand" onClick={() => closeMenuAndNavigate("/")}>
           <FaFish />
-          <span>Fishing Atlas AI</span>
-        </div>
+          <span>Риболовен атлас</span>
+        </button>
 
         <div className="main-navigation-links">
           {isAuthenticated ? (
             <>
               <NavLink to="/" className={linkClassName}>
                 <FaMapMarkedAlt />
-                <span>Map</span>
+                <span>Карта</span>
               </NavLink>
 
               <NavLink to="/dashboard" className={linkClassName}>
                 <FaChartPie />
-                <span>Dashboard</span>
+                <span>Контролен панел</span>
               </NavLink>
 
               <NavLink to="/catches" className={linkClassName}>
                 <FaList />
-                <span>My Catches</span>
+                <span>Риболовен дневник</span>
               </NavLink>
 
               <NavLink to="/saved-lakes" className={linkClassName}>
                 <FaStar />
-                <span>Saved Lakes</span>
+                <span>Любими водоеми</span>
               </NavLink>
 
               <NavLink to="/reservations" className={(state) => `${linkClassName(state)} secondary-nav-link has-badge`}>
                 <FaCalendarAlt />
-                <span>Reservations</span>
+                <span>Резервации</span>
                 <Badge count={userReservationBadgeCount} />
               </NavLink>
 
@@ -196,7 +196,7 @@ const Navigation = ({ isAuthenticated, onLogout, currentUser }) => {
                     className={(state) => `${linkClassName(state)} secondary-nav-link has-badge`}
                   >
                     <FaTools />
-                    <span>Owner Panel</span>
+                    <span>Панел на собственика</span>
                     {showOwnerNewBadge ? <NewBadge /> : null}
                     <Badge count={ownerReservationBadgeCount} />
                   </NavLink>
@@ -206,7 +206,7 @@ const Navigation = ({ isAuthenticated, onLogout, currentUser }) => {
               {isAdmin && (
                 <NavLink to="/admin" className={(state) => `${linkClassName(state)} secondary-nav-link has-badge`}>
                   <FaUserShield />
-                  <span>Admin</span>
+                  <span>Админ</span>
                   <Badge count={adminBadgeCount} />
                 </NavLink>
               )}
@@ -216,7 +216,7 @@ const Navigation = ({ isAuthenticated, onLogout, currentUser }) => {
                 <button
                   onClick={() => setShowMenu((prev) => !prev)}
                   className={`main-user-avatar-button ${showMenu ? "open" : ""}`}
-                  aria-label={showMenu ? "Close navigation menu" : "Open navigation menu"}
+                  aria-label={showMenu ? "Затвори навигационното меню" : "Отвори навигационното меню"}
                   aria-expanded={showMenu}
                   type="button"
                 >
@@ -226,7 +226,7 @@ const Navigation = ({ isAuthenticated, onLogout, currentUser }) => {
                 {showMenu && (
                   <div className="main-user-dropdown">
                     <div className="main-user-dropdown-header">
-                      {currentUser?.full_name || "User"}
+                      {currentUser?.full_name || "Потребител"}
                       {currentUser?.role ? ` • ${currentUser.role}` : ""}
                     </div>
 
@@ -235,7 +235,7 @@ const Navigation = ({ isAuthenticated, onLogout, currentUser }) => {
                       className="main-user-dropdown-item responsive-menu-item"
                     >
                       <FaMapMarkedAlt />
-                      <span>Map</span>
+                      <span>Карта</span>
                     </div>
 
                     <div
@@ -243,7 +243,7 @@ const Navigation = ({ isAuthenticated, onLogout, currentUser }) => {
                       className="main-user-dropdown-item responsive-menu-item"
                     >
                       <FaChartPie />
-                      <span>Dashboard</span>
+                      <span>Контролен панел</span>
                     </div>
 
                     <div
@@ -251,7 +251,7 @@ const Navigation = ({ isAuthenticated, onLogout, currentUser }) => {
                       className="main-user-dropdown-item"
                     >
                       <FaUserCog />
-                      <span>Profile</span>
+                      <span>Профил</span>
                     </div>
 
                     <div
@@ -259,7 +259,7 @@ const Navigation = ({ isAuthenticated, onLogout, currentUser }) => {
                       className="main-user-dropdown-item"
                     >
                       <FaCrown />
-                      <span>Billing / Premium</span>
+                      <span>Плащания / Премиум</span>
                     </div>
 
                     <div
@@ -267,7 +267,7 @@ const Navigation = ({ isAuthenticated, onLogout, currentUser }) => {
                       className="main-user-dropdown-item responsive-menu-item"
                     >
                       <FaList />
-                      <span>My Catches</span>
+                      <span>Риболовен дневник</span>
                     </div>
 
                     <div
@@ -275,7 +275,7 @@ const Navigation = ({ isAuthenticated, onLogout, currentUser }) => {
                       className="main-user-dropdown-item responsive-menu-item"
                     >
                       <FaStar />
-                      <span>Saved Lakes</span>
+                      <span>Любими водоеми</span>
                     </div>
 
                     <div
@@ -283,7 +283,7 @@ const Navigation = ({ isAuthenticated, onLogout, currentUser }) => {
                       className="main-user-dropdown-item responsive-menu-item"
                     >
                       <FaCalendarAlt />
-                      <span>Reservations</span>
+                      <span>Резервации</span>
                       <Badge count={userReservationBadgeCount} />
                     </div>
 
@@ -292,7 +292,7 @@ const Navigation = ({ isAuthenticated, onLogout, currentUser }) => {
                       className="main-user-dropdown-item"
                     >
                       <FaFileSignature />
-                      <span>Become Owner</span>
+                      <span>Стани собственик</span>
                     </div>
 
                     {isOwner && (
@@ -302,7 +302,7 @@ const Navigation = ({ isAuthenticated, onLogout, currentUser }) => {
                           className="main-user-dropdown-item responsive-menu-item"
                         >
                           <FaTools />
-                          <span>Owner Panel</span>
+                          <span>Панел на собственика</span>
                           {showOwnerNewBadge ? <NewBadge /> : null}
                           <Badge count={ownerReservationBadgeCount} />
                         </div>
@@ -315,7 +315,7 @@ const Navigation = ({ isAuthenticated, onLogout, currentUser }) => {
                         className="main-user-dropdown-item responsive-menu-item"
                       >
                         <FaUserShield />
-                        <span>Admin Dashboard</span>
+                        <span>Административен панел</span>
                         <Badge count={adminBadgeCount} />
                       </div>
                     )}
@@ -328,7 +328,7 @@ const Navigation = ({ isAuthenticated, onLogout, currentUser }) => {
                       className="main-user-dropdown-item danger"
                     >
                       <FaSignOutAlt />
-                      <span>Sign Out</span>
+                      <span>Изход</span>
                     </div>
                   </div>
                 )}
@@ -336,14 +336,14 @@ const Navigation = ({ isAuthenticated, onLogout, currentUser }) => {
             </>
           ) : (
             <>
-              <NavLink to="/login" className={linkClassName}>
+              <NavLink to="/login" className={(state) => `${linkClassName(state)} auth-nav-link`}>
                 <FaSignInAlt />
-                <span>Login</span>
+                <span>Вход</span>
               </NavLink>
 
-              <NavLink to="/register" className={linkClassName}>
+              <NavLink to="/register" className={(state) => `${linkClassName(state)} auth-nav-link`}>
                 <FaUserPlus />
-                <span>Register</span>
+                <span>Регистрация</span>
               </NavLink>
             </>
           )}
@@ -366,6 +366,11 @@ const Navigation = ({ isAuthenticated, onLogout, currentUser }) => {
         }
 
         .main-navigation-brand {
+          border: none;
+          background: transparent;
+          color: inherit;
+          cursor: pointer;
+          padding: 0;
           font-size: 20px;
           margin-right: 24px;
           display: flex;
@@ -378,8 +383,9 @@ const Navigation = ({ isAuthenticated, onLogout, currentUser }) => {
 
         .main-navigation-links {
           display: flex;
-          gap: 10px;
+          gap: 6px;
           align-items: center;
+          min-width: 0;
         }
 
         .main-nav-link {
@@ -388,10 +394,16 @@ const Navigation = ({ isAuthenticated, onLogout, currentUser }) => {
           font-weight: 700;
           display: inline-flex;
           align-items: center;
-          gap: 8px;
-          padding: 9px 12px;
+          gap: 7px;
+          padding: 9px 10px;
+          white-space: nowrap;
+          font-size: 14px;
           border-radius: 12px;
           transition: all 0.18s ease;
+        }
+
+        .main-nav-link span {
+          white-space: nowrap;
         }
 
         .main-nav-link:hover {
@@ -537,7 +549,7 @@ const Navigation = ({ isAuthenticated, onLogout, currentUser }) => {
             gap: 6px;
           }
 
-          .main-navigation-links > .main-nav-link {
+          .main-navigation-links > .main-nav-link:not(.auth-nav-link) {
             display: none;
           }
 
@@ -594,7 +606,7 @@ const Navigation = ({ isAuthenticated, onLogout, currentUser }) => {
             margin-right: 4px;
           }
 
-          .main-navigation-links > .main-nav-link {
+          .main-navigation-links > .main-nav-link:not(.auth-nav-link) {
             display: none;
           }
 

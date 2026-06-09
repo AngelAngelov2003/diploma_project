@@ -4,10 +4,20 @@ import { getBillingStatus, openBillingPortal, startPremiumCheckout } from "../ap
 import { notifyError, notifySuccess } from "../ui/toast";
 import "./BillingPage.css";
 
+const getSubscriptionStatusLabel = (status) => ({
+  active: "активен",
+  trialing: "пробен период",
+  inactive: "неактивен",
+  canceled: "отказан",
+  cancelled: "отказан",
+  past_due: "просрочен",
+  unpaid: "неплатен",
+}[status] || status || "неактивен");
+
 const formatDate = (value) => {
-  if (!value) return "Not active";
+  if (!value) return "Не е активен";
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "Not active";
+  if (Number.isNaN(date.getTime())) return "Не е активен";
   return date.toLocaleDateString();
 };
 
@@ -21,7 +31,7 @@ export default function BillingPage() {
       const data = await getBillingStatus();
       setBilling(data);
     } catch (error) {
-      notifyError(error, "Failed to load billing status");
+      notifyError(error, "Неуспешно зареждане на статуса на плащанията");
     } finally {
       setLoading(false);
     }
@@ -32,7 +42,7 @@ export default function BillingPage() {
 
     const params = new URLSearchParams(window.location.search);
     if (params.get("checkout") === "success") {
-      notifySuccess("Payment completed. Your Premium access will appear after Stripe confirms it.");
+      notifySuccess("Плащането е завършено. Premium достъпът ще се появи след потвърждение от Stripe.");
       window.history.replaceState({}, "", "/billing");
     }
   }, []);
@@ -47,7 +57,7 @@ export default function BillingPage() {
       const data = await startPremiumCheckout();
       redirectTo(data.url);
     } catch (error) {
-      notifyError(error, "Could not start Stripe checkout");
+      notifyError(error, "Неуспешно стартиране на Stripe checkout");
     } finally {
       setBusyAction("");
     }
@@ -59,7 +69,7 @@ export default function BillingPage() {
       const data = await openBillingPortal();
       redirectTo(data.url);
     } catch (error) {
-      notifyError(error, "Could not open Stripe billing portal");
+      notifyError(error, "Неуспешно отваряне на Stripe billing портала");
     } finally {
       setBusyAction("");
     }
@@ -71,51 +81,51 @@ export default function BillingPage() {
     <div className="billing-page">
       <section className="billing-hero">
         <div>
-          <div className="billing-eyebrow"><FaCrown /> Premium plan</div>
-          <h1>Unlock forecasts and smart alerts</h1>
+          <div className="billing-eyebrow"><FaCrown /> Premium план</div>
+          <h1>Отключете прогнози и умни известия</h1>
           <p>
-            Free users can use the map and basic lake information. Premium users unlock the AI fishing forecast,
-            forecast explanations, and alert creation.
+            Безплатните потребители могат да използват картата и основната информация за водоемите. Premium потребителите отключват AI риболовната прогноза,
+            обясненията към прогнозата и създаването на известия.
           </p>
         </div>
         <div className={`billing-status-card ${hasPremium ? "active" : ""}`}>
-          <span>{hasPremium ? "Premium active" : "Free plan"}</span>
-          <strong>{billing?.subscription_status || "inactive"}</strong>
-          <small>Period end: {formatDate(billing?.current_period_end)}</small>
+          <span>{hasPremium ? "Premium активен" : "Безплатен план"}</span>
+          <strong>{getSubscriptionStatusLabel(billing?.subscription_status)}</strong>
+          <small>Край на периода: {formatDate(billing?.current_period_end)}</small>
         </div>
       </section>
 
       {loading ? (
-        <div className="billing-card">Loading billing...</div>
+        <div className="billing-card">Зареждане на плащания...</div>
       ) : (
         <div className="billing-grid">
           <article className="billing-card">
-            <h2>Free</h2>
+            <h2>Безплатен</h2>
             <div className="billing-price">€0</div>
             <ul>
-              <li><FaCheckCircle /> Interactive map</li>
-              <li><FaCheckCircle /> Lake details</li>
-              <li><FaCheckCircle /> Favorites</li>
-              <li><FaCheckCircle /> Reservation requests</li>
+              <li><FaCheckCircle /> Интерактивна карта</li>
+              <li><FaCheckCircle /> Детайли за водоем</li>
+              <li><FaCheckCircle /> Любими водоеми</li>
+              <li><FaCheckCircle /> Заявки за резервации</li>
             </ul>
           </article>
 
           <article className="billing-card premium">
             <h2>Premium</h2>
-            <div className="billing-price">Set in Stripe</div>
+            <div className="billing-price">Задава се в Stripe</div>
             <ul>
-              <li><FaCheckCircle /> AI forecast and score</li>
-              <li><FaCheckCircle /> Forecast explanation</li>
-              <li><FaCheckCircle /> Alert creation</li>
-              <li><FaCheckCircle /> Future premium analytics</li>
+              <li><FaCheckCircle /> AI прогноза и оценка</li>
+              <li><FaCheckCircle /> Обяснение на прогнозата</li>
+              <li><FaCheckCircle /> Създаване на известия</li>
+              <li><FaCheckCircle /> Бъдещи премиум анализи</li>
             </ul>
             {hasPremium ? (
               <button type="button" onClick={handlePortal} disabled={busyAction === "portal"}>
-                <FaCreditCard /> Manage billing <FaExternalLinkAlt />
+                <FaCreditCard /> Управление на плащанията <FaExternalLinkAlt />
               </button>
             ) : (
               <button type="button" onClick={handleSubscribe} disabled={busyAction === "checkout"}>
-                <FaLockOpen /> Upgrade with Stripe
+                <FaLockOpen /> Надграждане чрез Stripe
               </button>
             )}
           </article>

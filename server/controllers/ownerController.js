@@ -84,7 +84,7 @@ const createClaimRequest = async (req, res) => {
     if (!nextEmail) return res.status(400).json({ error: 'email is required' });
     if (!proofDocumentUrl) return res.status(400).json({ error: 'proof_document is required' });
     const lakeQ = await pool.query(`SELECT id, name, is_private, is_reservable, owner_id FROM water_bodies WHERE id = $1`, [waterBodyId]);
-    if (!lakeQ.rows.length) return res.status(404).json({ error: 'Lake not found' });
+    if (!lakeQ.rows.length) return res.status(404).json({ error: 'Водоемът не е намерен' });
     const lake = lakeQ.rows[0];
     if (!lake.is_private || !lake.is_reservable) return res.status(400).json({ error: 'Only private, reservable lakes can be requested' });
     if (lake.owner_id) return res.status(400).json({ error: 'This lake already has an owner' });
@@ -106,7 +106,7 @@ const updateOwnerLake = async (req, res) => {
     await ensureSchema();
     const { waterBodyId } = req.params;
     const current = await ensureOwnedLake(waterBodyId, req.user);
-    if (!current) return res.status(404).json({ error: 'Lake not found or not owned by you' });
+    if (!current) return res.status(404).json({ error: 'Водоемът не е намерен или не е ваш' });
     const nextName = String(req.body.name ?? current.name ?? '').trim();
     const nextDescription = String(req.body.description ?? current.description ?? '').trim() || null;
     const nextType = String(req.body.type ?? current.type ?? '').trim() || null;
@@ -121,7 +121,7 @@ const updateOwnerLake = async (req, res) => {
     const nextHasHousing = typeof req.body.has_housing === 'boolean' ? req.body.has_housing : Boolean(current.has_housing);
     if (nextIsReservable) nextIsPrivate = true;
     if (!nextIsPrivate) nextIsReservable = false;
-    if (!nextName) return res.status(400).json({ error: 'Lake name is required' });
+    if (!nextName) return res.status(400).json({ error: 'Името на водоема е задължително' });
     if (!Number.isFinite(nextPricePerDay) || nextPricePerDay < 0) return res.status(400).json({ error: 'price_per_day must be 0 or greater' });
     if (!Number.isInteger(nextCapacity) || nextCapacity < 1) return res.status(400).json({ error: 'capacity must be an integer greater than 0' });
     if (!Number.isInteger(nextSpotsCount) || nextSpotsCount < 0) return res.status(400).json({ error: 'spots_count must be 0 or greater' });
@@ -146,7 +146,7 @@ const getOwnerLakeReservations = async (req, res) => {
   try {
     await ensureSchema();
     const lake = await ensureOwnedLake(req.params.waterBodyId, req.user);
-    if (!lake) return res.status(404).json({ error: 'Lake not found or not owned by you' });
+    if (!lake) return res.status(404).json({ error: 'Водоемът не е намерен или не е ваш' });
 
     const q = await pool.query(`
       SELECT
@@ -221,7 +221,7 @@ const getOwnerLakeEarnings = async (req, res) => {
   try {
     await ensureSchema();
     const lake = await ensureOwnedLake(req.params.waterBodyId, req.user);
-    if (!lake) return res.status(404).json({ error: 'Lake not found or not owned by you' });
+    if (!lake) return res.status(404).json({ error: 'Водоемът не е намерен или не е ваш' });
 
     const monthStart = new Date();
     monthStart.setDate(1);
@@ -299,7 +299,7 @@ const getOwnerLakeSpotAvailability = async (req, res) => {
   try {
     await ensureSchema();
     const lake = await ensureOwnedLake(req.params.waterBodyId, req.user);
-    if (!lake) return res.status(404).json({ error: 'Lake not found or not owned by you' });
+    if (!lake) return res.status(404).json({ error: 'Водоемът не е намерен или не е ваш' });
 
     const date = formatDateParam(req.query.date);
     if (!date) return res.status(400).json({ error: 'date is required' });
@@ -390,7 +390,7 @@ const getOwnerLakeSpotAvailability = async (req, res) => {
 const getOwnerBlockedDates = async (req, res) => {
   try {
     const lake = await ensureOwnedLake(req.params.waterBodyId, req.user);
-    if (!lake) return res.status(404).json({ error: 'Lake not found or not owned by you' });
+    if (!lake) return res.status(404).json({ error: 'Водоемът не е намерен или не е ваш' });
     const q = await pool.query(`SELECT id, water_body_id, blocked_date, reason, created_at FROM lake_blocked_dates WHERE water_body_id = $1 ORDER BY blocked_date ASC`, [req.params.waterBodyId]);
     res.json(q.rows);
   } catch (err) {
@@ -401,7 +401,7 @@ const getOwnerBlockedDates = async (req, res) => {
 const createOwnerBlockedDate = async (req, res) => {
   try {
     const lake = await ensureOwnedLake(req.params.waterBodyId, req.user);
-    if (!lake) return res.status(404).json({ error: 'Lake not found or not owned by you' });
+    if (!lake) return res.status(404).json({ error: 'Водоемът не е намерен или не е ваш' });
     const startDate = String(req.body.start_date || req.body.blocked_date || '').trim();
     const endDate = String(req.body.end_date || req.body.start_date || req.body.blocked_date || '').trim();
     const reason = String(req.body.reason || '').trim() || null;
@@ -436,7 +436,7 @@ const createOwnerBlockedDate = async (req, res) => {
 const deleteOwnerBlockedDate = async (req, res) => {
   try {
     const lake = await ensureOwnedLake(req.params.waterBodyId, req.user);
-    if (!lake) return res.status(404).json({ error: 'Lake not found or not owned by you' });
+    if (!lake) return res.status(404).json({ error: 'Водоемът не е намерен или не е ваш' });
     await pool.query(`DELETE FROM lake_blocked_dates WHERE id = $1 AND water_body_id = $2`, [req.params.blockedDateId, req.params.waterBodyId]);
     res.json({ ok: true });
   } catch (err) {
@@ -449,7 +449,7 @@ const getLakeSpots = async (req, res) => {
     await ensureSchema();
     const { lakeId } = req.params;
     const lake = await ensureOwnedLake(lakeId, req.user);
-    if (!lake) return res.status(404).json({ error: 'Lake not found or not owned by you' });
+    if (!lake) return res.status(404).json({ error: 'Водоемът не е намерен или не е ваш' });
 
     const q = await pool.query(`
       SELECT id, water_body_id, spot_number, is_active, created_at, updated_at
@@ -469,7 +469,7 @@ const syncLakeSpots = async (req, res) => {
     await ensureSchema();
     const { lakeId } = req.params;
     const lake = await ensureOwnedLake(lakeId, req.user);
-    if (!lake) return res.status(404).json({ error: 'Lake not found or not owned by you' });
+    if (!lake) return res.status(404).json({ error: 'Водоемът не е намерен или не е ваш' });
 
     const spotsCount = Number(req.body.spots_count);
     if (!Number.isInteger(spotsCount) || spotsCount < 0) {
@@ -525,7 +525,7 @@ const updateLakeSpot = async (req, res) => {
     await ensureSchema();
     const { lakeId, spotId } = req.params;
     const lake = await ensureOwnedLake(lakeId, req.user);
-    if (!lake) return res.status(404).json({ error: 'Lake not found or not owned by you' });
+    if (!lake) return res.status(404).json({ error: 'Водоемът не е намерен или не е ваш' });
 
     const existing = await pool.query(
       `SELECT * FROM lake_spots WHERE id = $1 AND water_body_id = $2`,
@@ -553,7 +553,7 @@ const getLakeRooms = async (req, res) => {
   try {
     await ensureSchema();
     const lake = await ensureOwnedLake(req.params.waterBodyId, req.user);
-    if (!lake) return res.status(404).json({ error: 'Lake not found or not owned by you' });
+    if (!lake) return res.status(404).json({ error: 'Водоемът не е намерен или не е ваш' });
     const q = await pool.query(`SELECT * FROM lake_rooms WHERE water_body_id = $1 ORDER BY sort_order ASC, name ASC`, [req.params.waterBodyId]);
     res.json(q.rows);
   } catch (err) {
@@ -565,7 +565,7 @@ const createLakeRoom = async (req, res) => {
   try {
     await ensureSchema();
     const lake = await ensureOwnedLake(req.params.waterBodyId, req.user);
-    if (!lake) return res.status(404).json({ error: 'Lake not found or not owned by you' });
+    if (!lake) return res.status(404).json({ error: 'Водоемът не е намерен или не е ваш' });
     const name = String(req.body.name || '').trim();
     const capacity = Number(req.body.capacity || 1);
     const pricePerNight = Number(req.body.price_per_night || 0);
@@ -585,7 +585,7 @@ const updateLakeRoom = async (req, res) => {
   try {
     await ensureSchema();
     const lake = await ensureOwnedLake(req.params.waterBodyId, req.user);
-    if (!lake) return res.status(404).json({ error: 'Lake not found or not owned by you' });
+    if (!lake) return res.status(404).json({ error: 'Водоемът не е намерен или не е ваш' });
     const existing = await pool.query(`SELECT * FROM lake_rooms WHERE id = $1 AND water_body_id = $2`, [req.params.roomId, req.params.waterBodyId]);
     if (!existing.rows.length) return res.status(404).json({ error: 'Room not found' });
     const current = existing.rows[0];
@@ -608,7 +608,7 @@ const deleteLakeRoom = async (req, res) => {
   try {
     await ensureSchema();
     const lake = await ensureOwnedLake(req.params.waterBodyId, req.user);
-    if (!lake) return res.status(404).json({ error: 'Lake not found or not owned by you' });
+    if (!lake) return res.status(404).json({ error: 'Водоемът не е намерен или не е ваш' });
     await pool.query(`DELETE FROM lake_rooms WHERE id = $1 AND water_body_id = $2`, [req.params.roomId, req.params.waterBodyId]);
     res.json({ ok: true });
   } catch (err) {
@@ -620,7 +620,7 @@ const getLakePhotos = async (req, res) => {
   try {
     await ensureSchema();
     const lake = await ensureOwnedLake(req.params.waterBodyId, req.user);
-    if (!lake) return res.status(404).json({ error: 'Lake not found or not owned by you' });
+    if (!lake) return res.status(404).json({ error: 'Водоемът не е намерен или не е ваш' });
     const q = await pool.query(`SELECT * FROM lake_gallery_photos WHERE water_body_id = $1 ORDER BY sort_order ASC, created_at DESC`, [req.params.waterBodyId]);
     res.json(q.rows);
   } catch (err) {
@@ -632,7 +632,7 @@ const uploadLakePhoto = async (req, res) => {
   try {
     await ensureSchema();
     const lake = await ensureOwnedLake(req.params.waterBodyId, req.user);
-    if (!lake) return res.status(404).json({ error: 'Lake not found or not owned by you' });
+    if (!lake) return res.status(404).json({ error: 'Водоемът не е намерен или не е ваш' });
     const files = Array.isArray(req.files) ? req.files : [];
     if (!files.length) return res.status(400).json({ error: 'at least one image file is required' });
 
@@ -668,7 +668,7 @@ const deleteLakePhoto = async (req, res) => {
   try {
     await ensureSchema();
     const lake = await ensureOwnedLake(req.params.waterBodyId, req.user);
-    if (!lake) return res.status(404).json({ error: 'Lake not found or not owned by you' });
+    if (!lake) return res.status(404).json({ error: 'Водоемът не е намерен или не е ваш' });
     await pool.query(`DELETE FROM lake_gallery_photos WHERE id = $1 AND water_body_id = $2`, [req.params.photoId, req.params.waterBodyId]);
     res.json({ ok: true });
   } catch (err) {
@@ -681,7 +681,7 @@ const getOwnerLakeCatches = async (req, res) => {
   try {
     await ensureSchema();
     const lake = await ensureOwnedLake(req.params.waterBodyId, req.user);
-    if (!lake) return res.status(404).json({ error: 'Lake not found or not owned by you' });
+    if (!lake) return res.status(404).json({ error: 'Водоемът не е намерен или не е ваш' });
 
     const q = await pool.query(`
       SELECT
@@ -715,7 +715,7 @@ const deleteOwnerCatchPhoto = async (req, res) => {
   try {
     await ensureSchema();
     const lake = await ensureOwnedLake(req.params.waterBodyId, req.user);
-    if (!lake) return res.status(404).json({ error: 'Lake not found or not owned by you' });
+    if (!lake) return res.status(404).json({ error: 'Водоемът не е намерен или не е ваш' });
 
     const q = await pool.query(
       `UPDATE catch_logs
@@ -736,7 +736,7 @@ const reportOwnerLakeCatch = async (req, res) => {
   try {
     await ensureSchema();
     const lake = await ensureOwnedLake(req.params.waterBodyId, req.user);
-    if (!lake) return res.status(404).json({ error: 'Lake not found or not owned by you' });
+    if (!lake) return res.status(404).json({ error: 'Водоемът не е намерен или не е ваш' });
 
     const reason = String(req.body.reason || '').trim();
     if (!reason) return res.status(400).json({ error: 'reason is required' });

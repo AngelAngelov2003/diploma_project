@@ -36,7 +36,7 @@ const handleExpiredSession = (message) => {
   window.dispatchEvent(
     new CustomEvent(AUTH_EXPIRED_EVENT, {
       detail: {
-        message: message || "Your session expired. Please sign in again.",
+        message: message || "Сесията ви изтече. Моля, влезте отново.",
       },
     })
   );

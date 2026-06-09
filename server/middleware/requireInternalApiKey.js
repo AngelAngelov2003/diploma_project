@@ -3,11 +3,11 @@ const requireInternalApiKey = (req, res, next) => {
   const providedKey = String(req.headers["x-internal-api-key"] || "").trim();
 
   if (!expectedKey) {
-    return res.status(503).json({ error: "Internal API key is not configured" });
+    return res.status(503).json({ error: "Вътрешният API ключ не е конфигуриран" });
   }
 
   if (!providedKey || providedKey !== expectedKey) {
-    return res.status(401).json({ error: "Unauthorized internal request" });
+    return res.status(401).json({ error: "Неоторизиран достъп internal request" });
   }
 
   return next();

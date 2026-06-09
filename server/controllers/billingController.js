@@ -6,7 +6,7 @@ const isOwnerOrAdmin = (role) => ["owner", "admin"].includes(String(role || "use
 
 const requireOwnerRole = (req, res) => {
   if (!isOwnerOrAdmin(req.userRole)) {
-    res.status(403).json({ error: "Only approved owners can access owner billing." });
+    res.status(403).json({ error: "Само одобрени собственици имат достъп до плащанията на собственика." });
     return false;
   }
   return true;
@@ -55,7 +55,7 @@ const createPremiumCheckoutSession = async (req, res, next) => {
   try {
     const priceId = process.env.STRIPE_USER_PREMIUM_PRICE_ID;
     if (!priceId) {
-      return res.status(500).json({ error: "Missing STRIPE_USER_PREMIUM_PRICE_ID in server/.env" });
+      return res.status(500).json({ error: "Липсва STRIPE_USER_PREMIUM_PRICE_ID в server/.env" });
     }
 
     const stripe = requireStripe();
@@ -99,7 +99,7 @@ const createCustomerPortalSession = async (req, res, next) => {
     const billing = await billingService.getOrCreateUserBillingProfile(req.user);
 
     if (!billing?.stripe_customer_id) {
-      return res.status(400).json({ error: "No Stripe customer exists for this account yet." });
+      return res.status(400).json({ error: "Все още няма Stripe клиент за този акаунт." });
     }
 
     const appUrl = getAppUrl();

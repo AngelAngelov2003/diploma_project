@@ -25,13 +25,13 @@ const storage = multer.diskStorage({
 const imageOnly = (req, file, cb) => {
   const allowedMimeTypes = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
   if (allowedMimeTypes.has(file.mimetype)) return cb(null, true);
-  return cb(new Error("Only JPG, PNG, WEBP, or GIF image uploads are allowed"));
+  return cb(new Error("Разрешени са само JPG, PNG, WEBP или GIF изображения"));
 };
 
 const proofDocumentOnly = (req, file, cb) => {
   const allowedMimeTypes = new Set(["image/jpeg", "image/png", "image/webp", "application/pdf"]);
   if (allowedMimeTypes.has(file.mimetype)) return cb(null, true);
-  return cb(new Error("Owner proof must be a JPG, PNG, WEBP, or PDF file"));
+  return cb(new Error("Документът за доказване на собственост трябва да бъде JPG, PNG, WEBP или PDF файл"));
 };
 
 const upload = multer({

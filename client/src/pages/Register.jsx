@@ -36,7 +36,7 @@ function Register({ setAuth, setCurrentUser }) {
     setMessage("");
 
     if (!passwordStrength.isStrong) {
-      const errorMessage = "Password must include uppercase, lowercase, number, symbol, and at least 8 characters.";
+      const errorMessage = "Паролата трябва да съдържа главна буква, малка буква, число, символ и поне 8 символа.";
       setMessage(errorMessage);
       notifyError(errorMessage);
       return;
@@ -55,7 +55,7 @@ function Register({ setAuth, setCurrentUser }) {
       setCurrentUser(data.user || null);
       setAuth(true);
 
-      const successMessage = "Registration successful";
+      const successMessage = "Регистрацията е успешна";
       notifySuccess(successMessage);
       setMessage(successMessage);
 
@@ -63,8 +63,8 @@ function Register({ setAuth, setCurrentUser }) {
         navigate("/");
       }, 700);
     } catch (error) {
-      const errorMessage = getErrorMessage(error, "Registration failed");
-      notifyError(error, "Registration failed");
+      const errorMessage = getErrorMessage(error, "Регистрацията е неуспешна");
+      notifyError(error, "Регистрацията е неуспешна");
       setMessage(errorMessage);
     } finally {
       setSubmitting(false);
@@ -84,7 +84,7 @@ function Register({ setAuth, setCurrentUser }) {
       }}
     >
       <h2>
-        <FaUserPlus /> Register
+        <FaUserPlus /> Регистрация
       </h2>
 
       {message && (
@@ -105,7 +105,7 @@ function Register({ setAuth, setCurrentUser }) {
       >
         <input
           type="text"
-          placeholder="Full Name"
+          placeholder="Име и фамилия"
           value={fullName}
           onChange={(event) => setFullName(event.target.value)}
           required
@@ -115,7 +115,7 @@ function Register({ setAuth, setCurrentUser }) {
 
         <input
           type="email"
-          placeholder="Email"
+          placeholder="Имейл"
           value={email}
           onChange={(event) => setEmail(event.target.value)}
           required
@@ -125,7 +125,7 @@ function Register({ setAuth, setCurrentUser }) {
 
         <input
           type="password"
-          placeholder="Password"
+          placeholder="Парола"
           value={password}
           onChange={(event) => setPassword(event.target.value)}
           required
@@ -154,7 +154,7 @@ function Register({ setAuth, setCurrentUser }) {
             cursor: submitting ? "not-allowed" : "pointer",
           }}
         >
-          {submitting ? "Creating..." : "Create Account"}
+          {submitting ? "Създаване..." : "Създай акаунт"}
         </button>
       </form>
     </div>

@@ -1,8 +1,10 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import styles from "./CatchLogItem.module.css";
 import { FaFish, FaMapMarkedAlt, FaEdit, FaTrash, FaSave, FaTimes } from "react-icons/fa";
 import { formatDateTime } from "../../utils/date";
 import ZoomableImage from "../ui/ZoomableImage";
+
+
 
 const API_BASE_URL = "http://localhost:5000";
 
@@ -15,8 +17,7 @@ const toDateTimeInput = (value) => {
 };
 
 export default function CatchLogItem({ log, onLakeClick, onUpdate, onDelete, saving }) {
-  const when = log.catch_time || log.created_at;
-  const imgSrc = log.image_url ? `${API_BASE_URL}/uploads/${log.image_url}` : null;
+  const [localLog, setLocalLog] = useState(log);
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState({
     species: log.species || "",
@@ -25,13 +26,32 @@ export default function CatchLogItem({ log, onLakeClick, onUpdate, onDelete, sav
     notes: log.notes || "",
   });
 
+  useEffect(() => {
+    setLocalLog(log);
+
+    if (!editing) {
+      setForm({
+        species: log.species || "",
+        weight_kg: log.weight_kg ?? "",
+        catch_time: toDateTimeInput(log.catch_time || log.created_at),
+        notes: log.notes || "",
+      });
+    }
+  }, [log, editing]);
+
+  const when = localLog.catch_time || localLog.created_at;
+  const imgSrc = localLog.image_url ? `${API_BASE_URL}/uploads/${localLog.image_url}` : null;
+
   const submitUpdate = async () => {
-    await onUpdate?.(log.id, {
+    const payload = {
       species: form.species,
       weight_kg: form.weight_kg,
       catch_time: form.catch_time,
       notes: form.notes,
-    });
+    };
+
+    const updatedLog = await onUpdate?.(localLog.id, payload);
+    setLocalLog((prev) => ({ ...prev, ...payload, ...(updatedLog || {}) }));
     setEditing(false);
   };
 
@@ -39,7 +59,7 @@ export default function CatchLogItem({ log, onLakeClick, onUpdate, onDelete, sav
     <li className={styles.item}>
       <div className={styles.imageBox}>
         {imgSrc ? (
-          <ZoomableImage src={imgSrc} alt={log.species || "Catch"} imageClassName={styles.image} />
+          <ZoomableImage src={imgSrc} alt={localLog.species || "Улов"} imageClassName={styles.image} />
         ) : (
           <FaFish size={38} color="#6c757d" />
         )}
@@ -51,47 +71,47 @@ export default function CatchLogItem({ log, onLakeClick, onUpdate, onDelete, sav
             {editing ? (
               <div className={styles.editGrid}>
                 <label>
-                  Species
+                  Вид риба
                   <input value={form.species} onChange={(e) => setForm((prev) => ({ ...prev, species: e.target.value }))} />
                 </label>
                 <label>
-                  Weight kg
+                  Тегло (кг)
                   <input type="number" step="0.01" value={form.weight_kg} onChange={(e) => setForm((prev) => ({ ...prev, weight_kg: e.target.value }))} />
                 </label>
                 <label>
-                  Catch time
+                  Време на улова
                   <input type="datetime-local" value={form.catch_time} onChange={(e) => setForm((prev) => ({ ...prev, catch_time: e.target.value }))} />
                 </label>
                 <label className={styles.notesField}>
-                  Notes
+                  Бележки
                   <textarea rows={2} value={form.notes} onChange={(e) => setForm((prev) => ({ ...prev, notes: e.target.value }))} />
                 </label>
               </div>
             ) : (
               <>
                 <div className={styles.title}>
-                  <strong>{log.species}</strong>
-                  <span className={styles.weight}>— {log.weight_kg}kg</span>
+                  <strong>{localLog.species || "Неизвестно"}</strong>
+                  <span className={styles.weight}>— {localLog.weight_kg} кг</span>
                 </div>
                 <div className={styles.metaChips}>
-                  <span className={styles.metaChip}>Catch time: <strong>{formatDateTime(when)}</strong></span>
-                  {log.notes ? <span className={styles.metaChip}>Notes: {log.notes}</span> : null}
+                  <span className={styles.metaChip}>Време на улова: <strong>{formatDateTime(when)}</strong></span>
+                  {localLog.notes ? <span className={styles.metaChip}>Бележки: {localLog.notes}</span> : null}
                 </div>
               </>
             )}
           </div>
-          {log.lake_name || log.water_body_name ? (
+          {localLog.lake_name || localLog.water_body_name ? (
             <button
               type="button"
               onClick={() =>
-                onLakeClick && log.water_body_id !== null && log.water_body_id !== undefined && log.water_body_id !== ""
-                  ? onLakeClick(log.water_body_id)
+                onLakeClick && localLog.water_body_id !== null && localLog.water_body_id !== undefined && localLog.water_body_id !== ""
+                  ? onLakeClick(localLog.water_body_id)
                   : null
               }
               className={styles.lakeLink}
             >
               <FaMapMarkedAlt />
-              <span>{log.lake_name || log.water_body_name}</span>
+              <span>{localLog.lake_name || localLog.water_body_name}</span>
             </button>
           ) : null}
         </div>
@@ -99,13 +119,13 @@ export default function CatchLogItem({ log, onLakeClick, onUpdate, onDelete, sav
         <div className={styles.actionRow}>
           {editing ? (
             <>
-              <button type="button" className={styles.saveButton} disabled={saving} onClick={submitUpdate}><FaSave /> {saving ? "Saving..." : "Save"}</button>
-              <button type="button" className={styles.secondaryButton} disabled={saving} onClick={() => setEditing(false)}><FaTimes /> Cancel</button>
+              <button type="button" className={styles.saveButton} disabled={saving} onClick={submitUpdate}><FaSave /> {saving ? "Запазване..." : "Запази"}</button>
+              <button type="button" className={styles.secondaryButton} disabled={saving} onClick={() => setEditing(false)}><FaTimes /> Откажи</button>
             </>
           ) : (
             <>
-              <button type="button" className={styles.secondaryButton} onClick={() => setEditing(true)}><FaEdit /> Edit</button>
-              <button type="button" className={styles.deleteButton} disabled={saving} onClick={() => onDelete?.(log.id)}><FaTrash /> Delete</button>
+              <button type="button" className={styles.secondaryButton} onClick={() => setEditing(true)}><FaEdit /> Редактирай</button>
+              <button type="button" className={styles.deleteButton} disabled={saving} onClick={() => onDelete?.(localLog.id)}><FaTrash /> Изтрий</button>
             </>
           )}
         </div>

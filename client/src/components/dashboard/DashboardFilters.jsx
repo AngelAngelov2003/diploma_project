@@ -21,7 +21,7 @@ export default function DashboardFilters({
     const m = new Map();
     for (const c of catches || []) {
       const id = c.water_body_id;
-      const name = c.lake_name || c.water_body_name || "Unknown location";
+      const name = c.lake_name || c.water_body_name || "Неизвестно място";
       if (id && !m.has(id)) m.set(id, name);
     }
     return Array.from(m.entries()).sort((a, b) => a[1].localeCompare(b[1]));
@@ -39,20 +39,20 @@ export default function DashboardFilters({
     <div className={`${styles.filtersBlock} ${disabled ? styles.filtersGridDisabled : ""}`.trim()}>
       <div className={styles.filtersGrid}>
       <div>
-        <div className={styles.label}>Search</div>
+        <div className={styles.label}>Търсене</div>
         <input
           type="text"
           value={searchTerm || ""}
           onChange={(e) => setSearchTerm?.(e.target.value)}
-          placeholder={disabled ? "Loading..." : "Species, lake, notes..."}
+          placeholder={disabled ? "Зареждане..." : "Вид риба, водоем, бележки..."}
           className={styles.control}
         />
       </div>
 
       <div>
-        <div className={styles.label}>Lake</div>
+        <div className={styles.label}>Водоем</div>
         <select value={selectedLakeId} onChange={(e) => setSelectedLakeId(e.target.value)} className={styles.control}>
-          <option value="ALL">{disabled ? "Loading lakes..." : "All lakes"}</option>
+          <option value="ALL">{disabled ? "Зареждане на водоеми..." : "Всички водоеми"}</option>
           {!disabled &&
             lakeOptions.map(([id, name]) => (
               <option key={id} value={id}>
@@ -63,9 +63,9 @@ export default function DashboardFilters({
       </div>
 
       <div>
-        <div className={styles.label}>Species</div>
+        <div className={styles.label}>Вид риба</div>
         <select value={selectedSpecies} onChange={(e) => setSelectedSpecies(e.target.value)} className={styles.control}>
-          <option value="ALL">{disabled ? "Loading species..." : "All species"}</option>
+          <option value="ALL">{disabled ? "Зареждане на видове..." : "Всички видове"}</option>
           {!disabled &&
             speciesOptions.map((s) => (
               <option key={s} value={s}>
@@ -76,14 +76,14 @@ export default function DashboardFilters({
       </div>
 
       <div className={styles.dateRangeField}>
-        <div className={styles.label}>Date range</div>
+        <div className={styles.label}>Период</div>
         <DatePicker
           range
           startValue={dateFrom}
           endValue={dateTo}
-          placeholder="Choose date range"
-          rangeStartHint="Choose the start date"
-          rangeEndHint="Choose the end date"
+          placeholder="Изберете период"
+          rangeStartHint="Избери начална дата"
+          rangeEndHint="Избери крайна дата"
           onRangeChange={({ start, end }) => {
             setDateFrom(start || "");
             setDateTo(end || start || "");
@@ -101,7 +101,7 @@ export default function DashboardFilters({
           disabled={disabled}
           className={styles.clearButton}
         >
-          Clear filters
+          Изчисти филтрите
         </button>
       </div>
     </div>

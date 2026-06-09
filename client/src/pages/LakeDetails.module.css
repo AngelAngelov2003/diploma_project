@@ -221,8 +221,18 @@
 
 .roomOptionCard:disabled {
   cursor: not-allowed;
-  opacity: 0.65;
-  background: #f8fafc;
+  opacity: 0.78;
+  background: #f1f5f9;
+}
+
+.roomOptionCardReserved {
+  border-color: #cbd5e1;
+  background: #e2e8f0;
+  color: #64748b;
+}
+
+.roomOptionCardReserved .roomOptionAction {
+  color: #64748b;
 }
 
 .roomOptionCardSelected {

@@ -23,6 +23,7 @@ const {
   ensureReservationDomainTables,
   ensureBillingTables,
   ensurePasswordResetTokensTable,
+  ensureEmailVerificationTokensTable,
 } = require("./setup/ensureTables");
 
 const {
@@ -47,7 +48,7 @@ app.use(securityHeaders);
 app.use(cors({
   origin(origin, callback) {
     if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
-    return callback(new Error("Not allowed by CORS"));
+    return callback(new Error("Не е разрешено от CORS"));
   },
   credentials: true,
 }));
@@ -60,7 +61,7 @@ app.use(express.urlencoded({ extended: true, limit: "1mb" }));
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 app.get("/", (req, res) => {
-  res.json({ ok: true, message: "Server is running" });
+  res.json({ ok: true, message: "Сървърът работи" });
 });
 
 app.use(authRoutes);
@@ -75,7 +76,7 @@ app.use(adminRoutes);
 app.use(billingRoutes);
 
 app.use((req, res) => {
-  res.status(404).json({ error: "Route not found" });
+  res.status(404).json({ error: "Маршрутът не е намерен" });
 });
 
 app.use((err, req, res, next) => {
@@ -84,7 +85,7 @@ app.use((err, req, res, next) => {
 
   console.error(err);
   res.status(status).json({
-    error: err.message || "Internal server error",
+    error: err.message || "Вътрешна грешка на сървъра",
   });
 });
 
@@ -96,6 +97,7 @@ const startServer = async () => {
   await ensureReservationDomainTables();
   await ensureBillingTables();
   await ensurePasswordResetTokensTable();
+  await ensureEmailVerificationTokensTable();
 
   startDailyCron();
   startWeeklyCron();
@@ -105,13 +107,13 @@ const startServer = async () => {
 
     setTimeout(() => {
       runStartupCatchUp().catch((err) => {
-        console.error("Startup catch-up failed:", err);
+        console.error("Неуспешно наваксване при стартиране:", err);
       });
     }, 10000);
   });
 };
 
 startServer().catch((err) => {
-  console.error("Failed to start server:", err);
+  console.error("Неуспешно стартиране на сървъра:", err);
   process.exit(1);
 });

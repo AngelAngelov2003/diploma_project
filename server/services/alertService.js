@@ -40,12 +40,12 @@ const clearRetryJob = (key) => {
 
 
 const formatForecastDate = (date) => {
-  if (!date) return "N/A";
+  if (!date) return "Няма данни";
 
   const parsed = new Date(`${date}T00:00:00Z`);
   if (Number.isNaN(parsed.getTime())) return String(date);
 
-  return new Intl.DateTimeFormat("en-GB", {
+  return new Intl.DateTimeFormat("bg-BG", {
     weekday: "short",
     day: "2-digit",
     month: "short",
@@ -57,11 +57,11 @@ const formatForecastDate = (date) => {
 const getScoreLabel = (score) => {
   const n = Number(score || 0);
 
-  if (n >= 80) return "Excellent";
-  if (n >= 70) return "Very good";
-  if (n >= 60) return "Good";
-  if (n >= 50) return "Fair";
-  return "Poor";
+  if (n >= 80) return "Отлично";
+  if (n >= 70) return "Много добро";
+  if (n >= 60) return "Добро";
+  if (n >= 50) return "Приемливо";
+  return "Слабо";
 };
 
 const escapeHtml = (value) => String(value ?? "")
@@ -90,8 +90,8 @@ const renderExplanationList = (explanation) => {
 };
 
 const renderCombinedAlertEmail = ({ userName, periodLabel, alerts }) => {
-  const safeName = userName || "angler";
-  const isWeeklyEmail = String(periodLabel).toLowerCase() === "weekly";
+  const safeName = userName || "риболовец";
+  const isWeeklyEmail = String(periodLabel).toLowerCase() === "седмични" || String(periodLabel).toLowerCase() === "weekly";
 
   const sortedAlerts = [...(alerts || [])].sort(
     (a, b) => Number(b.forecast?.total_score || 0) - Number(a.forecast?.total_score || 0)
@@ -109,8 +109,8 @@ const renderCombinedAlertEmail = ({ userName, periodLabel, alerts }) => {
           <tr>
             <td style="padding:7px 8px;border-top:1px solid #e5e7eb;white-space:nowrap;">${formatForecastDate(day.date)}</td>
             <td style="padding:7px 8px;border-top:1px solid #e5e7eb;font-weight:700;">${Number(day.total_score || 0)}%</td>
-            <td style="padding:7px 8px;border-top:1px solid #e5e7eb;">${day.desc || "N/A"}</td>
-            <td style="padding:7px 8px;border-top:1px solid #e5e7eb;white-space:nowrap;">${day.temp ?? "N/A"} °C</td>
+            <td style="padding:7px 8px;border-top:1px solid #e5e7eb;">${day.desc || "Няма данни"}</td>
+            <td style="padding:7px 8px;border-top:1px solid #e5e7eb;white-space:nowrap;">${day.temp ?? "Няма данни"} °C</td>
             <td style="padding:7px 8px;border-top:1px solid #e5e7eb;">${escapeHtml(day.explanation?.summary || "")}</td>
           </tr>
         `)
@@ -125,11 +125,11 @@ const renderCombinedAlertEmail = ({ userName, periodLabel, alerts }) => {
             </div>
           </div>
           <div style="margin-top:10px;font-size:14px;color:#374151;line-height:1.7;">
-            <div><b>Forecast date:</b> ${forecastDateText}</div>
-            <div><b>Weather:</b> ${forecast.desc || "N/A"}</div>
-            <div><b>Temperature:</b> ${forecast.temp ?? "N/A"} °C</div>
-            <div><b>Pressure:</b> ${forecast.pressure ?? "N/A"} hPa</div>
-            <div><b>Wind:</b> ${forecast.wind ?? "N/A"} m/s</div>
+            <div><b>Дата на прогнозата:</b> ${forecastDateText}</div>
+            <div><b>Време:</b> ${forecast.desc || "Няма данни"}</div>
+            <div><b>Температура:</b> ${forecast.temp ?? "Няма данни"} °C</div>
+            <div><b>Налягане:</b> ${forecast.pressure ?? "Няма данни"} hPa</div>
+            <div><b>Вятър:</b> ${forecast.wind ?? "Няма данни"} m/s</div>
           </div>
           ${renderExplanationList(forecast.explanation)}
           ${weeklyRows ? `
@@ -137,11 +137,11 @@ const renderCombinedAlertEmail = ({ userName, periodLabel, alerts }) => {
               <table style="width:100%;border-collapse:collapse;font-size:13px;color:#374151;">
                 <thead>
                   <tr>
-                    <th style="text-align:left;padding:7px 8px;background:#f8fafc;">Date</th>
-                    <th style="text-align:left;padding:7px 8px;background:#f8fafc;">Score</th>
-                    <th style="text-align:left;padding:7px 8px;background:#f8fafc;">Weather</th>
-                    <th style="text-align:left;padding:7px 8px;background:#f8fafc;">Temp</th>
-                    <th style="text-align:left;padding:7px 8px;background:#f8fafc;">Reason</th>
+                    <th style="text-align:left;padding:7px 8px;background:#f8fafc;">Дата</th>
+                    <th style="text-align:left;padding:7px 8px;background:#f8fafc;">Оценка</th>
+                    <th style="text-align:left;padding:7px 8px;background:#f8fafc;">Време</th>
+                    <th style="text-align:left;padding:7px 8px;background:#f8fafc;">Темп.</th>
+                    <th style="text-align:left;padding:7px 8px;background:#f8fafc;">Причина</th>
                   </tr>
                 </thead>
                 <tbody>${weeklyRows}</tbody>
@@ -157,20 +157,20 @@ const renderCombinedAlertEmail = ({ userName, periodLabel, alerts }) => {
 
   const subjectLine =
     sortedAlerts.length === 1
-      ? "1 lake matched your alert settings"
-      : `${sortedAlerts.length} lakes matched your alert settings`;
+      ? "1 водоем отговаря на настройките ви за известия"
+      : `${sortedAlerts.length} водоема отговарят на настройките ви за известия`;
 
   return `
     <div style="font-family:Arial,sans-serif;max-width:720px;margin:0 auto;line-height:1.5;color:#111827;background:#f8fafc;padding:20px;">
       <div style="background:white;border:1px solid #e5e7eb;border-radius:18px;padding:22px;">
         <div style="font-size:12px;font-weight:700;letter-spacing:0.04em;text-transform:uppercase;color:#2563eb;margin-bottom:8px;">
-          ${periodLabel} fishing alerts
+          ${periodLabel} риболовни известия
         </div>
 
-        <h2 style="margin:0 0 8px 0;color:#0f172a;">Hi ${safeName}, here are your best lake alerts</h2>
+        <h2 style="margin:0 0 8px 0;color:#0f172a;">Здравейте, ${safeName}, ето най-добрите ви известия за водоеми</h2>
 
         <div style="color:#475569;font-size:14px;margin-bottom:16px;">
-          ${subjectLine}. ${isWeeklyEmail ? "The table shows the forecast dates for the coming week." : "Each forecast is for tomorrow and now includes the exact forecast date."} Lakes are sorted from highest fishing score to lowest so the best conditions appear first.
+          ${subjectLine}. ${isWeeklyEmail ? "Таблицата показва прогнозните дати за следващата седмица." : "Всяка прогноза е за утре и вече включва точната дата на прогнозата."} Водоемите са подредени от най-висока към най-ниска риболовна оценка, така че най-добрите условия са най-отгоре.
         </div>
 
         ${
@@ -178,11 +178,11 @@ const renderCombinedAlertEmail = ({ userName, periodLabel, alerts }) => {
             ? `
           <div style="background:linear-gradient(135deg,#0f172a 0%,#1d4ed8 100%);color:white;border-radius:16px;padding:16px 18px;margin-bottom:16px;">
             <div style="font-size:12px;font-weight:700;opacity:0.9;text-transform:uppercase;letter-spacing:0.04em;">
-              Top recommendation
+              Най-добра препоръка
             </div>
             <div style="font-size:24px;font-weight:800;margin-top:6px;">${topAlert.lake_name}</div>
             <div style="margin-top:8px;font-size:14px;opacity:0.95;">
-              Fishing score: <b>${Number(topAlert.forecast?.total_score || 0)}%</b> · ${getScoreLabel(
+              Риболовна оценка: <b>${Number(topAlert.forecast?.total_score || 0)}%</b> · ${getScoreLabel(
                 topAlert.forecast?.total_score
               )}
             </div>
@@ -194,7 +194,7 @@ const renderCombinedAlertEmail = ({ userName, periodLabel, alerts }) => {
         ${rows}
 
         <div style="margin-top:16px;color:#64748b;font-size:12px;">
-          You’re receiving this email because you enabled lake alerts in your account.
+          Получавате този имейл, защото сте включили известия за водоеми в акаунта си.
         </div>
       </div>
     </div>
@@ -336,11 +336,11 @@ const processAlertEmails = async ({ frequency, deliveryDate, periodLabel }) => {
         alerts: qualifiedAlerts,
       });
 
-      const subjectDatePart = frequency === "daily" ? ` for ${deliveryDate}` : "";
+      const subjectDatePart = frequency === "daily" ? ` за ${deliveryDate}` : "";
       const subject =
         qualifiedAlerts.length === 1
-          ? `${periodLabel} fishing alerts${subjectDatePart} — 1 lake matched`
-          : `${periodLabel} fishing alerts${subjectDatePart} — ${qualifiedAlerts.length} lakes matched`;
+          ? `${periodLabel} риболовни известия${subjectDatePart} — 1 водоем отговаря`
+          : `${periodLabel} риболовни известия${subjectDatePart} — ${qualifiedAlerts.length} водоема отговарят`;
 
       console.log(
         `[alerts] Sending ${periodLabel} alert email to ${group.user_email} with ${qualifiedAlerts.length} lake(s)`
@@ -432,7 +432,7 @@ const runAlertEmails = async ({
   const finalDeliveryDate = deliveryDate || toISODate();
   const isWeekly = frequency === "weekly";
   const jobName = isWeekly ? WEEKLY_ALERT_JOB_NAME : DAILY_ALERT_JOB_NAME;
-  const periodLabel = isWeekly ? "Weekly" : "Daily";
+  const periodLabel = isWeekly ? "Седмични" : "Дневни";
   const retryKey = getRetryJobKey({
     frequency,
     deliveryDate: finalDeliveryDate,

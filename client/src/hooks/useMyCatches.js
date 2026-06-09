@@ -17,7 +17,7 @@ export default function useMyCatches() {
       setError(
         err?.response?.data?.error ||
           err?.response?.data ||
-          "Failed to load catches",
+          "Неуспешно зареждане на уловите",
       );
     } finally {
       setLoading(false);

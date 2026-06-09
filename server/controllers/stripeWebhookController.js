@@ -70,14 +70,14 @@ const stripeWebhook = async (req, res) => {
     const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
     if (!webhookSecret) {
-      const missingSecretError = new Error("STRIPE_WEBHOOK_SECRET is not configured. Webhook rejected for safety.");
+      const missingSecretError = new Error("STRIPE_WEBHOOK_SECRET не е конфигуриран. Webhook заявката е отхвърлена от съображения за сигурност.");
       missingSecretError.status = 500;
       throw missingSecretError;
     }
 
     const signature = req.headers["stripe-signature"];
     if (!signature) {
-      return res.status(400).json({ error: "Missing Stripe signature" });
+      return res.status(400).json({ error: "Липсва Stripe подпис" });
     }
 
     event = stripe.webhooks.constructEvent(req.body, signature, webhookSecret);

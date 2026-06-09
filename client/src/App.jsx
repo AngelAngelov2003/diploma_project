@@ -132,7 +132,7 @@ function App() {
     const currentRole = String(currentUser.role).toLowerCase();
 
     if (previousRole && previousRole !== "owner" && currentRole === "owner") {
-      notifyInfo("Your owner request was approved. Owner Panel is now available.");
+      notifyInfo("Заявката ви за собственик беше одобрена. Панелът на собственика вече е достъпен.");
       sessionStorage.setItem(`fishing-atlas-owner-new-${currentUser.id}`, "1");
     }
 
@@ -146,7 +146,7 @@ function App() {
   };
 
   if (!authChecked) {
-    return <div style={{ padding: 20 }}>Loading...</div>;
+    return <div style={{ padding: 20 }}>Зареждане...</div>;
   }
 
   return (

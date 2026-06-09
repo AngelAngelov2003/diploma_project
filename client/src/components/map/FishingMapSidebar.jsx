@@ -80,8 +80,8 @@ function FishingMapSidebar({
         onClick={() => setIsMobileSidebarOpen((v) => !v)}
         aria-label={
           isMobileSidebarOpen
-            ? "Close locations sidebar"
-            : "Open locations sidebar"
+            ? "Затвори панела с локации"
+            : "Отвори панела с локации"
         }
       >
         <span>{isMobileSidebarOpen ? "‹" : "›"}</span>
@@ -91,7 +91,7 @@ function FishingMapSidebar({
         <button
           className="map-sidebar-backdrop"
           onClick={() => setIsMobileSidebarOpen(false)}
-          aria-label="Close locations sidebar"
+          aria-label="Затвори панела с локации"
         />
       )}
 
@@ -102,23 +102,23 @@ function FishingMapSidebar({
               <FaFish />
             </div>
             <div>
-              <h2>Fishing Atlas</h2>
-              <p>Find lakes and fishing spots</p>
+              <h2>Риболовен атлас</h2>
+              <p>Намерете водоеми и риболовни места</p>
             </div>
           </div>
 
           <div className="map-sidebar-hero-stats">
             <div className="map-hero-stat">
               <span>{filteredLakes.length}</span>
-              <small>Lakes</small>
+              <small>Водоеми</small>
             </div>
             <div className="map-hero-stat">
               <span>{visibleMarkerCount}</span>
-              <small>On map</small>
+              <small>На картата</small>
             </div>
             <div className="map-hero-stat">
-              <span>{searchIsActive ? "Filtered" : "All"}</span>
-              <small>Status</small>
+              <span>{searchIsActive ? "Филтрирани" : "Всички"}</span>
+              <small>Статус</small>
             </div>
           </div>
         </div>
@@ -128,12 +128,12 @@ function FishingMapSidebar({
             <FaSearch className="map-search-icon" />
             <input
               type="text"
-              placeholder="Search lakes and water types..."
+              placeholder="Търсене на водоеми..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
             {loadingWaterBodies && searchTerm.trim() && (
-              <span className="map-search-loading">Loading...</span>
+              <span className="map-search-loading">Зареждане...</span>
             )}
             {searchTerm && !loadingWaterBodies && (
               <button
@@ -148,15 +148,13 @@ function FishingMapSidebar({
 
           {searchTerm && (
             <div className="map-search-results-info">
-              Showing {filteredLakes.length} result
-              {filteredLakes.length === 1 ? "" : "s"}
+              Показани резултати: {filteredLakes.length}
             </div>
           )}
 
           {searchIsActive && searchMatchesCount > 0 && (
             <div className="map-search-mode-note">
-              {searchMatchesCount} more result
-              {searchMatchesCount === 1 ? "" : "s"} found outside this area.
+              Още {searchMatchesCount} резултата са намерени извън тази област.
             </div>
           )}
         </div>
@@ -171,7 +169,7 @@ function FishingMapSidebar({
             >
               <FaLocationArrow />
               <span>
-                {locationLoading ? "Getting location..." : "Enable location"}
+                {locationLoading ? "Вземане на местоположение..." : "Използвай местоположение"}
               </span>
             </button>
 
@@ -181,9 +179,9 @@ function FishingMapSidebar({
               className="map-control-select"
               disabled={searchIsActive}
             >
-              <option value="default">Default order</option>
+              <option value="default">Подреждане по подразбиране</option>
               <option value="nearest" disabled={!canUseDistanceSorting}>
-                Nearest first
+                Най-близките първо
               </option>
               <option value="name">A–Z</option>
             </select>
@@ -200,13 +198,13 @@ function FishingMapSidebar({
               }
             >
               <FaTimes />
-              <span>Clear location filter</span>
+              <span>Изчисти филтъра за местоположение</span>
             </button>
           </div>
 
           {!canUseDistanceSorting && (
             <div className="map-sort-helper">
-              Enable your location to sort by distance.
+              Разрешете местоположение, за да сортирате по разстояние.
             </div>
           )}
 
@@ -216,13 +214,13 @@ function FishingMapSidebar({
               className="map-distance-toggle"
               onClick={() => setShowDistancePanel((v) => !v)}
             >
-              <span>Distance tools</span>
+              <span>Инструменти за разстояние</span>
               <span>
                 {distanceFilterActive
-                  ? `Within ${sliderDistanceKm} km`
+                  ? `До ${sliderDistanceKm} км`
                   : showDistancePanel
-                    ? "Hide"
-                    : "Show"}
+                    ? "Скрий"
+                    : "Покажи"}
               </span>
             </button>
           )}
@@ -230,11 +228,11 @@ function FishingMapSidebar({
           {showDistancePanel && (
             <div className="map-distance-slider-card">
               <div className="map-distance-slider-header">
-                <div className="map-distance-slider-title">Distance filter</div>
+                <div className="map-distance-slider-title">Филтър по разстояние</div>
                 <div className="map-distance-slider-value">
                   {distanceFilterActive
-                    ? `Within ${sliderDistanceKm} km`
-                    : "All distances"}
+                    ? `До ${sliderDistanceKm} км`
+                    : "Всички разстояния"}
                 </div>
               </div>
 
@@ -264,8 +262,8 @@ function FishingMapSidebar({
                   disabled={locationLoading}
                 >
                   {userLocation
-                    ? "Apply slider distance"
-                    : "Use location + apply"}
+                    ? "Приложи разстоянието"
+                    : "Използвай местоположение"}
                 </button>
 
                 <button
@@ -293,8 +291,8 @@ function FishingMapSidebar({
                 <span>
                   Location active
                   {distanceFilterActive
-                    ? ` • showing locations within ${distanceKm} km`
-                    : " • nearest sorting is available"}
+                    ? ` • показани са локации в радиус от ${distanceKm} км`
+                    : " • сортирането по близост е налично"}
                 </span>
               )}
             </div>
@@ -310,14 +308,14 @@ function FishingMapSidebar({
 
         <div className="map-sidebar-list">
           {loadingWaterBodies && !searchTerm.trim() ? (
-            <div className="map-empty-state">Loading locations...</div>
+            <div className="map-empty-state">Зареждане на локации...</div>
           ) : filteredLakes.length === 0 ? (
             <div className="map-empty-state">
               {searchTerm.trim()
-                ? "No locations found anywhere for this search."
+                ? "Няма намерени локации за това търсене."
                 : waterBodies.length === 0
-                  ? "No water bodies visible in this area."
-                  : "No locations match your filters."}
+                  ? "Няма видими водоеми в тази зона."
+                  : "Няма локации, които да съвпадат с филтрите."}
             </div>
           ) : (
             filteredLakes.map((lake) => {
@@ -343,14 +341,14 @@ function FishingMapSidebar({
                     </div>
 
                     {selected && (
-                      <div className="lake-list-card-badge">Selected</div>
+                      <div className="lake-list-card-badge">Избран</div>
                     )}
                   </div>
 
                   <div className="lake-list-card-meta">
                     <span className="lake-meta-chip">
                       <FaSlidersH />
-                      Water profile
+                      Профил на водоема
                     </span>
 
                     {lake.type && (
@@ -360,11 +358,11 @@ function FishingMapSidebar({
                     )}
 
                     {shouldShowMarker(lake) && (
-                      <span className="lake-meta-chip">Coordinates ready</span>
+                      <span className="lake-meta-chip">Координатите са готови</span>
                     )}
 
                     {hasRenderableGeometry(lake) && (
-                      <span className="lake-meta-chip">Geometry available</span>
+                      <span className="lake-meta-chip">Геометрията е налична</span>
                     )}
 
                     {distanceLabel && (

@@ -1,13 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
-  FaDownload,
   FaFish,
   FaList,
   FaRedoAlt,
   FaSortAmountDown,
   FaTable,
-  FaChevronLeft,
-  FaChevronRight,
 } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
 import useMyCatches from "../hooks/useMyCatches";
@@ -15,6 +12,7 @@ import { deleteMyCatch, updateMyCatch } from "../api/myCatchesApi";
 import { notifyError, notifySuccess } from "../ui/toast";
 import DashboardFilters from "../components/dashboard/DashboardFilters";
 import CatchLogList from "../components/dashboard/CatchLogList";
+import Pagination from "../components/ui/Pagination";
 
 const SkeletonRow = ({ i }) => (
   <li
@@ -80,29 +78,13 @@ const SkeletonRow = ({ i }) => (
   </li>
 );
 
-const escapeCsv = (value) => {
-  const normalized = String(value ?? "");
-  if (/[",\n]/.test(normalized)) {
-    return `"${normalized.replace(/"/g, '""')}"`;
-  }
-  return normalized;
-};
-
-const formatDateForExport = (value) => {
-  if (!value) return "";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-  return date.toISOString();
-};
-
-
 const sortOptions = [
-  { value: "newest", label: "Newest first" },
-  { value: "oldest", label: "Oldest first" },
-  { value: "weight_desc", label: "Heaviest first" },
-  { value: "weight_asc", label: "Lightest first" },
-  { value: "species_asc", label: "Species A-Z" },
-  { value: "lake_asc", label: "Lake A-Z" },
+  { value: "newest", label: "Най-новите първо" },
+  { value: "oldest", label: "Най-старите първо" },
+  { value: "weight_desc", label: "Най-тежките първо" },
+  { value: "weight_asc", label: "Най-леките първо" },
+  { value: "species_asc", label: "Вид риба A-Z" },
+  { value: "lake_asc", label: "Водоем A-Z" },
 ];
 
 export default function MyCatches() {
@@ -115,7 +97,7 @@ export default function MyCatches() {
   const [searchTerm, setSearchTerm] = useState("");
   const [showSkeleton, setShowSkeleton] = useState(false);
   const [sortBy, setSortBy] = useState("newest");
-  const [pageSize, setPageSize] = useState(8);
+  const [pageSize, setPageSize] = useState(5);
   const [page, setPage] = useState(1);
   const [savingCatchId, setSavingCatchId] = useState("");
   const listSectionRef = useRef(null);
@@ -130,6 +112,10 @@ export default function MyCatches() {
     const onResize = () => setIsMobile(window.innerWidth <= 768);
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
+  }, []);
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
   }, []);
 
   useEffect(() => {
@@ -259,13 +245,13 @@ export default function MyCatches() {
   const paginatedCatches = sortedCatches.slice(startIndex, startIndex + pageSize);
 
   const countText = loading
-    ? "Loading…"
-    : `Showing ${
+    ? "Зареждане…"
+    : `Показани ${
         paginatedCatches.length ? startIndex + 1 : 0
       }-${Math.min(
         startIndex + paginatedCatches.length,
         sortedCatches.length,
-      )} of ${sortedCatches.length} filtered catches`;
+      )} от ${sortedCatches.length} филтрирани улова`;
 
 
   useEffect(() => {
@@ -309,85 +295,29 @@ export default function MyCatches() {
   const handleUpdateCatch = async (catchId, payload) => {
     try {
       setSavingCatchId(catchId);
-      await updateMyCatch(catchId, payload);
-      notifySuccess("Catch log updated");
+      const updatedCatch = await updateMyCatch(catchId, payload);
+      notifySuccess("Риболовният дневник е обновен");
       await reload();
+      return updatedCatch;
     } catch (error) {
-      notifyError(error, "Failed to update catch log");
+      notifyError(error, "Неуспешно обновяване на записа");
     } finally {
       setSavingCatchId("");
     }
   };
 
   const handleDeleteCatch = async (catchId) => {
-    if (!window.confirm("Delete this catch log?")) return;
+    if (!window.confirm("Да се изтрие ли този запис за улов?")) return;
     try {
       setSavingCatchId(catchId);
       await deleteMyCatch(catchId);
-      notifySuccess("Catch log deleted");
+      notifySuccess("Записът е изтрит");
       await reload();
     } catch (error) {
-      notifyError(error, "Failed to delete catch log");
+      notifyError(error, "Неуспешно изтриване на записа");
     } finally {
       setSavingCatchId("");
     }
-  };
-
-  const exportCsv = () => {
-    if (!sortedCatches.length) {
-      return;
-    }
-
-    const headers = [
-      "Lake",
-      "Species",
-      "Weight (kg)",
-      "Catch Time",
-      "Created At",
-      "Temperature",
-      "Pressure",
-      "Wind Speed",
-      "Humidity",
-      "Moon Phase",
-      "Notes",
-      "Image URL",
-    ];
-
-    const rows = sortedCatches.map((catchItem) => [
-      catchItem.lake_name || "",
-      catchItem.species || "",
-      catchItem.weight_kg ?? "",
-      formatDateForExport(catchItem.catch_time),
-      formatDateForExport(catchItem.created_at),
-      catchItem.temperature ?? "",
-      catchItem.pressure ?? "",
-      catchItem.wind_speed ?? "",
-      catchItem.humidity ?? "",
-      catchItem.moon_phase ?? "",
-      catchItem.notes || "",
-      catchItem.image_url
-        ? `http://localhost:5000/uploads/${catchItem.image_url}`
-        : "",
-    ]);
-
-    const csvContent = [headers, ...rows]
-      .map((row) => row.map(escapeCsv).join(","))
-      .join("\n");
-
-    const blob = new Blob([csvContent], {
-      type: "text/csv;charset=utf-8;",
-    });
-
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    const today = new Date().toISOString().slice(0, 10);
-
-    link.href = url;
-    link.download = `my-catches-${today}.csv`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
   };
 
   return (
@@ -429,11 +359,11 @@ export default function MyCatches() {
               >
                 <FaList />
                 <div style={{ fontSize: "14px", fontWeight: 700, opacity: 0.95 }}>
-                  Catch records
+                  Записи за улов
                 </div>
               </div>
 
-              <h1 style={{ margin: 0, fontSize: isMobile ? "24px" : "28px", lineHeight: 1.15 }}>My Catches</h1>
+              <h1 style={{ margin: 0, fontSize: isMobile ? "24px" : "28px", lineHeight: 1.15 }}>Риболовен дневник</h1>
             </div>
           </div>
         </div>
@@ -497,7 +427,7 @@ export default function MyCatches() {
               }}
             >
               <FaFish />
-              Catch Log Manager
+              Управление на уловите
             </h2>
 
             <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
@@ -519,28 +449,7 @@ export default function MyCatches() {
                 }}
               >
                 <FaRedoAlt />
-                Refresh
-              </button>
-
-              <button
-                type="button"
-                onClick={exportCsv}
-                disabled={!sortedCatches.length}
-                style={{
-                  border: "none",
-                  background: sortedCatches.length ? "#111827" : "#9ca3af",
-                  color: "white",
-                  borderRadius: "10px",
-                  padding: "10px 14px",
-                  cursor: sortedCatches.length ? "pointer" : "not-allowed",
-                  fontWeight: 700,
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "8px",
-                }}
-              >
-                <FaDownload />
-                Export CSV
+                Обнови
               </button>
             </div>
           </div>
@@ -562,7 +471,7 @@ export default function MyCatches() {
                   marginBottom: "6px",
                 }}
               >
-                Sort by
+                Сортиране по
               </div>
 
               <select
@@ -596,7 +505,7 @@ export default function MyCatches() {
                   marginBottom: "6px",
                 }}
               >
-                Rows per page
+                Редове на страница
               </div>
 
               <select
@@ -613,9 +522,9 @@ export default function MyCatches() {
                   outline: "none",
                 }}
               >
-                {[6, 8, 10, 12, 20].map((size) => (
+                {[5, 10, 15, 20].map((size) => (
                   <option key={size} value={size}>
-                    {size} per page
+                    {size} на страница
                   </option>
                 ))}
               </select>
@@ -641,7 +550,7 @@ export default function MyCatches() {
                     color: "#64748b",
                   }}
                 >
-                  Current sort
+                  Текущо сортиране
                 </div>
                 <div
                   style={{
@@ -651,7 +560,7 @@ export default function MyCatches() {
                   }}
                 >
                   {sortOptions.find((option) => option.value === sortBy)?.label ||
-                    "Newest first"}
+                    "Най-новите първо"}
                 </div>
               </div>
             </div>
@@ -676,7 +585,7 @@ export default function MyCatches() {
                     color: "#64748b",
                   }}
                 >
-                  Page
+                  Страница
                 </div>
                 <div
                   style={{
@@ -685,7 +594,7 @@ export default function MyCatches() {
                     color: "#0f172a",
                   }}
                 >
-                  {currentPage} of {totalPages}
+                  {currentPage} от {totalPages}
                 </div>
               </div>
             </div>
@@ -725,7 +634,7 @@ export default function MyCatches() {
                   fontSize: "12px",
                 }}
               >
-                Retry
+                Опитай отново
               </button>
             </div>
           )}
@@ -749,73 +658,14 @@ export default function MyCatches() {
           )}
 
           {!showSkeleton && sortedCatches.length > 0 && (
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                gap: "12px",
-                flexWrap: "wrap",
-                marginTop: "16px",
-                paddingTop: "14px",
-                borderTop: "1px solid #e5e7eb",
-              }}
-            >
-              <div style={{ fontSize: "13px", color: "#64748b" }}>
-                Page {currentPage} of {totalPages}
-              </div>
-
-              <div
-                style={{
-                  display: "flex",
-                  gap: "8px",
-                  alignItems: "center",
-                  flexWrap: "wrap",
-                }}
-              >
-                <button
-                  type="button"
-                  onClick={() => changePage(currentPage - 1)}
-                  disabled={currentPage <= 1}
-                  style={{
-                    border: "1px solid #d1d5db",
-                    background: currentPage <= 1 ? "#f1f5f9" : "white",
-                    color: currentPage <= 1 ? "#94a3b8" : "#0f172a",
-                    borderRadius: "10px",
-                    padding: "9px 12px",
-                    cursor: currentPage <= 1 ? "not-allowed" : "pointer",
-                    fontWeight: 700,
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "6px",
-                  }}
-                >
-                  <FaChevronLeft />
-                  Previous
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => changePage(currentPage + 1)}
-                  disabled={currentPage >= totalPages}
-                  style={{
-                    border: "1px solid #d1d5db",
-                    background: currentPage >= totalPages ? "#f1f5f9" : "white",
-                    color: currentPage >= totalPages ? "#94a3b8" : "#0f172a",
-                    borderRadius: "10px",
-                    padding: "9px 12px",
-                    cursor: currentPage >= totalPages ? "not-allowed" : "pointer",
-                    fontWeight: 700,
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "6px",
-                  }}
-                >
-                  Next
-                  <FaChevronRight />
-                </button>
-              </div>
-            </div>
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              totalItems={sortedCatches.length}
+              startIndex={startIndex}
+              endIndex={Math.min(startIndex + pageSize, sortedCatches.length)}
+              onPageChange={changePage}
+            />
           )}
         </div>
       </div>

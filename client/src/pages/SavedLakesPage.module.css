@@ -190,39 +190,40 @@
   box-shadow: 0 18px 36px rgba(15, 23, 42, 0.06);
 }
 
+.itemCard:focus-within,
+.itemCard:hover {
+  border-color: rgba(37, 99, 235, 0.35);
+}
+
 .itemTop {
   display: block;
 }
 
 .itemHeaderMain {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
+  display: grid;
+  grid-template-columns: minmax(230px, 0.72fr) minmax(0, 2.28fr);
+  gap: 18px;
+  align-items: start;
 }
 
 .itemHeaderAside {
-  margin-left: auto;
   min-width: 0;
-  flex: 0 0 auto;
 }
 
 .headerActionsRow {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  justify-content: flex-end;
   gap: 14px;
-  flex-wrap: wrap;
 }
 
 .itemTitleBlock {
   min-width: 0;
-  flex: 1 1 auto;
 }
 
 .itemTitle {
   margin: 0;
-  font-size: clamp(1.15rem, 2vw, 1.4rem);
+  font-size: clamp(1.1rem, 1.7vw, 1.35rem);
   line-height: 1.15;
   letter-spacing: -0.02em;
   color: #0f172a;
@@ -318,6 +319,14 @@
   color: #fff;
 }
 
+.topActions .primaryButton {
+  min-width: 96px;
+}
+
+.topActions .ghostButton {
+  min-width: 210px;
+}
+
 .successButton {
   background: linear-gradient(135deg, #16a34a 0%, #15803d 100%);
   color: white;
@@ -335,8 +344,8 @@
 
 .controlsGridCompact {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
-  gap: 14px;
+  grid-template-columns: minmax(260px, 1fr) minmax(360px, 1.05fr);
+  gap: 16px;
   margin-top: 16px;
   align-items: end;
 }
@@ -347,7 +356,7 @@
 }
 
 .fieldWide {
-  min-width: 280px;
+  min-width: 0;
 }
 
 .fieldLabel {
@@ -412,18 +421,18 @@
   margin-top: 4px;
 }
 
-@media (max-width: 1100px) {
-  .controlsGridCompact {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+@media (max-width: 1080px) {
+  .itemHeaderMain {
+    grid-template-columns: minmax(190px, 0.8fr) minmax(0, 2.2fr);
   }
 
-  .fieldWide {
-    grid-column: 1 / -1;
-    min-width: 0;
+  .headerActionsRow {
+    grid-template-columns: 1fr;
   }
 
-  .itemHeaderAside {
-    min-width: 0;
+  .badgesInline,
+  .topActions {
+    justify-content: flex-start;
   }
 }
 
@@ -443,17 +452,15 @@
   }
 
   .itemHeaderMain {
-    flex-direction: column;
+    grid-template-columns: 1fr;
   }
 
   .itemHeaderAside {
     width: 100%;
-    margin-left: 0;
-    min-width: 0;
   }
 
   .headerActionsRow {
-    justify-content: flex-start;
+    grid-template-columns: 1fr;
   }
 
   .badgesInline {
@@ -748,5 +755,425 @@
 @media (max-width: 360px) {
   .filterRow {
     grid-template-columns: 1fr;
+  }
+}
+
+/* Responsive saved lakes cards */
+.itemCard {
+  overflow: hidden;
+}
+
+.itemHeaderMain {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) auto;
+  align-items: start;
+}
+
+.itemHeaderAside {
+  max-width: 100%;
+}
+
+.headerActionsRow {
+  display: grid;
+  grid-template-columns: 1fr;
+  justify-items: end;
+}
+
+.badgesInline {
+  max-width: 100%;
+}
+
+.topActions {
+  max-width: 100%;
+}
+
+@media (max-width: 1250px) {
+  .itemHeaderMain {
+    grid-template-columns: 1fr;
+  }
+
+  .itemHeaderAside {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .headerActionsRow {
+    justify-items: stretch;
+    align-items: stretch;
+  }
+
+  .badgesInline {
+    justify-content: flex-start;
+  }
+
+  .topActions {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .ghostButton {
+    max-width: none;
+  }
+}
+
+@media (max-width: 980px) {
+  .panelGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .filterRow {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .filterButton,
+  .refreshButton {
+    width: 100%;
+  }
+
+  .controlsGridCompact {
+    grid-template-columns: 1fr;
+  }
+
+  .fieldWide {
+    min-width: 0;
+  }
+}
+
+@media (max-width: 720px) {
+  .itemCard {
+    padding: 16px;
+  }
+
+  .itemTitleBlock {
+    width: 100%;
+  }
+
+  .itemTitle {
+    font-size: 1.2rem;
+    line-height: 1.2;
+  }
+
+  .badgesInline,
+  .topActions,
+  .actionRow {
+    display: grid;
+    grid-template-columns: 1fr;
+    width: 100%;
+  }
+
+  .badge,
+  .badgeMuted,
+  .badgeWarm,
+  .badgeCool,
+  .actionButton,
+  .primaryButton,
+  .secondaryButton,
+  .successButton,
+  .warningButton,
+  .ghostButton {
+    width: 100%;
+    box-sizing: border-box;
+    justify-content: center;
+    text-align: center;
+  }
+
+  .itemSubtitle {
+    max-width: 100%;
+  }
+}
+
+@media (max-width: 520px) {
+  .filterRow {
+    grid-template-columns: 1fr;
+  }
+
+  .panel,
+  .itemCard {
+    padding: 14px;
+  }
+
+  .searchInput,
+  .select {
+    font-size: 0.95rem;
+  }
+}
+
+
+/* Figma-style saved lake cards */
+.itemCard {
+  padding: 18px 22px;
+}
+
+.itemHeaderMain {
+  display: grid;
+  grid-template-columns: minmax(340px, 1fr) minmax(560px, 1.35fr);
+  gap: 22px;
+  align-items: start;
+}
+
+.itemTitleBlock {
+  padding-top: 4px;
+}
+
+.itemTitle {
+  max-width: 360px;
+  font-size: 1.45rem;
+}
+
+.itemSubtitle {
+  max-width: 430px;
+  line-height: 1.45;
+}
+
+.headerActionsRow {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 12px;
+  align-items: start;
+}
+
+.badgesInline {
+  justify-content: flex-start;
+  align-content: start;
+}
+
+.topActions {
+  flex-wrap: nowrap;
+  align-items: flex-start;
+}
+
+.topActions .ghostButton {
+  min-width: 190px;
+}
+
+.topActions .primaryButton {
+  min-width: 92px;
+}
+
+.controlsGridCompact {
+  grid-template-columns: minmax(300px, 0.95fr) minmax(420px, 1fr);
+  gap: 28px;
+  margin-top: 16px;
+}
+
+.actionRow {
+  grid-template-columns: repeat(2, minmax(160px, 1fr));
+}
+
+.infoStrip {
+  margin-top: 12px;
+}
+
+@media (max-width: 1120px) {
+  .itemHeaderMain {
+    grid-template-columns: minmax(280px, 0.9fr) minmax(0, 1.1fr);
+  }
+
+  .headerActionsRow {
+    grid-template-columns: 1fr;
+  }
+
+  .topActions {
+    justify-content: flex-start;
+  }
+
+  .controlsGridCompact {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 760px) {
+  .itemCard {
+    padding: 16px;
+  }
+
+  .itemHeaderMain {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+
+  .itemTitle,
+  .itemSubtitle {
+    max-width: none;
+  }
+
+  .badgesInline,
+  .topActions,
+  .actionRow {
+    display: grid;
+    grid-template-columns: 1fr;
+    width: 100%;
+  }
+
+  .badge,
+  .badgeMuted,
+  .badgeWarm,
+  .badgeCool,
+  .topActions > *,
+  .actionRow > * {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .topActions .ghostButton,
+  .topActions .primaryButton {
+    min-width: 0;
+  }
+}
+
+
+/* Compact saved-lake card layout to match the Figma design */
+.itemCard {
+  border-color: rgba(59, 130, 246, 0.38);
+  border-radius: 16px;
+  padding: 14px 18px;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.045);
+}
+
+.itemHeaderMain {
+  grid-template-columns: minmax(250px, 0.88fr) minmax(560px, 2.12fr);
+  gap: 22px;
+}
+
+.itemTitle {
+  font-size: 1.18rem;
+  line-height: 1.12;
+}
+
+.itemSubtitle {
+  max-width: 380px;
+  margin-top: 6px;
+  font-size: 0.88rem;
+  line-height: 1.35;
+}
+
+.headerActionsRow {
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: start;
+}
+
+.badgesInline {
+  justify-content: flex-start;
+  gap: 8px;
+}
+
+.badge,
+.badgeMuted,
+.badgeWarm,
+.badgeCool {
+  padding: 7px 11px;
+  font-size: 0.78rem;
+  gap: 7px;
+}
+
+.topActions {
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.topActions .ghostButton {
+  min-width: 168px;
+  max-width: 178px;
+}
+
+.topActions .primaryButton {
+  min-width: 82px;
+}
+
+.actionButton,
+.primaryButton,
+.secondaryButton,
+.successButton,
+.warningButton,
+.ghostButton {
+  border-radius: 12px;
+  padding: 10px 13px;
+  font-size: 0.84rem;
+}
+
+.controlsGridCompact {
+  grid-template-columns: minmax(260px, 0.95fr) minmax(360px, 1.05fr);
+  gap: 20px;
+  margin-top: 12px;
+  align-items: end;
+}
+
+.fieldLabel {
+  margin-bottom: 7px;
+  font-size: 0.83rem;
+}
+
+.select {
+  min-height: 42px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  font-size: 0.88rem;
+}
+
+.actionRow {
+  grid-template-columns: repeat(2, minmax(150px, 1fr));
+  gap: 10px;
+}
+
+.secondaryButton,
+.warningButton,
+.successButton,
+.actionRow .primaryButton {
+  min-height: 42px;
+}
+
+.infoStrip {
+  margin-top: 10px;
+  gap: 8px;
+}
+
+.infoPill {
+  padding: 7px 10px;
+  font-size: 0.78rem;
+}
+
+@media (max-width: 1080px) {
+  .itemHeaderMain {
+    grid-template-columns: minmax(220px, 0.72fr) minmax(0, 1.28fr);
+  }
+
+  .headerActionsRow {
+    grid-template-columns: 1fr;
+  }
+
+  .topActions .ghostButton,
+  .topActions .primaryButton {
+    max-width: none;
+  }
+}
+
+@media (max-width: 760px) {
+  .itemCard {
+    padding: 14px;
+  }
+
+  .itemHeaderMain,
+  .controlsGridCompact {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .itemSubtitle {
+    max-width: none;
+  }
+
+  .badgesInline,
+  .topActions,
+  .actionRow {
+    display: grid;
+    grid-template-columns: 1fr;
+    width: 100%;
+  }
+
+  .topActions > *,
+  .actionRow > * {
+    width: 100%;
   }
 }

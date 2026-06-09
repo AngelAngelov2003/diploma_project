@@ -66,7 +66,7 @@ export const hasRenderableGeometry = (lake) => {
 
 export const getDisplayDescription = (value) => {
   if (!value || typeof value !== "string") {
-    return "No description available.";
+    return "Няма налично описание.";
   }
 
   const cleaned = value
@@ -74,7 +74,7 @@ export const getDisplayDescription = (value) => {
     .replace(/\s+/g, " ")
     .trim();
 
-  return cleaned || "No description available.";
+  return cleaned || "Няма налично описание.";
 };
 
 export const getGeoOptions = () => ({
@@ -86,13 +86,13 @@ export const getGeoOptions = () => ({
 export const getLocationErrorMessage = (error) => {
   switch (error?.code) {
     case 1:
-      return "Location access was denied.";
+      return "Достъпът до местоположението беше отказан.";
     case 2:
-      return "Your location could not be determined.";
+      return "Местоположението ви не може да бъде определено.";
     case 3:
-      return "Location request timed out.";
+      return "Заявката за местоположение изтече.";
     default:
-      return "Unable to get your location.";
+      return "Местоположението ви не може да бъде определено.";
   }
 };
 
@@ -137,14 +137,30 @@ export const formatDistance = (distanceKm) => {
 
 export const formatWaterBodyType = (type) => {
   if (!type || typeof type !== "string") {
-    return "Unknown";
+    return "Неизвестно";
   }
 
-  return type
+  const normalized = type
     .replace(/[_-]+/g, " ")
     .replace(/\s+/g, " ")
     .trim()
-    .replace(/\b\w/g, (char) => char.toUpperCase());
+    .toLowerCase();
+
+  const labels = {
+    lake: "Водоем",
+    reservoir: "Язовир",
+    pond: "Езеро",
+    river: "Река",
+    canal: "Канал",
+    dam: "Язовир",
+    private: "Частен водоем",
+    public: "Общодостъпен водоем",
+  };
+
+  return labels[normalized] || type
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 };
 
 export const highlightText = (text, query) => {
@@ -174,7 +190,7 @@ export const getRegionNameFromFeature = (feature) => {
     feature?.properties?.NAME_1 ||
     feature?.properties?.adm1_en ||
     feature?.properties?.ADM1_EN ||
-    "Region"
+    "Област"
   );
 };
 
@@ -345,10 +361,10 @@ export const focusLakeOnMap = (map, lake, options = {}) => {
 
 export const createLakeIcon = (isSelected = false) =>
   L.divIcon({
-    className: "custom-lake-marker-wrapper",
+    className: "custom-водоем-marker-wrapper",
     html: `
       <div class="custom-lake-marker ${isSelected ? "selected" : ""}">
-        <div class="custom-lake-marker-dot"></div>
+        <div class="custom-водоем-marker-dot"></div>
       </div>
     `,
     iconSize: [24, 24],

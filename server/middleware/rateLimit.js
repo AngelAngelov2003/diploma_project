@@ -5,7 +5,7 @@ const getClientKey = (req) => {
   return forwarded || req.ip || req.socket?.remoteAddress || "unknown";
 };
 
-const createRateLimiter = ({ windowMs = 60_000, max = 60, message = "Too many requests. Please try again later." } = {}) => {
+const createRateLimiter = ({ windowMs = 60_000, max = 60, message = "Твърде много заявки. Моля, опитайте отново по-късно." } = {}) => {
   return (req, res, next) => {
     const now = Date.now();
     const key = `${getClientKey(req)}:${req.baseUrl || ""}:${req.path || req.originalUrl}`;

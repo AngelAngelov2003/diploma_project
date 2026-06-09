@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import DatePicker from "../components/ui/DatePicker";
 import ZoomableImage from "../components/ui/ZoomableImage";
+import Pagination from "../components/ui/Pagination";
 import PremiumLockedCard from "../components/common/PremiumLockedCard";
 import { GeoJSON, MapContainer, TileLayer, Marker } from "react-leaflet";
 import {
@@ -81,7 +82,7 @@ const formatForecastNumber = (value, decimals = 1) => {
 const formatAverageRating = (value) => {
   const numericValue = Number(value);
   if (!Number.isFinite(numericValue) || numericValue <= 0) {
-    return "No rating yet";
+    return "Все още няма оценка";
   }
 
   return numericValue.toFixed(2);
@@ -107,25 +108,59 @@ const sectionTitleStyle = {
 
 
 const formatForecastDay = (value) => {
-  if (!value) return "Unknown";
+  if (!value) return "Неизвестно";
   const date = new Date(`${value}T00:00:00`);
   if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+  return date.toLocaleDateString("bg-BG", { weekday: "short", month: "short", day: "numeric" });
 };
 
 
 const formatDateTime = (value) => {
-  if (!value) return "Unknown time";
+  if (!value) return "Неизвестно време";
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "Unknown time";
-  return date.toLocaleString();
+  if (Number.isNaN(date.getTime())) return "Неизвестно време";
+  return date.toLocaleString("bg-BG");
 };
 
 const formatDate = (value) => {
-  if (!value) return "Unknown date";
+  if (!value) return "Неизвестна дата";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleDateString();
+  return date.toLocaleDateString("bg-BG");
+};
+
+
+const translateForecastText = (value) => {
+  if (!value) return "";
+  const replacements = [
+    [/Excellent fishing conditions expected\.?/gi, "Очакват се отлични условия за риболов."],
+    [/Very good fishing conditions expected\.?/gi, "Очакват се много добри условия за риболов."],
+    [/Good fishing conditions expected\.?/gi, "Очакват се добри условия за риболов."],
+    [/Fair fishing conditions expected\.?/gi, "Очакват се средни условия за риболов."],
+    [/Average fishing conditions expected\.?/gi, "Очакват се средни условия за риболов."],
+    [/Weak fishing conditions expected\.?/gi, "Очакват се слаби условия за риболов."],
+    [/Poor fishing conditions expected\.?/gi, "Очакват се лоши условия за риболов."],
+    [/Temperature is in a strong fishing range/gi, "Температурата е в благоприятен диапазон за риболов"],
+    [/Temperature is usable but not ideal/gi, "Температурата е приемлива, но не е идеална"],
+    [/Very cold water conditions may reduce activity/gi, "Много студената вода може да намали активността"],
+    [/High temperature may reduce fish activity during the day/gi, "Високата температура може да намали активността на рибата през деня"],
+    [/Air pressure is stable and favorable/gi, "Атмосферното налягане е стабилно и благоприятно"],
+    [/Pressure is outside the preferred range/gi, "Налягането е извън предпочитания диапазон"],
+    [/Pressure is acceptable/gi, "Налягането е приемливо"],
+    [/Low wind should make fishing conditions easier/gi, "Слабият вятър прави условията за риболов по-лесни"],
+    [/Strong wind may make fishing harder/gi, "Силният вятър може да затрудни риболова"],
+    [/Wind is moderate/gi, "Вятърът е умерен"],
+    [/Moon phase is favorable/gi, "Лунната фаза е благоприятна"],
+    [/Moon phase is less favorable/gi, "Лунната фаза е по-неблагоприятна"],
+    [/Moon phase is neutral/gi, "Лунната фаза е неутрална"],
+    [/waning moon/gi, "намаляваща луна"],
+    [/waxing moon/gi, "нарастваща луна"],
+    [/full moon/gi, "пълнолуние"],
+    [/new moon/gi, "новолуние"],
+    [/Score combines ML prediction with weather and moon factors\.?/gi, "Оценката комбинира ML прогноза с фактори от времето и луната."],
+    [/ML model was unavailable, so a heuristic forecast was used\.?/gi, "ML моделът не беше наличен, затова беше използвана евристична прогноза."],
+  ];
+  return replacements.reduce((text, [pattern, replacement]) => text.replace(pattern, replacement), String(value));
 };
 
 const DEFAULT_PAGE_SIZES = {
@@ -133,6 +168,7 @@ const DEFAULT_PAGE_SIZES = {
   catches: 2,
   photos: 10,
   reviews: 4,
+  rooms: 5,
 };
 
 const getTotalPages = (items, pageSize) => {
@@ -150,12 +186,15 @@ const paginateItems = (items, page, pageSize) => {
     items: safeItems.slice(startIndex, startIndex + pageSize),
     totalPages,
     safePage,
+    totalItems: safeItems.length,
+    startIndex,
+    endIndex: Math.min(startIndex + pageSize, safeItems.length),
   };
 };
 
 function CatchSkeletonList() {
   return (
-    <div className={styles.catchSkeletonList} aria-label="Loading recent catches">
+    <div className={styles.catchSkeletonList} aria-label="Зареждане на последните улови">
       {[0, 1].map((item) => (
         <div key={item} className={styles.catchSkeletonCard}>
           <div className={styles.skeletonLineStrong} />
@@ -168,66 +207,19 @@ function CatchSkeletonList() {
   );
 }
 
-function PaginationControls({ page, totalPages, onChange, itemLabel }) {
-  if (totalPages <= 1) {
-    return null;
-  }
-
+function PaginationControls({ page, totalPages, totalItems, startIndex, endIndex, onChange }) {
   return (
-    <div
-      style={{
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "center",
-        gap: "12px",
-        flexWrap: "wrap",
-        marginTop: "14px",
-      }}
-    >
-      <div style={{ fontSize: "13px", color: "#64748b", fontWeight: 700 }}>
-        Page {page} of {totalPages}
-        {itemLabel ? ` · ${itemLabel}` : ""}
-      </div>
-
-      <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-        <button
-          type="button"
-          onClick={() => onChange(page - 1)}
-          disabled={page <= 1}
-          style={{
-            border: "1px solid #d1d5db",
-            background: "white",
-            color: "#334155",
-            borderRadius: 10,
-            padding: "8px 12px",
-            cursor: page <= 1 ? "not-allowed" : "pointer",
-            fontWeight: 700,
-          }}
-        >
-          Previous
-        </button>
-
-        <button
-          type="button"
-          onClick={() => onChange(page + 1)}
-          disabled={page >= totalPages}
-          style={{
-            border: "none",
-            background: "#0d6efd",
-            color: "white",
-            borderRadius: 10,
-            padding: "8px 12px",
-            cursor: page >= totalPages ? "not-allowed" : "pointer",
-            fontWeight: 700,
-            opacity: page >= totalPages ? 0.6 : 1,
-          }}
-        >
-          Next
-        </button>
-      </div>
-    </div>
+    <Pagination
+      currentPage={page}
+      totalPages={totalPages}
+      totalItems={totalItems}
+      startIndex={startIndex}
+      endIndex={endIndex}
+      onPageChange={onChange}
+    />
   );
 }
+
 
 function LakeDetails() {
   const { id } = useParams();
@@ -270,6 +262,8 @@ function LakeDetails() {
   const [nightFishingRequested, setNightFishingRequested] = useState(false);
   const [nightFishingDates, setNightFishingDates] = useState([]);
   const [selectedRoomIds, setSelectedRoomIds] = useState([]);
+  const [roomGuestCount, setRoomGuestCount] = useState("all");
+  const [roomsPage, setRoomsPage] = useState(1);
   const [reservationNotes, setReservationNotes] = useState("");
   const [paymentPreference, setPaymentPreference] = useState("online");
   const [reservationQuote, setReservationQuote] = useState(null);
@@ -299,7 +293,7 @@ function LakeDetails() {
       setReviews(reviewsData || []);
       setReviewsSummary(reviewsSummaryData || DEFAULT_REVIEWS_SUMMARY);
     } catch (error) {
-      notifyError(error, "Failed to refresh reviews");
+      notifyError(error, "Неуспешно обновяване на отзивите");
     }
   };
 
@@ -339,7 +333,7 @@ function LakeDetails() {
       } catch (error) {
         if (!cancelled) {
           setLake(null);
-          notifyError(error, "Failed to load lake details");
+          notifyError(error, "Неуспешно зареждане на детайлите за водоема");
           setLoading(false);
         }
       }
@@ -398,7 +392,7 @@ function LakeDetails() {
           forecastErrorCode === "PREMIUM_REQUIRED"
             ? "Premium subscription required to unlock the full AI fishing forecast."
             : forecastData?.error?.response?.data?.error ||
-              "Forecast temporarily unavailable. Please try again later."
+              "Прогнозата временно не е достъпна. Опитай отново по-късно."
         );
       }
       setCatches(catchesData || []);
@@ -570,7 +564,7 @@ function LakeDetails() {
         errorCode === "PREMIUM_REQUIRED"
           ? "Premium subscription required to unlock the weekly forecast."
           : error?.response?.data?.error ||
-              "Weekly forecast temporarily unavailable. Please try again later."
+              "Седмичната прогноза временно не е достъпна. Опитай отново по-късно."
       );
     } finally {
       setWeeklyForecastLoading(false);
@@ -598,6 +592,25 @@ function LakeDetails() {
     [reviews, reviewsPage],
   );
 
+  const roomCapacityOptions = useMemo(() => {
+    const capacities = (bookingOptions?.rooms || [])
+      .map((room) => Number(room.capacity || 1))
+      .filter((capacity) => capacity > 0);
+    return [...new Set(capacities)].sort((a, b) => a - b);
+  }, [bookingOptions?.rooms]);
+
+  const filteredRooms = useMemo(() => {
+    const rooms = bookingOptions?.rooms || [];
+    if (roomGuestCount === "all") return rooms;
+    const selectedCapacity = Number(roomGuestCount) || 1;
+    return rooms.filter((room) => Number(room.capacity || 1) === selectedCapacity);
+  }, [bookingOptions?.rooms, roomGuestCount]);
+
+  const paginatedRooms = useMemo(
+    () => paginateItems(filteredRooms, roomsPage, DEFAULT_PAGE_SIZES.rooms),
+    [filteredRooms, roomsPage],
+  );
+
   useEffect(() => {
     setSpeciesPage((prev) => Math.min(prev, paginatedSpecies.totalPages));
   }, [paginatedSpecies.totalPages]);
@@ -613,6 +626,14 @@ function LakeDetails() {
   useEffect(() => {
     setReviewsPage((prev) => Math.min(prev, paginatedReviews.totalPages));
   }, [paginatedReviews.totalPages]);
+
+  useEffect(() => {
+    setRoomsPage((prev) => Math.min(prev, paginatedRooms.totalPages));
+  }, [paginatedRooms.totalPages]);
+
+  useEffect(() => {
+    setRoomsPage(1);
+  }, [roomGuestCount]);
 
   useEffect(() => {
     setSpeciesPage(1);
@@ -645,12 +666,12 @@ function LakeDetails() {
         comment: trimmedComment,
       });
 
-      notifySuccess("Review saved");
+      notifySuccess("Отзивът е запазен");
       setReviewComment("");
       setReviewRating(5);
       await loadReviews();
     } catch (error) {
-      notifyError(error, "Failed to save review");
+      notifyError(error, "Неуспешно запазване на отзива");
     } finally {
       setSavingReview(false);
     }
@@ -664,10 +685,10 @@ function LakeDetails() {
     try {
       setSavingReview(true);
       await deleteMyWaterBodyReview(id);
-      notifySuccess("Review deleted");
+      notifySuccess("Отзивът е изтрит");
       await loadReviews();
     } catch (error) {
-      notifyError(error, "Failed to delete review");
+      notifyError(error, "Неуспешно изтриване на отзива");
     } finally {
       setSavingReview(false);
     }
@@ -705,7 +726,7 @@ function LakeDetails() {
         notifySuccess(successMessage);
       }
     } catch (error) {
-      notifyError(error, "Failed to update lake settings");
+      notifyError(error, "Неуспешно обновяване на настройките за водоема");
     } finally {
       setSavingAlertState(false);
     }
@@ -727,7 +748,7 @@ function LakeDetails() {
         }
 
         setAlertState((prev) => ({ ...prev, favorite: false }));
-        notifySuccess("Removed from favorites");
+        notifySuccess("Премахнато от любими");
         return;
       }
 
@@ -738,9 +759,9 @@ function LakeDetails() {
       }
 
       setAlertState((prev) => ({ ...prev, favorite: true }));
-      notifySuccess("Added to favorites");
+      notifySuccess("Добавено в любими");
     } catch (error) {
-      notifyError(error, "Failed to update favorite state");
+      notifyError(error, "Неуспешно обновяване на състоянието за любими");
     } finally {
       setSavingAlertState(false);
     }
@@ -879,7 +900,7 @@ function LakeDetails() {
       } catch (error) {
         if (!cancelled) {
           setReservationQuote(null);
-          setReservationQuoteError(error?.response?.data?.error || "Could not calculate the reservation price for the selected range.");
+          setReservationQuoteError(error?.response?.data?.error || "Неуспешно изчисляване на цената за резервация за избрания период.");
         }
       }
     };
@@ -892,23 +913,23 @@ function LakeDetails() {
 
     if (savingReservation) return;
     if (!arrivalDate || !departureDate) {
-      notifyError(null, "Please choose arrival and departure dates");
+      notifyError(null, "Моля, избери дати на пристигане и напускане");
       return;
     }
     if (!fishingDates.length && !nightFishingDates.length && !selectedRoomIds.length) {
-      notifyError(null, "Select at least one fishing day, night fishing night, or room");
+      notifyError(null, "Избери поне един ден за риболов, нощен риболов или стая");
       return;
     }
     if (maxRequestableSpots <= 0) {
-      notifyError(null, "No fishing spots are available for the selected date range");
+      notifyError(null, "Няма свободни риболовни места за избрания период");
       return;
     }
     if (selectedSpotCount <= 0) {
-      notifyError(null, "Please choose at least one fishing spot");
+      notifyError(null, "Моля, избери поне едно риболовно място");
       return;
     }
     if (selectedSpotCount > maxRequestableSpots) {
-      notifyError(null, `Only ${maxRequestableSpots} fishing spot${maxRequestableSpots === 1 ? "" : "s"} are available for the selected range`);
+      notifyError(null, `Само ${maxRequestableSpots} ${maxRequestableSpots === 1 ? "риболовно място е налично" : "риболовни места са налични"} за избрания период`);
       return;
     }
 
@@ -936,10 +957,10 @@ function LakeDetails() {
         }
       }
 
-      notifySuccess("Reservation request sent successfully");
+      notifySuccess("Заявката за резервация е изпратена успешно");
       navigate("/reservations", { state: { reservationSubmitted: true } });
     } catch (error) {
-      notifyError(error, "Failed to create reservation");
+      notifyError(error, "Неуспешно създаване на резервация");
     } finally {
       setSavingReservation(false);
     }
@@ -962,7 +983,7 @@ function LakeDetails() {
             fontWeight: 600,
           }}
         >
-          Loading lake details...
+          Зареждане на детайли...
         </div>
       </div>
     );
@@ -973,7 +994,7 @@ function LakeDetails() {
   const displayedForecastBreakdown = displayedForecast?.breakdown || {};
   const displayedForecastDateLabel = showWeeklyForecast && selectedWeeklyForecast?.date
     ? formatForecastDay(selectedWeeklyForecast.date)
-    : "Today";
+    : "Днес";
 
   if (!lake) {
     return (
@@ -997,9 +1018,9 @@ function LakeDetails() {
               marginBottom: "16px",
             }}
           >
-            Back to map
+            Назад към картата
           </button>
-          <div style={cardStyle}>Lake not found.</div>
+          <div style={cardStyle}>Водоемът не е намерен.</div>
         </div>
       </div>
     );
@@ -1031,7 +1052,7 @@ function LakeDetails() {
           }}
         >
           <FaArrowLeft />
-          Back to map
+          Назад към картата
         </button>
 
         <div
@@ -1050,7 +1071,7 @@ function LakeDetails() {
               marginBottom: "6px",
             }}
           >
-            Water body details
+            Details за водоема
           </div>
 
           <h1
@@ -1093,7 +1114,7 @@ function LakeDetails() {
                 textUnderlineOffset: "3px",
               }}
             >
-              {descriptionExpanded ? "Show less" : "Show more"}
+              {descriptionExpanded ? "Покажи по-малко" : "Покажи повече"}
             </button>
           ) : null}
 
@@ -1103,7 +1124,7 @@ function LakeDetails() {
           <div style={{ ...cardStyle, marginBottom: "20px" }}>
             <h2 style={sectionTitleStyle}>
               <FaCalendarAlt />
-              Reservation request
+              Заявка за резервация
             </h2>
 
             {lake.availability_notes ? (
@@ -1117,7 +1138,7 @@ function LakeDetails() {
                 }}
               >
                 <div style={{ fontSize: "12px", color: "#64748b", marginBottom: "6px" }}>
-                  Notes from owner
+                  Бележки от собственика
                 </div>
                 <div style={{ fontSize: "14px", fontWeight: 700, color: "#0f172a" }}>
                   {lake.availability_notes}
@@ -1142,7 +1163,7 @@ function LakeDetails() {
                     marginBottom: "8px",
                   }}
                 >
-                  Blocked dates
+                  Blocked дати
                 </div>
                 <div style={{ display: "grid", gap: "8px" }}>
                   {blockedDates.map((item) => (
@@ -1181,7 +1202,7 @@ function LakeDetails() {
                   >
                     <div>
                       <div style={{ fontSize: "12px", color: "#555", marginBottom: "6px" }}>
-                        Fishing date range
+                        Период за риболов
                       </div>
                       <DatePicker
                         range
@@ -1211,11 +1232,11 @@ function LakeDetails() {
                         }}
                       >
                         <div style={{ fontSize: "12px", color: "#555" }}>
-                          Fishing spots
+                          Риболовни места
                         </div>
                         {arrivalDate && departureDate ? (
                           <div style={{ fontSize: "13px", color: maxRequestableSpots > 0 ? "#475569" : "#b91c1c", fontWeight: 700 }}>
-                            {maxRequestableSpots > 0 ? `${maxRequestableSpots} available` : "No spots available"}
+                            {maxRequestableSpots > 0 ? `${maxRequestableSpots} свободни` : "Няма свободни места"}
                           </div>
                         ) : null}
                       </div>
@@ -1242,12 +1263,12 @@ function LakeDetails() {
                       >
                         <span>
                           {selectedSpotCount
-                            ? `${selectedSpotCount} spot${selectedSpotCount === 1 ? "" : "s"} selected`
+                            ? `${selectedSpotCount} ${selectedSpotCount === 1 ? "място" : "места"} избрани`
                             : arrivalDate && departureDate
-                              ? "Choose spots"
-                              : "Choose dates first"}
+                              ? "Изберете места"
+                              : "Първо изберете дати"}
                         </span>
-                        <span style={{ color: "#2563eb" }}>{isSpotPickerOpen ? "Close" : "Open"}</span>
+                        <span style={{ color: "#2563eb" }}>{isSpotPickerOpen ? "Затвори" : "Отвори"}</span>
                       </button>
                     </div>
                   </div>
@@ -1265,10 +1286,10 @@ function LakeDetails() {
                   >
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", marginBottom: "12px", flexWrap: "wrap" }}>
                       <div style={{ fontSize: "13px", color: "#0f172a", fontWeight: 800 }}>
-                        Choose fishing spots
+                        Изберете места за риболов
                       </div>
                       <div style={{ fontSize: "12px", color: "#64748b", fontWeight: 700 }}>
-                        {selectedSpotCount} selected
+                        {selectedSpotCount} {selectedSpotCount === 1 ? "избрано" : "избрани"}
                       </div>
                     </div>
                     <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
@@ -1298,7 +1319,7 @@ function LakeDetails() {
                               cursor: disabled ? "not-allowed" : "pointer",
                             }}
                           >
-                            Spot {spot.spot_number}{spot.is_available ? "" : " · booked"}
+                            Място {spot.spot_number}{spot.is_available ? "" : " · заето"}
                           </button>
                         );
                       })}
@@ -1308,16 +1329,16 @@ function LakeDetails() {
 
                 {Array.isArray(availability?.blocked_dates) && availability.blocked_dates.length ? (
                   <div style={{ gridColumn: isMobile ? "auto" : "1 / -1", background: "#fff7ed", border: "1px solid #fdba74", borderRadius: "12px", padding: "12px", color: "#9a3412", fontSize: "13px", fontWeight: 700 }}>
-                    Blocked in selected range: {availability.blocked_dates.map((item) => formatDate(item.blocked_date)).join(", ")}
+                    Блокирано в избрания период: {availability.blocked_dates.map((item) => formatDate(item.blocked_date)).join(", ")}
                   </div>
                 ) : null}
 
                 <div style={{ gridColumn: isMobile ? "auto" : "1 / -1" }}>
                   <div style={{ fontSize: "12px", color: "#555", marginBottom: "8px" }}>
-                    Day fishing
+                    Дневен риболов
                   </div>
                   <div style={{ fontSize: "12px", color: "#64748b", marginBottom: "8px" }}>
-                    The departure day is optional. Select it only if you will also fish before leaving.
+                    Денят на напускане е по избор. Изберете го само ако ще ловите и преди тръгване.
                   </div>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
                     {allowedFishingDates.length ? allowedFishingDates.map((dateValue) => (
@@ -1335,9 +1356,9 @@ function LakeDetails() {
                           cursor: "pointer",
                         }}
                       >
-                        {formatDate(dateValue)}{dateValue === departureDate && arrivalDate !== departureDate ? " · departure day" : ""}
+                        {formatDate(dateValue)}{dateValue === departureDate && arrivalDate !== departureDate ? " · ден на напускане" : ""}
                       </button>
-                    )) : <div style={{ fontSize: "13px", color: "#64748b" }}>Choose trip dates first.</div>}
+                    )) : <div style={{ fontSize: "13px", color: "#64748b" }}>Първо изберете дати за посещение.</div>}
                   </div>
                 </div>
 
@@ -1356,17 +1377,17 @@ function LakeDetails() {
                         style={{ marginTop: "3px" }}
                       />
                       <span>
-                        <span style={{ display: "block", fontSize: "13px", color: "#0f172a", fontWeight: 800 }}>Include night fishing</span>
+                        <span style={{ display: "block", fontSize: "13px", color: "#0f172a", fontWeight: 800 }}>Включи нощен риболов</span>
                         <span style={{ display: "block", fontSize: "12px", color: "#64748b", marginTop: "4px" }}>
-                          Add this if you will fish during the night
-                          {nightFishingPrice ? ` (${formatCurrency(nightFishingPrice)} / night)` : ""}. Online payment creates an instant paid booking; pay-on-arrival requests wait for owner approval.
+                          Добавете това, ако ще ловите през нощта
+                          {nightFishingPrice ? ` (${formatCurrency(nightFishingPrice)} / night)` : ""}. Онлайн плащането създава незабавно платена резервация; заявките с плащане на място изчакват одобрение от собственика.
                         </span>
                       </span>
                     </label>
                     {nightFishingRequested ? (
                       <div style={{ marginTop: "12px" }}>
                         <div style={{ fontSize: "12px", color: "#555", marginBottom: "8px" }}>
-                          Night fishing nights
+                          Нощувки с нощен риболов
                         </div>
                         <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
                           {allowedNightDates.length ? allowedNightDates.map((dateValue) => (
@@ -1384,9 +1405,9 @@ function LakeDetails() {
                                 cursor: "pointer",
                               }}
                             >
-                              Night of {formatDate(dateValue)}
+                              Нощувка на {formatDate(dateValue)}
                             </button>
-                          )) : <div style={{ fontSize: "13px", color: "#64748b" }}>Choose an overnight trip range first.</div>}
+                          )) : <div style={{ fontSize: "13px", color: "#64748b" }}>Първо изберете период с нощувка.</div>}
                         </div>
                       </div>
                     ) : null}
@@ -1397,14 +1418,33 @@ function LakeDetails() {
                   <div className={styles.accommodationSection}>
                     <div className={styles.bookingSectionHeader}>
                       <div>
-                        <h3>Accommodation</h3>
-                        <p>Choose optional rooms or cabins for your selected stay.</p>
+                        <h3>Настаняване</h3>
+                        <p>Изберете стая или бунгало според броя хора. Цената е за стая, не за човек.</p>
                       </div>
-                      <span>{selectedRoomIds.length} selected</span>
+                      <span>{selectedRoomIds.length} избрани</span>
                     </div>
 
+                    <label style={{ display: "block", fontSize: "13px", fontWeight: 800, color: "#334155", marginBottom: "8px" }}>
+                      Филтър по капацитет
+                    </label>
+                    <select
+                      value={roomGuestCount}
+                      onChange={(event) => {
+                        setRoomGuestCount(event.target.value);
+                        setSelectedRoomIds([]);
+                      }}
+                      style={{ maxWidth: "260px", width: "100%", padding: "10px 12px", borderRadius: "10px", border: "1px solid #cbd5e1", marginBottom: "12px", fontWeight: 700, background: "white" }}
+                    >
+                      <option value="all">Всички стаи</option>
+                      {roomCapacityOptions.map((capacity) => (
+                        <option key={capacity} value={capacity}>
+                          {capacity} {capacity === 1 ? "гост" : "гости"}
+                        </option>
+                      ))}
+                    </select>
+
                     <div className={styles.roomList}>
-                      {bookingOptions.rooms.map((room) => {
+                      {paginatedRooms.items.map((room) => {
                         const liveRoom = (availability?.rooms || []).find((item) => String(item.id) === String(room.id));
                         const isAvailable = liveRoom ? liveRoom.is_available : true;
                         const selected = selectedRoomIds.includes(room.id);
@@ -1413,29 +1453,44 @@ function LakeDetails() {
                             key={room.id}
                             type="button"
                             disabled={!isAvailable || savingReservation || !lake.is_reservable}
-                            className={`${styles.roomOptionCard} ${selected ? styles.roomOptionCardSelected : ""}`}
+                            className={`${styles.roomOptionCard} ${!isAvailable ? styles.roomOptionCardReserved : ""} ${selected ? styles.roomOptionCardSelected : ""}`}
                             onClick={() => setSelectedRoomIds((prev) => prev.includes(room.id) ? prev.filter((item) => item !== room.id) : [...prev, room.id])}
                           >
                             <span className={styles.roomOptionMain}>
                               <strong>{room.name}</strong>
-                              <small>Capacity: {room.capacity || 1} guest{Number(room.capacity || 1) === 1 ? "" : "s"}</small>
-                              <b>{formatCurrency(room.price_per_night)} / night</b>
+                              <small>Капацитет: {room.capacity || 1} гост{Number(room.capacity || 1) === 1 ? "" : "и"}</small>
+                              <b>{formatCurrency(room.price_per_night)} / нощ</b>
                             </span>
                             <span className={styles.roomOptionAction}>
-                              {!isAvailable ? "Booked" : selected ? "Selected" : "Select"}
+                              {!isAvailable ? "Заето за периода" : selected ? "Избрано" : "Избери"}
                             </span>
                           </button>
                         );
                       })}
+                      {!filteredRooms.length ? (
+                        <div style={{ fontSize: "13px", color: "#64748b", padding: "12px" }}>
+                          Няма стая с такъв капацитет. Изберете друг филтър или друг период.
+                        </div>
+                      ) : null}
                     </div>
+                    {filteredRooms.length > DEFAULT_PAGE_SIZES.rooms ? (
+                      <PaginationControls
+                        page={paginatedRooms.safePage}
+                        totalPages={paginatedRooms.totalPages}
+                        totalItems={paginatedRooms.totalItems}
+                        startIndex={paginatedRooms.startIndex}
+                        endIndex={paginatedRooms.endIndex}
+                        onChange={setRoomsPage}
+                      />
+                    ) : null}
                   </div>
                 ) : null}
 
                 <div className={styles.paymentChoiceSection}>
                   <div className={styles.bookingSectionHeader}>
                     <div>
-                      <h3>Payment option</h3>
-                      <p>Pay online for an instant paid booking, or pay at the lake and wait for owner approval.</p>
+                      <h3>Начин на плащане</h3>
+                      <p>Платете онлайн за моментална платена резервация или платете на място и изчакайте одобрение от собственика.</p>
                     </div>
                   </div>
                   <div className={styles.paymentChoiceGrid}>
@@ -1444,30 +1499,30 @@ function LakeDetails() {
                       className={`${styles.paymentChoiceCard} ${paymentPreference === "online" ? styles.paymentChoiceCardActive : ""}`}
                       onClick={() => setPaymentPreference("online")}
                     >
-                      <strong>Pay online now</strong>
-                      <span>Secure Stripe checkout. No owner approval step if payment is available.</span>
+                      <strong>Плати онлайн сега</strong>
+                      <span>Сигурно Stripe плащане. Няма стъпка за одобрение от собственика, ако плащането е налично.</span>
                     </button>
                     <button
                       type="button"
                       className={`${styles.paymentChoiceCard} ${paymentPreference === "on_arrival" ? styles.paymentChoiceCardActive : ""}`}
                       onClick={() => setPaymentPreference("on_arrival")}
                     >
-                      <strong>Pay at the lake</strong>
-                      <span>Sends a request first. The owner must approve it before it is confirmed.</span>
+                      <strong>Плащане на място</strong>
+                      <span>Първо се изпраща заявка. Собственикът трябва да я одобри, преди да бъде потвърдена.</span>
                     </button>
                   </div>
                 </div>
 
                 <div style={{ gridColumn: isMobile ? "auto" : "1 / -1" }}>
                   <div style={{ fontSize: "12px", color: "#555", marginBottom: "6px" }}>
-                    Notes
+                    Бележки
                   </div>
                   <textarea
                     rows={3}
                     value={reservationNotes}
                     onChange={(event) => setReservationNotes(event.target.value.slice(0, 500))}
                     disabled={savingReservation || !lake.is_reservable}
-                    placeholder="Optional notes for the owner..."
+                    placeholder="Допълнителни бележки към собственика..."
                     style={{ width: "100%", padding: "10px", borderRadius: 10, border: "1px solid #ddd", boxSizing: "border-box", background: "white", resize: "vertical" }}
                   />
                 </div>
@@ -1475,15 +1530,15 @@ function LakeDetails() {
 
               <div style={{ marginTop: "14px", display: "flex", flexWrap: "wrap", gap: "12px", alignItems: "center" }}>
                 <div style={{ background: "#eff6ff", color: "#1d4ed8", border: "1px solid #bfdbfe", borderRadius: "12px", padding: "10px 14px", fontWeight: 700 }}>
-                  Total: {formatCurrency(reservationQuote?.totalAmount || reservationQuote?.total_amount || 0)}
+                  Общо: {formatCurrency(reservationQuote?.totalAmount || reservationQuote?.total_amount || 0)}
                 </div>
                 {reservationQuote ? (
                   <div style={{ fontSize: "13px", color: "#475569", fontWeight: 700 }}>
-                    Day fishing: {formatCurrency(reservationQuote.baseAmount || reservationQuote.base_amount || 0)} · Night fishing: {formatCurrency(reservationQuote.nightFishingAmount || reservationQuote.night_fishing_amount || 0)} · Rooms: {formatCurrency(reservationQuote.roomsAmount || reservationQuote.rooms_amount || 0)}
+                    Дневен риболов: {formatCurrency(reservationQuote.baseAmount || reservationQuote.base_amount || 0)} · Нощен риболов: {formatCurrency(reservationQuote.nightFishingAmount || reservationQuote.night_fishing_amount || 0)} · Стаи: {formatCurrency(reservationQuote.roomsAmount || reservationQuote.rooms_amount || 0)}
                   </div>
                 ) : null}
                 <div style={{ fontSize: "13px", color: "#64748b", fontWeight: 600 }}>
-                  Day fishing is charged per selected day. Night fishing is charged per selected night. The departure day is charged only when selected.
+                  Дневният риболов се таксува за всеки избран ден. Нощният риболов се таксува за всяка избрана нощ. Денят на напускане се таксува само ако е избран.
                 </div>
               </div>
 
@@ -1498,7 +1553,7 @@ function LakeDetails() {
                 disabled={savingReservation || !lake.is_reservable || !arrivalDate || !departureDate || maxRequestableSpots <= 0 || selectedSpotCount <= 0 || selectedSpotCount > maxRequestableSpots}
                 style={{ marginTop: "14px", border: "none", background: lake.is_reservable && maxRequestableSpots > 0 && selectedSpotCount > 0 && selectedSpotCount <= maxRequestableSpots ? "#16a34a" : "#94a3b8", color: "white", borderRadius: "10px", padding: "10px 14px", cursor: savingReservation || !lake.is_reservable || maxRequestableSpots <= 0 || selectedSpotCount <= 0 || selectedSpotCount > maxRequestableSpots ? "not-allowed" : "pointer", fontWeight: 700 }}
               >
-                {savingReservation ? "Sending..." : paymentPreference === "online" ? "Continue to payment" : "Send reservation request"}
+                {savingReservation ? "Изпращане..." : paymentPreference === "online" ? "Продължи към плащане" : "Изпрати заявка за резервация"}
               </button>
             </form>
           </div>
@@ -1507,7 +1562,7 @@ function LakeDetails() {
         <div style={{ ...cardStyle, marginBottom: "20px" }}>
           <h2 style={sectionTitleStyle}>
             <FaStar />
-            Favorite and notification settings
+            Любими и настройки за известия
           </h2>
 
           <div
@@ -1526,7 +1581,7 @@ function LakeDetails() {
                   marginBottom: "6px",
                 }}
               >
-                Favorite
+                Любим
               </div>
               <button
                 type="button"
@@ -1543,7 +1598,7 @@ function LakeDetails() {
                   fontWeight: 700,
                 }}
               >
-                {alertState.favorite ? "Unfavorite" : "Mark Favorite"}
+                {alertState.favorite ? "Премахни от любими" : "Добави в любими"}
               </button>
             </div>
 
@@ -1552,7 +1607,7 @@ function LakeDetails() {
                 <PremiumLockedCard
                   compact
                   title="Smart alerts are Premium"
-                  message="Favorites stay free, but automatic forecast alerts require Premium access."
+                  message="Любимите водоеми остават безплатни, но автоматичните известия за прогноза изискват Premium достъп."
                   bullets={["Daily or weekly forecast emails", "Premium lake notifications"]}
                   onUpgrade={goToBilling}
                 />
@@ -1567,7 +1622,7 @@ function LakeDetails() {
                       marginBottom: "6px",
                     }}
                   >
-                    Alert Status
+                    Статус на известието
                   </div>
                   <button
                     type="button"
@@ -1575,7 +1630,7 @@ function LakeDetails() {
                     onClick={() =>
                       saveAlertSettings(
                         { ...alertState, enabled: !alertState.enabled },
-                        alertState.enabled ? "Alert disabled" : "Alert enabled",
+                        alertState.enabled ? "Известието е изключено" : "Известието е включено",
                       )
                     }
                     style={{
@@ -1589,7 +1644,7 @@ function LakeDetails() {
                       fontWeight: 700,
                     }}
                   >
-                    {alertState.enabled ? "Disable Alert" : "Enable Alert"}
+                    {alertState.enabled ? "Изключи известие" : "Включи известие"}
                   </button>
                 </div>
 
@@ -1624,8 +1679,8 @@ function LakeDetails() {
                       background: "white",
                     }}
                   >
-                    <option value="daily">Daily</option>
-                    <option value="weekly">Weekly</option>
+                    <option value="daily">Дневно</option>
+                    <option value="weekly">Седмично</option>
                   </select>
                 </div>
 
@@ -1646,7 +1701,7 @@ function LakeDetails() {
           <div style={cardStyle}>
             <h2 style={sectionTitleStyle}>
               <FaMapMarkerAlt />
-              Lake map
+              Карта на водоема
             </h2>
 
             <div className={styles.mapFrame}>
@@ -1735,7 +1790,7 @@ function LakeDetails() {
                     {weeklyForecastError ? (
                       <div style={{ color: "#9a3412", fontWeight: 700 }}>{weeklyForecastError}</div>
                     ) : weeklyForecastLoading ? (
-                      <div style={{ color: "#64748b", fontWeight: 700 }}>Loading forecast dates...</div>
+                      <div style={{ color: "#64748b", fontWeight: 700 }}>Зареждане на дати за прогноза...</div>
                     ) : weeklyForecast.length ? (
                       <div
                         style={{
@@ -1770,7 +1825,7 @@ function LakeDetails() {
                         })}
                       </div>
                     ) : (
-                      <div style={{ color: "#64748b", fontWeight: 700 }}>No forecast dates available.</div>
+                      <div style={{ color: "#64748b", fontWeight: 700 }}>Няма налични дати за прогноза.</div>
                     )}
                   </div>
                 )}
@@ -1797,7 +1852,7 @@ function LakeDetails() {
                         marginBottom: "6px",
                       }}
                     >
-                      Conditions
+                      Условия
                     </div>
                     <div
                       style={{
@@ -1806,7 +1861,7 @@ function LakeDetails() {
                         color: "#0f172a",
                       }}
                     >
-                      {displayedForecast?.desc || "Not available"}
+                      {translateForecastText(displayedForecast?.desc || "Не е налично")}
                     </div>
                   </div>
 
@@ -1825,7 +1880,7 @@ function LakeDetails() {
                         marginBottom: "6px",
                       }}
                     >
-                      Fishing index
+                      Риболовен индекс
                     </div>
                     <div
                       style={{
@@ -1862,7 +1917,7 @@ function LakeDetails() {
                         marginBottom: "6px",
                       }}
                     >
-                      Temperature
+                      Температура
                     </div>
                     <div
                       style={{
@@ -1891,7 +1946,7 @@ function LakeDetails() {
                         marginBottom: "6px",
                       }}
                     >
-                      Wind
+                      Вятър
                     </div>
                     <div
                       style={{
@@ -1920,7 +1975,7 @@ function LakeDetails() {
                         marginBottom: "6px",
                       }}
                     >
-                      Pressure
+                      Налягане
                     </div>
                     <div
                       style={{
@@ -1958,7 +2013,7 @@ function LakeDetails() {
                       }}
                     >
                       <FaWater style={{ marginRight: "8px" }} />
-                      {displayedForecast?.location || forecast?.location || "Unknown"}
+                      {displayedForecast?.location || forecast?.location || "Неизвестно"}
                     </div>
                   </div>
                 </div>
@@ -1979,7 +2034,7 @@ function LakeDetails() {
                         marginBottom: "10px",
                       }}
                     >
-                      AI score breakdown
+                      Разбивка на оценката
                     </div>
                     <div
                       style={{
@@ -2006,16 +2061,16 @@ function LakeDetails() {
                     }}
                   >
                     <div style={{ fontWeight: 800, color: "#14532d", marginBottom: "8px" }}>
-                      Why this score?
+                      Защо тази оценка?
                     </div>
                     {displayedForecast.explanation.summary ? (
                       <div style={{ fontSize: "14px", color: "#166534", fontWeight: 700, marginBottom: "8px" }}>
-                        {displayedForecast.explanation.summary}
+                        {translateForecastText(displayedForecast.explanation.summary)}
                       </div>
                     ) : null}
                     <ul style={{ margin: 0, paddingLeft: "18px", color: "#166534", fontSize: "14px", lineHeight: 1.7 }}>
                       {[...(displayedForecast.explanation.reasons || []), ...(displayedForecast.explanation.warnings || [])].slice(0, 5).map((reason, reasonIndex) => (
-                        <li key={`${reason}-${reasonIndex}`}>{reason}</li>
+                        <li key={`${translateForecastText(reason)}-${reasonIndex}`}>{translateForecastText(reason)}</li>
                       ))}
                     </ul>
                   </div>
@@ -2048,7 +2103,7 @@ function LakeDetails() {
                 {forecastError}
               </div>
             ) : (
-              <div style={{ color: "#64748b" }}>No forecast available.</div>
+              <div style={{ color: "#64748b" }}>Няма налична прогноза.</div>
             )}
           </div>
         </div>
@@ -2064,11 +2119,11 @@ function LakeDetails() {
           <div style={cardStyle}>
             <h2 style={sectionTitleStyle}>
               <FaFish />
-              Species summary
+              Обобщение по видове
             </h2>
 
             {speciesSummary.length === 0 ? (
-              <div style={{ color: "#64748b" }}>No species data yet.</div>
+              <div style={{ color: "#64748b" }}>Все още няма данни за видове.</div>
             ) : (
               <>
                 <div style={{ display: "grid", gap: "10px" }}>
@@ -2111,6 +2166,9 @@ function LakeDetails() {
                 <PaginationControls
                   page={paginatedSpecies.safePage}
                   totalPages={paginatedSpecies.totalPages}
+                  totalItems={paginatedSpecies.totalItems}
+                  startIndex={paginatedSpecies.startIndex}
+                  endIndex={paginatedSpecies.endIndex}
                   onChange={setSpeciesPage}
                   itemLabel={`${speciesSummary.length} species`}
                 />
@@ -2121,7 +2179,7 @@ function LakeDetails() {
           <div style={cardStyle}>
             <h2 style={sectionTitleStyle}>
               <FaChartLine />
-              Recent catches
+              Последни улови
             </h2>
 
             {catchesLoading ? (
@@ -2155,7 +2213,7 @@ function LakeDetails() {
                               color: "#0f172a",
                             }}
                           >
-                            {item.species || "Unknown species"}
+                            {item.species || "Неизвестен вид"}
                           </div>
                           <div
                             style={{
@@ -2164,7 +2222,7 @@ function LakeDetails() {
                               marginTop: "4px",
                             }}
                           >
-                            By {item.full_name || "Unknown angler"} ·{" "}
+                            От {item.full_name || "Неизвестен риболовец"} ·{" "}
                             {formatDateTime(item.catch_time || item.created_at)}
                           </div>
                         </div>
@@ -2199,7 +2257,7 @@ function LakeDetails() {
                       {item.image_url && (
                         <ZoomableImage
                           src={`http://localhost:5000/uploads/${item.image_url}`}
-                          alt={item.species || "Catch"}
+                          alt={item.species || "Улов"}
                           className={styles.catchImageButton}
                           imageClassName={styles.catchImage}
                         />
@@ -2211,6 +2269,9 @@ function LakeDetails() {
                 <PaginationControls
                   page={paginatedCatches.safePage}
                   totalPages={paginatedCatches.totalPages}
+                  totalItems={paginatedCatches.totalItems}
+                  startIndex={paginatedCatches.startIndex}
+                  endIndex={paginatedCatches.endIndex}
                   onChange={setCatchesPage}
                   itemLabel={`${catches.length} catches`}
                 />
@@ -2223,7 +2284,7 @@ function LakeDetails() {
           <div style={cardStyle}>
             <h2 style={sectionTitleStyle}>
               <FaImages />
-              Lake gallery
+              Галерия на водоема
             </h2>
 
             <>
@@ -2246,7 +2307,7 @@ function LakeDetails() {
                   >
                     <ZoomableImage
                       src={`http://localhost:5000/uploads/${photo.image_url}`}
-                      alt={photo.caption || "Lake photo"}
+                      alt={photo.caption || "Снимка на водоема"}
                       imageClassName={styles.galleryImage}
                     />
                     <div style={{ padding: "12px" }}>
@@ -2257,7 +2318,7 @@ function LakeDetails() {
                           marginBottom: "4px",
                         }}
                       >
-                        {photo.caption || "Lake photo"}
+                        {photo.caption || "Снимка на водоема"}
                       </div>
                       <div style={{ fontSize: "12px", color: "#64748b" }}>
                         Uploaded {formatDateTime(photo.created_at)}
@@ -2270,6 +2331,9 @@ function LakeDetails() {
               <PaginationControls
                 page={paginatedPhotos.safePage}
                 totalPages={paginatedPhotos.totalPages}
+                totalItems={paginatedPhotos.totalItems}
+                startIndex={paginatedPhotos.startIndex}
+                endIndex={paginatedPhotos.endIndex}
                 onChange={setPhotosPage}
                 itemLabel={`${photos.length} photos`}
               />
@@ -2280,7 +2344,7 @@ function LakeDetails() {
         <div style={{ ...cardStyle, marginTop: "20px" }}>
           <h2 style={sectionTitleStyle}>
             <FaStar />
-            Reviews and ratings
+            Отзиви и оценки
           </h2>
 
           <div
@@ -2308,7 +2372,7 @@ function LakeDetails() {
                   marginBottom: "8px",
                 }}
               >
-                Average rating
+                Средна оценка
               </div>
 
               <div
@@ -2343,7 +2407,7 @@ function LakeDetails() {
                     marginBottom: "6px",
                   }}
                 >
-                  Your rating
+                  Вашата оценка
                 </label>
 
                 <select
@@ -2359,11 +2423,11 @@ function LakeDetails() {
                     boxSizing: "border-box",
                   }}
                 >
-                  <option value={5}>5 - Excellent</option>
-                  <option value={4}>4 - Very good</option>
-                  <option value={3}>3 - Good</option>
-                  <option value={2}>2 - Fair</option>
-                  <option value={1}>1 - Poor</option>
+                  <option value={5}>5 - Отлично</option>
+                  <option value={4}>4 - Много добро</option>
+                  <option value={3}>3 - Добро</option>
+                  <option value={2}>2 - Задоволително</option>
+                  <option value={1}>1 - Слабо</option>
                 </select>
 
                 <label
@@ -2374,7 +2438,7 @@ function LakeDetails() {
                     marginBottom: "6px",
                   }}
                 >
-                  Comment
+                  Коментар
                 </label>
 
                 <textarea
@@ -2423,7 +2487,7 @@ function LakeDetails() {
                       fontWeight: 700,
                     }}
                   >
-                    {savingReview ? "Saving..." : "Save review"}
+                    {savingReview ? "Запазване..." : "Save review"}
                   </button>
 
                   <button
@@ -2440,7 +2504,7 @@ function LakeDetails() {
                       fontWeight: 700,
                     }}
                   >
-                    Remove my review
+                    Премахни моя отзив
                   </button>
                 </div>
               </form>
@@ -2448,7 +2512,7 @@ function LakeDetails() {
 
             <div style={{ minWidth: 0 }}>
               {reviews.length === 0 ? (
-                <div style={{ color: "#64748b" }}>No reviews yet.</div>
+                <div style={{ color: "#64748b" }}>Все още няма отзиви.</div>
               ) : (
                 <>
                   <div style={{ display: "grid", gap: "12px" }}>
@@ -2515,6 +2579,9 @@ function LakeDetails() {
                   <PaginationControls
                     page={paginatedReviews.safePage}
                     totalPages={paginatedReviews.totalPages}
+                    totalItems={paginatedReviews.totalItems}
+                    startIndex={paginatedReviews.startIndex}
+                    endIndex={paginatedReviews.endIndex}
                     onChange={setReviewsPage}
                     itemLabel={`${reviews.length} reviews`}
                   />

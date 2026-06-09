@@ -23,7 +23,7 @@ const getAlerts = async (req, res) => {
 
     res.json(q.rows);
   } catch {
-    res.status(500).json({ error: "Failed to load alerts" });
+    res.status(500).json({ error: "Неуспешно зареждане на известията" });
   }
 };
 
@@ -78,7 +78,7 @@ const getAlertStatus = async (req, res) => {
         : true,
     });
   } catch {
-    res.status(500).json({ error: "Failed to get alert status" });
+    res.status(500).json({ error: "Неуспешно зареждане на статуса на известието" });
   }
 };
 
@@ -143,7 +143,7 @@ const createAlert = async (req, res) => {
 
     res.json(q.rows[0]);
   } catch {
-    res.status(500).json({ error: "Failed to enable alert" });
+    res.status(500).json({ error: "Неуспешно включване на известието" });
   }
 };
 
@@ -209,7 +209,7 @@ const updateAlert = async (req, res) => {
 
     res.json(q.rows[0]);
   } catch {
-    res.status(500).json({ error: "Failed to update alert settings" });
+    res.status(500).json({ error: "Неуспешно обновяване на настройките за известия" });
   }
 };
 
@@ -228,7 +228,7 @@ const deleteAlert = async (req, res) => {
 
     res.json({ ok: true });
   } catch {
-    res.status(500).json({ error: "Failed to disable alert" });
+    res.status(500).json({ error: "Неуспешно изключване на известието" });
   }
 };
 
@@ -254,7 +254,7 @@ const getFavorites = async (req, res) => {
 
     res.json(q.rows);
   } catch {
-    res.status(500).json({ error: "Failed to load favorites" });
+    res.status(500).json({ error: "Неуспешно зареждане на любимите" });
   }
 };
 
@@ -306,7 +306,7 @@ const createFavorite = async (req, res) => {
 
     res.json(q.rows[0]);
   } catch {
-    res.status(500).json({ error: "Failed to favorite lake" });
+    res.status(500).json({ error: "Неуспешно добавяне на водоема в любими" });
   }
 };
 
@@ -325,7 +325,7 @@ const deleteFavorite = async (req, res) => {
 
     res.json({ ok: true });
   } catch {
-    res.status(500).json({ error: "Failed to remove favorite" });
+    res.status(500).json({ error: "Неуспешно премахване от любими" });
   }
 };
 

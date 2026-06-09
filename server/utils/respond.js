@@ -6,35 +6,35 @@ const created = (res, data = {}) => {
   return res.status(201).json(data);
 };
 
-const badRequest = (res, message = "Bad request", extra = {}) => {
+const badRequest = (res, message = "Невалидна заявка", extra = {}) => {
   return res.status(400).json({
     error: message,
     ...extra,
   });
 };
 
-const unauthorized = (res, message = "Unauthorized", extra = {}) => {
+const unauthorized = (res, message = "Неоторизиран достъп", extra = {}) => {
   return res.status(401).json({
     error: message,
     ...extra,
   });
 };
 
-const forbidden = (res, message = "Forbidden", extra = {}) => {
+const forbidden = (res, message = "Забранен достъп", extra = {}) => {
   return res.status(403).json({
     error: message,
     ...extra,
   });
 };
 
-const notFound = (res, message = "Not found", extra = {}) => {
+const notFound = (res, message = "Не е намерено", extra = {}) => {
   return res.status(404).json({
     error: message,
     ...extra,
   });
 };
 
-const serverError = (res, message = "Internal server error", extra = {}) => {
+const serverError = (res, message = "Вътрешна грешка на сървъра", extra = {}) => {
   return res.status(500).json({
     error: message,
     ...extra,

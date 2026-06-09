@@ -49,7 +49,7 @@ const mergeItemsByLakeId = (alerts, favorites) => {
   );
 };
 
-const PAGE_SIZE = 6;
+const PAGE_SIZE = 5;
 
 const paginateItems = (items, currentPage, pageSize = PAGE_SIZE) => {
   const totalItems = items.length;
@@ -69,10 +69,10 @@ const paginateItems = (items, currentPage, pageSize = PAGE_SIZE) => {
 };
 
 const getSavedStateLabel = (item) => {
-  if (item.is_favorite && item.is_active) return "Favorite + Alert";
-  if (item.is_favorite) return "Favorite only";
-  if (item.is_active) return "Alert only";
-  return "Saved";
+  if (item.is_favorite && item.is_active) return "Любим + известие";
+  if (item.is_favorite) return "Само любим";
+  if (item.is_active) return "Само известие";
+  return "Запазен";
 };
 
 function TabButton({ active, children, onClick }) {
@@ -116,7 +116,7 @@ export default function SavedLakesPage({ initialTab = "all" }) {
         (favoriteData || []).filter((item) => Boolean(item.is_favorite)),
       );
     } catch (error) {
-      notifyError(error, "Failed to load your saved lakes");
+      notifyError(error, "Неуспешно зареждане на любимите водоеми");
       setAlerts([]);
       setFavorites([]);
     } finally {
@@ -181,7 +181,7 @@ export default function SavedLakesPage({ initialTab = "all" }) {
       );
       if (successMessage) notifySuccess(successMessage);
     } catch (error) {
-      notifyError(error, "Failed to update alert settings");
+      notifyError(error, "Неуспешно обновяване на настройките за известия");
     } finally {
       setSavingId("");
     }
@@ -209,13 +209,13 @@ export default function SavedLakesPage({ initialTab = "all" }) {
         }
         return [...prev, mergedItem];
       });
-      notifySuccess("Alert enabled");
+      notifySuccess("Известието е включено");
     } catch (error) {
       if (error?.response?.data?.code === "PREMIUM_REQUIRED") {
         setPremiumPromptItem(item);
-        notifyError(null, "Premium subscription required for smart alerts. Open Billing / Premium from the menu.");
+        notifyError(null, "За умни известия е нужен Premium абонамент. Отворете Плащания / Premium от менюто.");
       } else {
-        notifyError(error, "Failed to enable alert");
+        notifyError(error, "Неуспешно включване на известието");
       }
     } finally {
       setSavingId("");
@@ -238,9 +238,9 @@ export default function SavedLakesPage({ initialTab = "all" }) {
             : currentItem,
         ),
       );
-      notifySuccess("Alert disabled");
+      notifySuccess("Известието е изключено");
     } catch (error) {
-      notifyError(error, "Failed to disable alert");
+      notifyError(error, "Неуспешно изключване на известието");
     } finally {
       setSavingId("");
     }
@@ -272,9 +272,9 @@ export default function SavedLakesPage({ initialTab = "all" }) {
             : currentItem,
         ),
       );
-      notifySuccess("Added to favorites");
+      notifySuccess("Добавено в любими");
     } catch (error) {
-      notifyError(error, "Failed to add favorite");
+      notifyError(error, "Неуспешно добавяне в любими");
     } finally {
       setSavingId("");
     }
@@ -296,9 +296,9 @@ export default function SavedLakesPage({ initialTab = "all" }) {
             : currentItem,
         ),
       );
-      notifySuccess("Removed from favorites");
+      notifySuccess("Премахнато от любими");
     } catch (error) {
-      notifyError(error, "Failed to remove favorite");
+      notifyError(error, "Неуспешно премахване от любими");
     } finally {
       setSavingId("");
     }
@@ -309,7 +309,7 @@ export default function SavedLakesPage({ initialTab = "all" }) {
   const goToDetails = (waterBodyId) => navigate(`/lakes/${waterBodyId}`);
 
   if (loading) {
-    return <div className={styles.loading}>Loading saved lakes…</div>;
+    return <div className={styles.loading}>Зареждане на любими водоеми…</div>;
   }
 
   return (
@@ -321,9 +321,9 @@ export default function SavedLakesPage({ initialTab = "all" }) {
               <div className={styles.heroIntro}>
                 <div className={styles.heroEyebrow}>
                   <FaStar />
-                  <span>Saved lakes</span>
+                  <span>Любими водоеми</span>
                 </div>
-                <h1 className={styles.heroTitle}>Saved Lakes</h1>
+                <h1 className={styles.heroTitle}>Любими водоеми</h1>
               </div>
 
             </div>
@@ -335,14 +335,14 @@ export default function SavedLakesPage({ initialTab = "all" }) {
             <div>
               <div className={styles.sectionLabel}>
                 <FaSearch />
-                <span>Search saved lakes</span>
+                <span>Търсене в любими водоеми</span>
               </div>
               <div className={styles.searchWrap}>
                 <input
                   type="text"
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Search by lake name..."
+                  placeholder="Търсене по име на водоем..."
                   className={styles.searchInput}
                 />
               </div>
@@ -351,39 +351,39 @@ export default function SavedLakesPage({ initialTab = "all" }) {
             <div>
               <div className={styles.sectionLabel}>
                 <FaSlidersH />
-                <span>Quick filters</span>
+                <span>Бързи филтри</span>
               </div>
               <div className={styles.filterRow}>
                 <TabButton
                   active={activeTab === "all"}
                   onClick={() => setActiveTab("all")}
                 >
-                  All saved
+                  Всички запазени
                 </TabButton>
                 <TabButton
                   active={activeTab === "favorites"}
                   onClick={() => setActiveTab("favorites")}
                 >
-                  Favorites
+                  Любими
                 </TabButton>
                 <TabButton
                   active={activeTab === "alerts"}
                   onClick={() => setActiveTab("alerts")}
                 >
-                  Alerts
+                  Известия
                 </TabButton>
                 <TabButton
                   active={activeTab === "both"}
                   onClick={() => setActiveTab("both")}
                 >
-                  Both
+                  И двете
                 </TabButton>
                 <button
                   type="button"
                   onClick={loadSavedLakes}
                   className={styles.refreshButton}
                 >
-                  <FaRedoAlt /> Refresh
+                  <FaRedoAlt /> Обнови
                 </button>
               </div>
             </div>
@@ -393,11 +393,11 @@ export default function SavedLakesPage({ initialTab = "all" }) {
         {premiumPromptItem ? (
           <PremiumLockedCard
             className={styles.premiumLockPanel}
-            title="Smart alerts are Premium"
-            message={`Upgrade to enable automatic forecast alerts for${
-              premiumPromptItem?.lake_name ? ` ${premiumPromptItem.lake_name}` : " saved lakes"
+            title="Умните известия са Premium"
+            message={`Включете Premium, за да получавате автоматични прогнози и известия за${
+              premiumPromptItem?.lake_name ? ` ${premiumPromptItem.lake_name}` : " запазени водоеми"
             }.`}
-            bullets={["Daily or weekly forecast emails", "Smart notifications for saved lakes"]}
+            bullets={["Дневни или седмични имейл прогнози", "Умни известия за любими водоеми"]}
             onUpgrade={() => navigate("/billing")}
             onClose={() => setPremiumPromptItem(null)}
           />
@@ -405,7 +405,7 @@ export default function SavedLakesPage({ initialTab = "all" }) {
 
         {!visibleItems.length ? (
           <div className={styles.emptyState}>
-            No saved lakes match the current search and filter.
+            Няма запазени водоеми, които съвпадат с текущото търсене и филтър.
           </div>
         ) : (
           <section className={styles.list}>
@@ -418,8 +418,8 @@ export default function SavedLakesPage({ initialTab = "all" }) {
                       <div className={styles.itemTitleBlock}>
                         <h3 className={styles.itemTitle}>{item.lake_name}</h3>
                         <p className={styles.itemSubtitle}>
-                          Manage notifications, favorites, and quick access
-                          actions for this lake.
+                          Управлявайте известията, любимите водоеми и бързите
+                          действия за този водоем.
                         </p>
                       </div>
 
@@ -434,7 +434,7 @@ export default function SavedLakesPage({ initialTab = "all" }) {
                               }
                             >
                               <FaBell />{" "}
-                              {item.is_active ? "Alert On" : "Alerts Off"}
+                              {item.is_active ? "Известие включено" : "Известията са изключени"}
                             </span>
                             <span
                               className={
@@ -444,7 +444,7 @@ export default function SavedLakesPage({ initialTab = "all" }) {
                               }
                             >
                               <FaHeart />{" "}
-                              {item.is_favorite ? "Favorite" : "Not favorite"}
+                              {item.is_favorite ? "Любим" : "Не е любим"}
                             </span>
                             <span className={styles.badgeCool}>
                               <FaTag /> {getSavedStateLabel(item)}
@@ -460,7 +460,7 @@ export default function SavedLakesPage({ initialTab = "all" }) {
                                 styles.ghostButton,
                               ].join(" ")}
                             >
-                              <FaMapMarkedAlt /> View on map
+                              <FaMapMarkedAlt /> Покажи на картата
                             </button>
                             <button
                               type="button"
@@ -470,7 +470,7 @@ export default function SavedLakesPage({ initialTab = "all" }) {
                                 styles.primaryButton,
                               ].join(" ")}
                             >
-                              Details
+                              Детайли
                             </button>
                           </div>
                         </div>
@@ -481,7 +481,7 @@ export default function SavedLakesPage({ initialTab = "all" }) {
                   <div className={styles.controlsGridCompact}>
                     <div className={styles.field}>
                       <div className={styles.fieldLabel}>
-                        <FaBell /> Notification frequency
+                        <FaBell /> Честота на известия
                       </div>
                       <select
                         value={item.notification_frequency || "daily"}
@@ -490,20 +490,20 @@ export default function SavedLakesPage({ initialTab = "all" }) {
                           patchAlertItem(
                             item.water_body_id,
                             { notification_frequency: event.target.value },
-                            "Frequency updated",
+                            "Честотата е обновена",
                           )
                         }
                         className={styles.select}
                       >
-                        <option value="daily">Daily</option>
-                        <option value="weekly">Weekly</option>
+                        <option value="daily">Дневно</option>
+                        <option value="weekly">Седмично</option>
                       </select>
                     </div>
 
 
                     <div className={styles.fieldWide}>
                       <div className={styles.fieldLabel}>
-                        <FaSlidersH /> Quick actions
+                        <FaSlidersH /> Бързи действия
                       </div>
                       <div className={styles.actionRow}>
                         {item.is_active ? (
@@ -513,7 +513,7 @@ export default function SavedLakesPage({ initialTab = "all" }) {
                             onClick={() => disableAlert(item)}
                             className={styles.secondaryButton}
                           >
-                            Disable alert
+                            Изключи известието
                           </button>
                         ) : (
                           <button
@@ -522,7 +522,7 @@ export default function SavedLakesPage({ initialTab = "all" }) {
                             onClick={() => enableAlert(item)}
                             className={styles.successButton}
                           >
-                            Enable alert
+                            Включи известието
                           </button>
                         )}
                         {item.is_favorite ? (
@@ -532,7 +532,7 @@ export default function SavedLakesPage({ initialTab = "all" }) {
                             onClick={() => removeFavorite(item)}
                             className={styles.warningButton}
                           >
-                            Remove favorite
+                            Премахни от любими
                           </button>
                         ) : (
                           <button
@@ -541,22 +541,13 @@ export default function SavedLakesPage({ initialTab = "all" }) {
                             onClick={() => addFavorite(item)}
                             className={styles.primaryButton}
                           >
-                            Mark favorite
+                            Маркирай като любим
                           </button>
                         )}
                       </div>
                     </div>
                   </div>
 
-                  <div className={styles.infoStrip}>
-                    <div className={styles.infoPill}>
-                      <FaHeart /> Favorite: {item.is_favorite ? "Yes" : "No"}
-                    </div>
-                    <div className={styles.infoPill}>
-                      <FaBell /> Alert:{" "}
-                      {item.is_active ? "Enabled" : "Disabled"}
-                    </div>
-                  </div>
                 </article>
               );
             })}

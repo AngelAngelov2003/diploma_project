@@ -156,7 +156,7 @@ const getAdminAnalytics = async (req, res) => {
       revenue: revenueSummary,
     });
   } catch (err) {
-    res.status(500).json({ error: "Failed to load analytics" });
+    res.status(500).json({ error: "Неуспешно зареждане на анализите" });
   }
 };
 
@@ -170,7 +170,7 @@ const getUsers = async (req, res) => {
 
     res.json(q.rows);
   } catch (err) {
-    res.status(500).json({ error: "Failed to load users" });
+    res.status(500).json({ error: "Неуспешно зареждане на потребителите" });
   }
 };
 
@@ -189,7 +189,7 @@ const updateUser = async (req, res) => {
     );
 
     if (!existing.rows.length) {
-      return res.status(404).json({ error: "User not found" });
+      return res.status(404).json({ error: "Потребителят не е намерен" });
     }
 
     const current = existing.rows[0];
@@ -201,15 +201,15 @@ const updateUser = async (req, res) => {
       typeof is_active === "boolean" ? is_active : Boolean(current.is_active);
 
     if (!nextFullName) {
-      return res.status(400).json({ error: "full_name is required" });
+      return res.status(400).json({ error: "Име и фамилия са задължителни" });
     }
 
     if (!nextEmail) {
-      return res.status(400).json({ error: "email is required" });
+      return res.status(400).json({ error: "Имейлът е задължителен" });
     }
 
     if (!["user", "owner", "admin"].includes(nextRole)) {
-      return res.status(400).json({ error: "role must be user, owner, or admin" });
+      return res.status(400).json({ error: "Ролята трябва да бъде user, owner или admin" });
     }
 
     const emailConflict = await pool.query(
@@ -223,7 +223,7 @@ const updateUser = async (req, res) => {
     );
 
     if (emailConflict.rows.length) {
-      return res.status(400).json({ error: "Email already in use by another user" });
+      return res.status(400).json({ error: "Имейлът вече се използва от друг потребител" });
     }
 
     const q = await pool.query(
@@ -248,7 +248,7 @@ const updateUser = async (req, res) => {
 
     res.json(q.rows[0]);
   } catch (err) {
-    res.status(500).json({ error: "Failed to update user" });
+    res.status(500).json({ error: "Неуспешно обновяване на потребителя" });
   }
 };
 
@@ -257,20 +257,20 @@ const deleteUser = async (req, res) => {
     const { userId } = req.params;
 
     if (String(userId) === String(req.user)) {
-      return res.status(400).json({ error: "Admin cannot delete own account" });
+      return res.status(400).json({ error: "Администраторът не може да изтрие собствения си акаунт" });
     }
 
     const existing = await pool.query(`SELECT id FROM users WHERE id = $1`, [userId]);
 
     if (!existing.rows.length) {
-      return res.status(404).json({ error: "User not found" });
+      return res.status(404).json({ error: "Потребителят не е намерен" });
     }
 
     await pool.query(`DELETE FROM users WHERE id = $1`, [userId]);
 
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: "Failed to delete user" });
+    res.status(500).json({ error: "Неуспешно изтриване на потребителя" });
   }
 };
 
@@ -299,7 +299,7 @@ const getWaterBodies = async (req, res) => {
 
     res.json(q.rows);
   } catch (err) {
-    res.status(500).json({ error: "Failed to load water bodies" });
+    res.status(500).json({ error: "Неуспешно зареждане на водоемите" });
   }
 };
 
@@ -328,7 +328,7 @@ const updateWaterBody = async (req, res) => {
     );
 
     if (!existing.rows.length) {
-      return res.status(404).json({ error: "Water body not found" });
+      return res.status(404).json({ error: "Водоемът не е намерен" });
     }
 
     const current = existing.rows[0];
@@ -359,20 +359,20 @@ const updateWaterBody = async (req, res) => {
     }
 
     if (!nextName) {
-      return res.status(400).json({ error: "name is required" });
+      return res.status(400).json({ error: "Името е задължително" });
     }
 
     if (!Number.isFinite(nextPricePerDay) || nextPricePerDay < 0) {
-      return res.status(400).json({ error: "price_per_day must be 0 or greater" });
+      return res.status(400).json({ error: "Цената на ден трябва да бъде 0 или повече" });
     }
 
     if (!Number.isInteger(nextCapacity) || nextCapacity < 1) {
-      return res.status(400).json({ error: "capacity must be an integer greater than 0" });
+      return res.status(400).json({ error: "Капацитетът трябва да бъде цяло число по-голямо от 0" });
     }
 
     if (nextOwnerId && !nextIsPrivate) {
       return res.status(400).json({
-        error: "A public lake cannot have an owner assigned. Set it to private first.",
+        error: "Публичен водоем не може да има зададен собственик. Първо го направете частен.",
       });
     }
 
@@ -387,7 +387,7 @@ const updateWaterBody = async (req, res) => {
       );
 
       if (!ownerQ.rows.length) {
-        return res.status(400).json({ error: "Selected owner does not exist" });
+        return res.status(400).json({ error: "Избраният собственик не съществува" });
       }
 
       if (ownerQ.rows[0].role !== "admin") {
@@ -437,7 +437,7 @@ const updateWaterBody = async (req, res) => {
 
     res.json(q.rows[0]);
   } catch (err) {
-    res.status(500).json({ error: "Failed to update water body" });
+    res.status(500).json({ error: "Неуспешно обновяване на водоема" });
   }
 };
 
@@ -448,7 +448,7 @@ const deleteWaterBody = async (req, res) => {
     const existing = await pool.query(`SELECT id FROM water_bodies WHERE id = $1`, [waterBodyId]);
 
     if (!existing.rows.length) {
-      return res.status(404).json({ error: "Water body not found" });
+      return res.status(404).json({ error: "Водоемът не е намерен" });
     }
 
     await pool.query(`DELETE FROM water_bodies WHERE id = $1`, [waterBodyId]);
@@ -456,7 +456,7 @@ const deleteWaterBody = async (req, res) => {
 
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: "Failed to delete water body" });
+    res.status(500).json({ error: "Неуспешно изтриване на водоема" });
   }
 };
 
@@ -481,7 +481,7 @@ const getReviews = async (req, res) => {
 
     res.json(q.rows);
   } catch (err) {
-    res.status(500).json({ error: "Failed to load reviews" });
+    res.status(500).json({ error: "Неуспешно зареждане на отзивите" });
   }
 };
 
@@ -492,14 +492,14 @@ const deleteReview = async (req, res) => {
     const existing = await pool.query(`SELECT id FROM water_body_reviews WHERE id = $1`, [reviewId]);
 
     if (!existing.rows.length) {
-      return res.status(404).json({ error: "Review not found" });
+      return res.status(404).json({ error: "Ревюто не е намерено" });
     }
 
     await pool.query(`DELETE FROM water_body_reviews WHERE id = $1`, [reviewId]);
 
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: "Failed to delete review" });
+    res.status(500).json({ error: "Неуспешно изтриване на отзива" });
   }
 };
 
@@ -539,7 +539,7 @@ const getOwnerClaimRequests = async (req, res) => {
 
     res.json(q.rows);
   } catch (err) {
-    res.status(500).json({ error: "Failed to load owner claim requests" });
+    res.status(500).json({ error: "Неуспешно зареждане на заявките за собственост" });
   }
 };
 
@@ -554,7 +554,7 @@ const updateOwnerClaimRequest = async (req, res) => {
     const nextAdminNote = String(admin_note || "").trim() || null;
 
     if (!["approved", "rejected", "pending"].includes(nextStatus)) {
-      return res.status(400).json({ error: "status must be pending, approved or rejected" });
+      return res.status(400).json({ error: "Статусът трябва да бъде pending, approved или rejected" });
     }
 
     await client.query("BEGIN");
@@ -572,7 +572,7 @@ const updateOwnerClaimRequest = async (req, res) => {
 
     if (!existingQ.rows.length) {
       await client.query("ROLLBACK");
-      return res.status(404).json({ error: "Claim request not found" });
+      return res.status(404).json({ error: "Заявката за собственост не е намерена" });
     }
 
     const request = existingQ.rows[0];
@@ -580,7 +580,7 @@ const updateOwnerClaimRequest = async (req, res) => {
     if (nextStatus === "approved" && (!request.is_private || !request.is_reservable)) {
       await client.query("ROLLBACK");
       return res.status(400).json({
-        error: "The selected lake must be both private and reservable",
+        error: "Избраният водоем трябва да бъде частен и достъпен за резервации",
       });
     }
 
@@ -597,14 +597,14 @@ const updateOwnerClaimRequest = async (req, res) => {
 
       if (!lakeQ.rows.length) {
         await client.query("ROLLBACK");
-        return res.status(404).json({ error: "Lake not found" });
+        return res.status(404).json({ error: "Водоемът не е намерен" });
       }
 
       const currentOwnerId = lakeQ.rows[0].owner_id;
 
       if (currentOwnerId && String(currentOwnerId) !== String(request.user_id)) {
         await client.query("ROLLBACK");
-        return res.status(400).json({ error: "This lake already has another owner" });
+        return res.status(400).json({ error: "Този водоем вече има друг собственик" });
       }
 
       await client.query(
@@ -669,7 +669,7 @@ const updateOwnerClaimRequest = async (req, res) => {
   } catch (err) {
     await client.query("ROLLBACK");
     console.error("PATCH /admin/owner-claim-requests/:requestId failed:", err);
-    res.status(500).json({ error: err.message || "Failed to review claim request" });
+    res.status(500).json({ error: err.message || "Неуспешно преглеждане на заявката" });
   } finally {
     client.release();
   }
@@ -689,7 +689,7 @@ const deleteOwnerClaimRequest = async (req, res) => {
     );
 
     if (!existingQ.rows.length) {
-      return res.status(404).json({ error: "Claim request not found" });
+      return res.status(404).json({ error: "Заявката за собственост не е намерена" });
     }
 
     await pool.query(
@@ -703,7 +703,7 @@ const deleteOwnerClaimRequest = async (req, res) => {
     res.json({ ok: true });
   } catch (err) {
     console.error("DELETE /admin/owner-claim-requests/:requestId failed:", err);
-    res.status(500).json({ error: err.message || "Failed to delete claim request" });
+    res.status(500).json({ error: err.message || "Неуспешно изтриване на заявката" });
   }
 };
 
@@ -718,7 +718,7 @@ const getCatchLogs = async (req, res) => {
     `);
     res.json(q.rows);
   } catch (err) {
-    res.status(500).json({ error: "Failed to load catch logs" });
+    res.status(500).json({ error: "Неуспешно зареждане на улова logs" });
   }
 };
 
@@ -728,7 +728,7 @@ const deleteCatchLog = async (req, res) => {
     await pool.query(`DELETE FROM catch_logs WHERE id = $1`, [catchId]);
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: "Failed to delete catch log" });
+    res.status(500).json({ error: "Неуспешно изтриване на улова log" });
   }
 };
 
@@ -743,7 +743,7 @@ const getGalleryPhotos = async (req, res) => {
     `);
     res.json(q.rows);
   } catch (err) {
-    res.status(500).json({ error: "Failed to load gallery photos" });
+    res.status(500).json({ error: "Неуспешно зареждане на снимките от галерията" });
   }
 };
 
@@ -753,7 +753,7 @@ const deleteGalleryPhoto = async (req, res) => {
     await pool.query(`DELETE FROM lake_gallery_photos WHERE id = $1`, [photoId]);
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: "Failed to delete gallery photo" });
+    res.status(500).json({ error: "Неуспешно изтриване на снимката от галерията" });
   }
 };
 

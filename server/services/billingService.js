@@ -247,6 +247,17 @@ const updateOwnerSubscriptionByCustomer = async ({
 
 const centsToMajor = (amount) => Number((Number(amount || 0) / 100).toFixed(2));
 
+
+const getWeekdayLabel = (weekday) => ({
+  monday: "понеделник",
+  tuesday: "вторник",
+  wednesday: "сряда",
+  thursday: "четвъртък",
+  friday: "петък",
+  saturday: "събота",
+  sunday: "неделя",
+}[String(weekday || "").toLowerCase()] || weekday || "избрания ден от седмицата");
+
 const summarizeStripeBalance = (balance, preferredCurrency = "eur") => {
   const currency = String(preferredCurrency || "eur").toLowerCase();
   const sumForCurrency = (items = []) => items
@@ -262,22 +273,22 @@ const summarizeStripeBalance = (balance, preferredCurrency = "eur") => {
 
 const formatPayoutSchedule = (account) => {
   const schedule = account?.settings?.payouts?.schedule;
-  if (!schedule) return "Automatic payouts depend on the Stripe account settings.";
+  if (!schedule) return "Автоматичните изплащания зависят от настройките на Stripe акаунта.";
 
   if (schedule.interval === "weekly") {
-    const weekday = schedule.weekly_anchor ? String(schedule.weekly_anchor) : "the selected weekday";
-    return `Weekly automatic payouts, usually on ${weekday}.`;
+    const weekday = getWeekdayLabel(schedule.weekly_anchor);
+    return `Седмични автоматични изплащания, обикновено в ${weekday}.`;
   }
 
   if (schedule.interval === "monthly") {
-    const day = schedule.monthly_anchor ? `day ${schedule.monthly_anchor}` : "the selected day";
-    return `Monthly automatic payouts, usually on ${day}.`;
+    const day = schedule.monthly_anchor ? `ден ${schedule.monthly_anchor}` : "избрания ден";
+    return `Месечни автоматични изплащания, обикновено на ${day}.`;
   }
 
-  if (schedule.interval === "daily") return "Daily automatic payouts after Stripe's availability delay.";
-  if (schedule.interval === "manual") return "Manual payouts are enabled; payouts must be triggered from Stripe.";
+  if (schedule.interval === "daily") return "Дневни автоматични изплащания след периода на наличност в Stripe.";
+  if (schedule.interval === "manual") return "Включени са ръчни изплащания; те трябва да се стартират от Stripe.";
 
-  return `${schedule.interval || "Automatic"} payout schedule.`;
+  return `${schedule.interval || "Автоматичен"} график за изплащания.`;
 };
 
 const getOwnerRevenueSummary = async (ownerId, stripe = null) => {
@@ -329,8 +340,8 @@ const getOwnerRevenueSummary = async (ownerId, stripe = null) => {
 
   let stripeBalance = { currency, available: 0, pending: 0 };
   let payoutSchedule = billing?.payouts_enabled
-    ? "Automatic payouts are enabled in Stripe."
-    : "Payouts are not enabled yet.";
+    ? "Автоматичните изплащания са включени в Stripe."
+    : "Изплащанията все още не са включени.";
 
   if (stripe && billing?.stripe_connected_account_id) {
     try {
@@ -341,7 +352,7 @@ const getOwnerRevenueSummary = async (ownerId, stripe = null) => {
       stripeBalance = summarizeStripeBalance(balance, currency);
       payoutSchedule = formatPayoutSchedule(account);
     } catch (error) {
-      console.warn("[billing] Could not load owner Stripe balance:", error.message);
+      console.warn("[billing] Неуспешно зареждане на Stripe баланса на собственика:", error.message);
     }
   }
 

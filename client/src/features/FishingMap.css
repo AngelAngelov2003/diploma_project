@@ -916,12 +916,12 @@
   justify-content: center;
   width: 24px;
   height: 24px;
-  background: rgba(37, 99, 235, 0.34);
-  border: 2px solid rgba(255, 255, 255, 0.98);
+  background: rgba(59, 130, 246, 0.86);
+  border: 3px solid rgba(255, 255, 255, 1);
   border-radius: 50%;
   box-shadow:
-    0 8px 18px rgba(15, 23, 42, 0.22),
-    0 0 0 1px rgba(37, 99, 235, 0.2);
+    0 8px 18px rgba(15, 23, 42, 0.28),
+    0 0 0 2px rgba(37, 99, 235, 0.22);
   transition:
     transform var(--fm-transition-fast),
     box-shadow var(--fm-transition-fast),
@@ -929,30 +929,31 @@
 }
 
 .custom-lake-marker:hover {
-  transform: scale(1.08);
+  transform: scale(1.12);
+  background: rgba(37, 99, 235, 0.96);
   box-shadow:
-    0 10px 22px rgba(15, 23, 42, 0.24),
-    0 0 0 1px rgba(37, 99, 235, 0.18);
+    0 10px 22px rgba(15, 23, 42, 0.32),
+    0 0 0 3px rgba(37, 99, 235, 0.26);
 }
 
 .custom-lake-marker-dot {
-  width: 11px;
-  height: 11px;
-  background: #2563eb;
+  width: 9px;
+  height: 9px;
+  background: rgba(255, 255, 255, 0.92);
   border-radius: 50%;
-  box-shadow: 0 0 0 1px rgba(29, 78, 216, 0.2);
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.18);
 }
 
 .custom-lake-marker.selected {
-  background: rgba(37, 99, 235, 0.48);
+  background: rgba(29, 78, 216, 1);
   border-color: rgba(255, 255, 255, 1);
   box-shadow:
-    0 12px 24px rgba(37, 99, 235, 0.32),
-    0 0 0 1px rgba(37, 99, 235, 0.22);
+    0 12px 26px rgba(29, 78, 216, 0.38),
+    0 0 0 3px rgba(37, 99, 235, 0.3);
 }
 
 .custom-lake-marker.selected .custom-lake-marker-dot {
-  background: #1d4ed8;
+  background: rgba(255, 255, 255, 1);
 }
 
 .user-location-marker-wrapper {

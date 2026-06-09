@@ -21,7 +21,7 @@ const createCatch = async (req, res) => {
     }
 
     if (!species) {
-      return res.status(400).json({ error: "species is required" });
+      return res.status(400).json({ error: "Видът риба е задължителен" });
     }
 
     const image_url = req.file ? req.file.filename : null;
@@ -63,7 +63,7 @@ const createCatch = async (req, res) => {
 
     res.json(newCatch.rows[0]);
   } catch (err) {
-    res.status(500).send("Server Error: " + err.message);
+    res.status(500).send("Грешка на сървъра: " + err.message);
   }
 };
 
@@ -82,7 +82,7 @@ const getMyCatches = async (req, res) => {
 
     res.json(myCatches.rows);
   } catch {
-    res.status(500).send("Server Error");
+    res.status(500).send("Грешка на сървъра");
   }
 };
 
@@ -194,7 +194,7 @@ const getMyCatchAnalytics = async (req, res) => {
       recentCatches: recentCatchesQ.rows,
     });
   } catch (err) {
-    res.status(500).json({ error: "Failed to load catch analytics" });
+    res.status(500).json({ error: "Неуспешно зареждане на анализа на уловите" });
   }
 };
 
@@ -213,12 +213,12 @@ const getCatchById = async (req, res) => {
     );
 
     if (!q.rows.length) {
-      return res.status(404).json({ error: "Catch not found" });
+      return res.status(404).json({ error: "Уловът не е намерен" });
     }
 
     res.json(q.rows[0]);
   } catch (err) {
-    res.status(500).json({ error: "Failed to load catch" });
+    res.status(500).json({ error: "Неуспешно зареждане на улова" });
   }
 };
 
@@ -236,7 +236,7 @@ const updateCatch = async (req, res) => {
     );
 
     if (!existingQ.rows.length) {
-      return res.status(404).json({ error: "Catch not found" });
+      return res.status(404).json({ error: "Уловът не е намерен" });
     }
 
     const current = existingQ.rows[0];
@@ -269,7 +269,7 @@ const updateCatch = async (req, res) => {
     }
 
     if (!nextSpecies) {
-      return res.status(400).json({ error: "species is required" });
+      return res.status(400).json({ error: "Видът риба е задължителен" });
     }
 
     await pool.query(
@@ -318,7 +318,7 @@ const updateCatch = async (req, res) => {
 
     res.json(resultQ.rows[0]);
   } catch (err) {
-    res.status(500).json({ error: "Failed to update catch" });
+    res.status(500).json({ error: "Неуспешно обновяване на улова" });
   }
 };
 
@@ -336,7 +336,7 @@ const deleteCatch = async (req, res) => {
     );
 
     if (!existingQ.rows.length) {
-      return res.status(404).json({ error: "Catch not found" });
+      return res.status(404).json({ error: "Уловът не е намерен" });
     }
 
     await pool.query(
@@ -349,7 +349,7 @@ const deleteCatch = async (req, res) => {
 
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: "Failed to delete catch" });
+    res.status(500).json({ error: "Неуспешно изтриване на улова" });
   }
 };
 

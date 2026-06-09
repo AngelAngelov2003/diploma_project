@@ -13,6 +13,11 @@ import useMyCatches from "../hooks/useMyCatches";
 import DashboardFilters from "../components/dashboard/DashboardFilters";
 import DashboardCharts from "../components/dashboard/DashboardCharts";
 import CatchLogList from "../components/dashboard/CatchLogList";
+import Pagination from "../components/ui/Pagination";
+import { deleteMyCatch, updateMyCatch } from "../api/myCatchesApi";
+import { notifyError, notifySuccess } from "../ui/toast";
+
+
 
 const SKELETON_DELAY_MS = 200;
 
@@ -137,12 +142,12 @@ const InsightCard = ({ title, children }) => (
     style={{
       background: "white",
       border: "1px solid #e5e7eb",
-      borderRadius: "16px",
-      padding: "clamp(12px, 3vw, 18px)",
+      borderRadius: "14px",
+      padding: "clamp(10px, 2.5vw, 14px)",
       boxShadow: "0 6px 16px rgba(15,23,42,0.05)",
     }}
   >
-    <h3 style={{ margin: "0 0 12px 0", color: "#0f172a", fontSize: "clamp(16px, 4vw, 18px)" }}>
+    <h3 style={{ margin: "0 0 10px 0", color: "#0f172a", fontSize: "clamp(15px, 3.5vw, 17px)" }}>
       {title}
     </h3>
     {children}
@@ -159,16 +164,16 @@ const formatNumber = (value) => {
 
 const formatDateLabel = (value) => {
   if (!value) {
-    return "Unknown";
+    return "Неизвестно";
   }
 
   const date = new Date(value);
 
   if (Number.isNaN(date.getTime())) {
-    return "Unknown";
+    return "Неизвестно";
   }
 
-  return date.toLocaleDateString();
+  return date.toLocaleDateString("bg-BG");
 };
 
 const getCatchTimestamp = (catchItem) => {
@@ -201,12 +206,15 @@ const sortMapEntries = (entries) =>
 
 export default function Dashboard() {
   const { catches, loading, error, reload } = useMyCatches();
+  const [savingCatchId, setSavingCatchId] = useState("");
 
   const [selectedLakeId, setSelectedLakeId] = useState("ALL");
   const [selectedSpecies, setSelectedSpecies] = useState("ALL");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
+  const [speciesPage, setSpeciesPage] = useState(1);
+  const [lakePage, setLakePage] = useState(1);
 
   const [showCharts, setShowCharts] = useState(true);
   const [showChartSpecies, setShowChartSpecies] = useState(true);
@@ -285,6 +293,11 @@ export default function Dashboard() {
     });
   }, [catches, selectedLakeId, selectedSpecies, dateFrom, dateTo, searchTerm]);
 
+  useEffect(() => {
+    setSpeciesPage(1);
+    setLakePage(1);
+  }, [selectedLakeId, selectedSpecies, dateFrom, dateTo, searchTerm]);
+
   const dashboardStats = useMemo(() => {
     const safeLogs = filteredCatches || [];
     const totalCatches = safeLogs.length;
@@ -321,9 +334,9 @@ export default function Dashboard() {
     const monthMap = new Map();
 
     safeLogs.forEach((catchItem) => {
-      const species = String(catchItem.species || "Unknown").trim() || "Unknown";
+      const species = String(catchItem.species || "Неизвестно").trim() || "Неизвестно";
       const lake =
-        String(catchItem.lake_name || "Unknown lake").trim() || "Unknown lake";
+        String(catchItem.lake_name || "Неизвестен водоем").trim() || "Неизвестен водоем";
 
       speciesMap.set(species, (speciesMap.get(species) || 0) + 1);
       lakeMap.set(lake, (lakeMap.get(lake) || 0) + 1);
@@ -355,7 +368,7 @@ export default function Dashboard() {
     const bestMonth = bestMonthEntry
       ? {
           label: new Date(`${bestMonthEntry[0]}-01T00:00:00`).toLocaleDateString(
-            undefined,
+            "bg-BG",
             {
               month: "long",
               year: "numeric",
@@ -366,7 +379,6 @@ export default function Dashboard() {
       : null;
 
     const speciesBreakdown = sortMapEntries(speciesMap.entries())
-      .slice(0, 5)
       .map(([name, count]) => ({
         name,
         count,
@@ -403,10 +415,35 @@ export default function Dashboard() {
   }, [filteredCatches]);
 
   const recentPreview = dashboardStats.recentSorted.slice(0, 6);
+  const speciesPageSize = 2;
+  const speciesPageCount = Math.max(
+    1,
+    Math.ceil(dashboardStats.speciesBreakdown.length / speciesPageSize),
+  );
+  const safeSpeciesPage = Math.min(speciesPage, speciesPageCount);
+  const speciesStartIndex = (safeSpeciesPage - 1) * speciesPageSize;
+  const speciesEndIndex = Math.min(speciesStartIndex + speciesPageSize, dashboardStats.speciesBreakdown.length);
+  const pagedSpeciesBreakdown = dashboardStats.speciesBreakdown.slice(
+    speciesStartIndex,
+    speciesEndIndex,
+  );
+
+  const lakePageSize = 2;
+  const lakePageCount = Math.max(
+    1,
+    Math.ceil(dashboardStats.lakeBreakdown.length / lakePageSize),
+  );
+  const safeLakePage = Math.min(lakePage, lakePageCount);
+  const lakeStartIndex = (safeLakePage - 1) * lakePageSize;
+  const lakeEndIndex = Math.min(lakeStartIndex + lakePageSize, dashboardStats.lakeBreakdown.length);
+  const pagedLakeBreakdown = dashboardStats.lakeBreakdown.slice(
+    lakeStartIndex,
+    lakeEndIndex,
+  );
 
   const countText = loading
-    ? "Loading…"
-    : `Showing ${filteredCatches.length} of ${(catches || []).length} catches`;
+    ? "Зареждане…"
+    : `Показани ${filteredCatches.length} от ${(catches || []).length} улова`;
 
   const goToLakeOnMap = (waterBodyId) => {
     if (
@@ -426,6 +463,34 @@ export default function Dashboard() {
     setDateFrom("");
     setDateTo("");
     setSearchTerm("");
+  };
+
+  const handleUpdateCatch = async (catchId, payload) => {
+    try {
+      setSavingCatchId(catchId);
+      const updatedCatch = await updateMyCatch(catchId, payload);
+      notifySuccess("Записът за улов е обновен");
+      await reload();
+      return updatedCatch;
+    } catch (error) {
+      notifyError(error, "Неуспешно обновяване на записа");
+    } finally {
+      setSavingCatchId("");
+    }
+  };
+
+  const handleDeleteCatch = async (catchId) => {
+    if (!window.confirm("Да се изтрие ли този запис за улов?")) return;
+    try {
+      setSavingCatchId(catchId);
+      await deleteMyCatch(catchId);
+      notifySuccess("Записът е изтрит");
+      await reload();
+    } catch (error) {
+      notifyError(error, "Неуспешно изтриване на записа");
+    } finally {
+      setSavingCatchId("");
+    }
   };
 
   const goToCatchesPage = () => {
@@ -471,12 +536,12 @@ export default function Dashboard() {
               >
                 <FaChartBar />
                 <div style={{ fontSize: "14px", fontWeight: 700, opacity: 0.95 }}>
-                  Fishing analytics
+                  Риболовна статистика
                 </div>
               </div>
 
               <h1 style={{ margin: 0, fontSize: isMobile ? "24px" : "30px", lineHeight: 1.15 }}>
-                Fishing Dashboard
+                Риболовен контролен панел
               </h1>
             </div>
 
@@ -490,15 +555,6 @@ export default function Dashboard() {
                 marginLeft: "auto",
               }}
             >
-              <div style={{ background: "rgba(255,255,255,0.16)", borderRadius: "999px", padding: "8px 12px", fontSize: "13px", fontWeight: 700 }}>
-                {(catches || []).length} total catches
-              </div>
-              <div style={{ background: "rgba(255,255,255,0.16)", borderRadius: "999px", padding: "8px 12px", fontSize: "13px", fontWeight: 700 }}>
-                {filteredCatches.length} filtered
-              </div>
-              <div style={{ background: "rgba(255,255,255,0.1)", borderRadius: "999px", padding: "8px 12px", fontSize: "13px", fontWeight: 700 }}>
-                {dashboardStats.uniqueLakes} lakes
-              </div>
               <button
                 type="button"
                 onClick={goToCatchesPage}
@@ -515,7 +571,7 @@ export default function Dashboard() {
                   gap: "8px",
                 }}
               >
-                Open Fishing Log
+                Отвори риболовния дневник
                 <FaArrowRight />
               </button>
             </div>
@@ -559,40 +615,40 @@ export default function Dashboard() {
         >
           <StatCard
             icon={<FaFish />}
-            label="Filtered catches"
+            label="Филтрирани улови"
             value={dashboardStats.totalCatches}
             subvalue={countText}
           />
           <StatCard
             icon={<FaWeightHanging />}
-            label="Average weight"
-            value={`${formatNumber(dashboardStats.avgWeight)} kg`}
-            subvalue={`Total weight: ${formatNumber(
+            label="Средно тегло"
+            value={`${formatNumber(dashboardStats.avgWeight)} кг`}
+            subvalue={`Общо тегло: ${formatNumber(
               dashboardStats.totalWeight,
-            )} kg`}
+            )} кг`}
           />
           <StatCard
             icon={<FaMapMarkedAlt />}
-            label="Best lake"
-            value={dashboardStats.topLake ? dashboardStats.topLake.name : "No data"}
+            label="Най-добър водоем"
+            value={dashboardStats.topLake ? dashboardStats.topLake.name : "Няма данни"}
             subvalue={
               dashboardStats.topLake
-                ? `${dashboardStats.topLake.count} catches`
-                : "No filtered catches yet"
+                ? `${dashboardStats.topLake.count} улова`
+                : "Все още няма филтрирани улови"
             }
           />
           <StatCard
             icon={<FaTrophy />}
-            label="Top species"
+            label="Топ видове"
             value={
               dashboardStats.topSpecies
                 ? dashboardStats.topSpecies.name
-                : "No data"
+                : "Няма данни"
             }
             subvalue={
               dashboardStats.topSpecies
-                ? `${dashboardStats.topSpecies.count} catches`
-                : "No filtered catches yet"
+                ? `${dashboardStats.topSpecies.count} улова`
+                : "Все още няма филтрирани улови"
             }
           />
         </div>
@@ -600,15 +656,15 @@ export default function Dashboard() {
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: isMobile ? "1fr" : "repeat(auto-fit, minmax(300px, 1fr))",
+            gridTemplateColumns: isMobile ? "1fr" : "repeat(auto-fit, minmax(260px, 1fr))",
             gap: isMobile ? "10px" : "14px",
             marginBottom: "18px",
           }}
         >
-          <InsightCard title="Personal Records">
+          <InsightCard title="Лични рекорди">
             {!dashboardStats.biggestCatch ? (
               <div style={{ color: "#64748b", fontSize: "14px" }}>
-                No record data yet for the current filters.
+                Все още няма рекордни данни за текущите филтри.
               </div>
             ) : (
               <div style={{ display: "grid", gap: "12px" }}>
@@ -616,8 +672,8 @@ export default function Dashboard() {
                   style={{
                     background: "#eff6ff",
                     border: "1px solid #bfdbfe",
-                    borderRadius: "14px",
-                    padding: isMobile ? "11px" : "14px",
+                    borderRadius: "12px",
+                    padding: isMobile ? "9px" : "11px",
                   }}
                 >
                   <div
@@ -628,7 +684,7 @@ export default function Dashboard() {
                       marginBottom: "6px",
                     }}
                   >
-                    Biggest catch
+                    Най-голям улов
                   </div>
 
                   <div
@@ -641,7 +697,7 @@ export default function Dashboard() {
                     {formatNumber(
                       Number(dashboardStats.biggestCatch.weight_kg || 0),
                     )}{" "}
-                    kg {dashboardStats.biggestCatch.species || "Unknown"}
+                    кг {dashboardStats.biggestCatch.species || "Неизвестно"}
                   </div>
 
                   <div
@@ -651,7 +707,7 @@ export default function Dashboard() {
                       marginTop: "6px",
                     }}
                   >
-                    {dashboardStats.biggestCatch.lake_name || "Unknown lake"} •{" "}
+                    {dashboardStats.biggestCatch.lake_name || "Неизвестен водоем"} •{" "}
                     {formatDateLabel(
                       dashboardStats.biggestCatch.catch_time ||
                         dashboardStats.biggestCatch.created_at,
@@ -670,8 +726,8 @@ export default function Dashboard() {
                     style={{
                       background: "#f8fafc",
                       border: "1px solid #e2e8f0",
-                      borderRadius: "12px",
-                      padding: isMobile ? "10px" : "12px",
+                      borderRadius: "11px",
+                      padding: isMobile ? "8px" : "10px",
                     }}
                   >
                     <div
@@ -682,7 +738,7 @@ export default function Dashboard() {
                         marginBottom: "4px",
                       }}
                     >
-                      Unique lakes
+                      Водоеми с улов
                     </div>
                     <div
                       style={{
@@ -699,8 +755,8 @@ export default function Dashboard() {
                     style={{
                       background: "#f8fafc",
                       border: "1px solid #e2e8f0",
-                      borderRadius: "12px",
-                      padding: isMobile ? "10px" : "12px",
+                      borderRadius: "11px",
+                      padding: isMobile ? "8px" : "10px",
                     }}
                   >
                     <div
@@ -711,7 +767,7 @@ export default function Dashboard() {
                         marginBottom: "4px",
                       }}
                     >
-                      Best month
+                      Най-добър месец
                     </div>
                     <div
                       style={{
@@ -722,7 +778,7 @@ export default function Dashboard() {
                     >
                       {dashboardStats.bestMonth
                         ? dashboardStats.bestMonth.label
-                        : "No data"}
+                        : "Няма данни"}
                     </div>
                     <div
                       style={{
@@ -732,7 +788,7 @@ export default function Dashboard() {
                       }}
                     >
                       {dashboardStats.bestMonth
-                        ? `${dashboardStats.bestMonth.count} catches`
+                        ? `${dashboardStats.bestMonth.count} улова`
                         : ""}
                     </div>
                   </div>
@@ -741,20 +797,20 @@ export default function Dashboard() {
             )}
           </InsightCard>
 
-          <InsightCard title="Top Species Breakdown">
+          <InsightCard title="Разбивка по вид риба">
             {!dashboardStats.speciesBreakdown.length ? (
               <div style={{ color: "#64748b", fontSize: "14px" }}>
-                No species data found for the current filters.
+                Няма данни за видове риба за текущите филтри.
               </div>
             ) : (
-              <div style={{ display: "grid", gap: "10px" }}>
-                {dashboardStats.speciesBreakdown.map((item) => (
+              <div style={{ display: "grid", gap: "8px" }}>
+                {pagedSpeciesBreakdown.map((item) => (
                   <div
                     key={item.name}
                     style={{
                       border: "1px solid #e5e7eb",
-                      borderRadius: "12px",
-                      padding: isMobile ? "10px" : "12px",
+                      borderRadius: "11px",
+                      padding: isMobile ? "8px" : "10px",
                       background: "#fff",
                     }}
                   >
@@ -763,20 +819,20 @@ export default function Dashboard() {
                         display: "flex",
                         justifyContent: "space-between",
                         gap: "10px",
-                        marginBottom: "8px",
+                        marginBottom: "6px",
                       }}
                     >
-                      <div style={{ fontWeight: 700, color: "#0f172a" }}>
+                      <div style={{ fontWeight: 700, color: "#0f172a", fontSize: "14px" }}>
                         {item.name}
                       </div>
                       <div style={{ fontSize: "13px", color: "#475569" }}>
-                        {item.count} catches
+                        {item.count} улова
                       </div>
                     </div>
 
                     <div
                       style={{
-                        height: "8px",
+                        height: "6px",
                         background: "#e2e8f0",
                         borderRadius: "999px",
                         overflow: "hidden",
@@ -796,31 +852,42 @@ export default function Dashboard() {
                       style={{
                         fontSize: "12px",
                         color: "#64748b",
-                        marginTop: "6px",
+                        marginTop: "5px",
                       }}
                     >
-                      {item.percent}% of filtered catches
+                      {item.percent}% от филтрираните улови
                     </div>
                   </div>
                 ))}
+
+                {dashboardStats.speciesBreakdown.length > speciesPageSize ? (
+                  <Pagination
+                    currentPage={safeSpeciesPage}
+                    totalPages={speciesPageCount}
+                    totalItems={dashboardStats.speciesBreakdown.length}
+                    startIndex={speciesStartIndex}
+                    endIndex={speciesEndIndex}
+                    onPageChange={setSpeciesPage}
+                  />
+                ) : null}
               </div>
             )}
           </InsightCard>
 
-          <InsightCard title="Top Lakes Breakdown">
+          <InsightCard title="Разбивка по водоеми">
             {!dashboardStats.lakeBreakdown.length ? (
               <div style={{ color: "#64748b", fontSize: "14px" }}>
-                No lake data found for the current filters.
+                Няма данни за водоеми за текущите филтри.
               </div>
             ) : (
-              <div style={{ display: "grid", gap: "10px" }}>
-                {dashboardStats.lakeBreakdown.map((item) => (
+              <div style={{ display: "grid", gap: "8px" }}>
+                {pagedLakeBreakdown.map((item) => (
                   <div
                     key={item.name}
                     style={{
                       border: "1px solid #e5e7eb",
-                      borderRadius: "12px",
-                      padding: isMobile ? "10px" : "12px",
+                      borderRadius: "11px",
+                      padding: isMobile ? "8px" : "10px",
                       background: "#fff",
                     }}
                   >
@@ -832,17 +899,17 @@ export default function Dashboard() {
                         marginBottom: "8px",
                       }}
                     >
-                      <div style={{ fontWeight: 700, color: "#0f172a" }}>
+                      <div style={{ fontWeight: 700, color: "#0f172a", fontSize: "14px" }}>
                         {item.name}
                       </div>
                       <div style={{ fontSize: "13px", color: "#475569" }}>
-                        {item.count} catches
+                        {item.count} улова
                       </div>
                     </div>
 
                     <div
                       style={{
-                        height: "8px",
+                        height: "6px",
                         background: "#e2e8f0",
                         borderRadius: "999px",
                         overflow: "hidden",
@@ -862,13 +929,24 @@ export default function Dashboard() {
                       style={{
                         fontSize: "12px",
                         color: "#64748b",
-                        marginTop: "6px",
+                        marginTop: "5px",
                       }}
                     >
-                      {item.percent}% of filtered catches
+                      {item.percent}% от филтрираните улови
                     </div>
                   </div>
                 ))}
+
+                {dashboardStats.lakeBreakdown.length > lakePageSize ? (
+                  <Pagination
+                    currentPage={safeLakePage}
+                    totalPages={lakePageCount}
+                    totalItems={dashboardStats.lakeBreakdown.length}
+                    startIndex={lakeStartIndex}
+                    endIndex={lakeEndIndex}
+                    onPageChange={setLakePage}
+                  />
+                ) : null}
               </div>
             )}
           </InsightCard>
@@ -913,7 +991,7 @@ export default function Dashboard() {
             }}
           >
             <FaStream />
-            Recent Filtered Catch Logs
+            Последни филтрирани улови
           </h2>
 
           <button
@@ -929,7 +1007,7 @@ export default function Dashboard() {
               fontWeight: 700,
             }}
           >
-            View Full Logbook
+            Виж целия дневник
           </button>
         </div>
 
@@ -963,7 +1041,7 @@ export default function Dashboard() {
                 fontSize: "12px",
               }}
             >
-              Retry
+              Опитай отново
             </button>
           </div>
         )}
@@ -980,6 +1058,9 @@ export default function Dashboard() {
             loading={loading}
             hasAnyCatches={hasAnyCatches}
             onLakeClick={goToLakeOnMap}
+            onUpdate={handleUpdateCatch}
+            onDelete={handleDeleteCatch}
+            savingId={savingCatchId}
           />
         )}
       </div>

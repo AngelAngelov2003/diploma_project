@@ -68,11 +68,11 @@ const calculateWeatherScore = (temp, pressure, wind) => {
 
 const getMoonPhaseLabel = (moonPhase) => {
   const phase = Number(moonPhase);
-  if (!Number.isFinite(phase)) return "unknown moon phase";
-  if (phase <= 5 || phase >= 95) return "new moon";
-  if (phase >= 45 && phase <= 55) return "full moon";
-  if (phase < 45) return "waxing moon";
-  return "waning moon";
+  if (!Number.isFinite(phase)) return "неизвестна фаза на луната";
+  if (phase <= 5 || phase >= 95) return "новолуние";
+  if (phase >= 45 && phase <= 55) return "пълнолуние";
+  if (phase < 45) return "нарастваща луна";
+  return "намаляваща луна";
 };
 
 const buildForecastExplanation = ({ temp, pressure, wind, moonPhase, weatherScore, moonScore, totalScore, usedFallback }) => {
@@ -84,65 +84,65 @@ const buildForecastExplanation = ({ temp, pressure, wind, moonPhase, weatherScor
 
   if (Number.isFinite(numericTemp)) {
     if (numericTemp >= 15 && numericTemp <= 25) {
-      reasons.push("Temperature is in a strong fishing range");
+      reasons.push("Температурата е в добър диапазон за риболов");
     } else if (numericTemp < 5) {
-      warnings.push("Very cold water conditions may reduce activity");
+      warnings.push("Много студената вода може да намали активността");
     } else if (numericTemp > 30) {
-      warnings.push("High temperature may reduce fish activity during the day");
+      warnings.push("Високата температура може да намали активността на рибата през деня");
     } else {
-      reasons.push("Temperature is usable but not ideal");
+      reasons.push("Температурата е приемлива, но не е идеална");
     }
   }
 
   if (Number.isFinite(numericPressure)) {
     if (numericPressure >= 1012 && numericPressure <= 1018) {
-      reasons.push("Air pressure is stable and favorable");
+      reasons.push("Атмосферното налягане е стабилно и благоприятно");
     } else if (numericPressure < 1000 || numericPressure > 1030) {
-      warnings.push("Pressure is outside the preferred range");
+      warnings.push("Налягането е извън предпочитания диапазон");
     } else {
-      reasons.push("Pressure is acceptable");
+      reasons.push("Налягането е приемливо");
     }
   }
 
   if (Number.isFinite(numericWind)) {
     if (numericWind < 10) {
-      reasons.push("Low wind should make fishing conditions easier");
+      reasons.push("Слабият вятър улеснява риболова");
     } else if (numericWind > 30) {
-      warnings.push("Strong wind may make fishing harder");
+      warnings.push("Силният вятър може да затрудни риболова");
     } else {
-      reasons.push("Wind is moderate");
+      reasons.push("Вятърът е умерен");
     }
   }
 
   if (Number.isFinite(Number(moonPhase))) {
     if (Number(moonScore) >= 80) {
-      reasons.push(`Moon phase is favorable (${getMoonPhaseLabel(moonPhase)})`);
+      reasons.push(`Фазата на луната е благоприятна (${getMoonPhaseLabel(moonPhase)})`);
     } else if (Number(moonScore) <= 30) {
-      warnings.push(`Moon phase is less favorable (${getMoonPhaseLabel(moonPhase)})`);
+      warnings.push(`Фазата на луната е по-малко благоприятна (${getMoonPhaseLabel(moonPhase)})`);
     } else {
-      reasons.push(`Moon phase is neutral (${getMoonPhaseLabel(moonPhase)})`);
+      reasons.push(`Фазата на луната е неутрална (${getMoonPhaseLabel(moonPhase)})`);
     }
   }
 
   if (!reasons.length && !warnings.length) {
-    reasons.push("Forecast is based on available weather and moon data");
+    reasons.push("Прогнозата е базирана на наличните данни за времето и луната");
   }
 
   const summary = Number(totalScore) >= 80
-    ? "Excellent fishing conditions expected."
+    ? "Очакват се отлични условия за риболов."
     : Number(totalScore) >= 65
-      ? "Good fishing conditions expected."
+      ? "Очакват се добри условия за риболов."
       : Number(totalScore) >= 50
-        ? "Average fishing conditions expected."
-        : "Weak fishing conditions expected.";
+        ? "Очакват се средни условия за риболов."
+        : "Очакват се слаби условия за риболов.";
 
   return {
     summary,
     reasons,
     warnings,
     model_note: usedFallback
-      ? "ML server result was unavailable, so a heuristic forecast was used."
-      : "Score combines ML prediction with weather and moon factors.",
+      ? "Резултатът от ML сървъра не беше наличен, затова е използвана резервна прогнозна логика."
+      : "Оценката комбинира ML прогноза с фактори за времето и луната.",
     factors: {
       weather_score: clampScore(weatherScore),
       moon_score: clampScore(moonScore),
@@ -221,11 +221,11 @@ const getPredictScore = async (conditions) => {
 
       if (status === 401 || status === 403 || status === 503) {
         const message = status === 503
-          ? "Forecast service is not configured correctly."
-          : "Forecast service authentication failed.";
+          ? "Услугата за прогноза не е конфигурирана правилно."
+          : "Неуспешна автентикация към услугата за прогноза.";
         const authError = new Error(message);
         authError.status = 503;
-        authError.publicMessage = "Forecast temporarily unavailable. Please try again later.";
+        authError.publicMessage = "Прогнозата временно не е налична. Моля, опитайте отново по-късно.";
         authError.code = "FORECAST_SERVICE_UNAVAILABLE";
         throw authError;
       }
@@ -244,28 +244,28 @@ const getPredictScore = async (conditions) => {
 
 const weatherCodeToDescription = (code) => {
   const map = {
-    0: "clear sky",
-    1: "mainly clear",
-    2: "partly cloudy",
-    3: "overcast",
-    45: "fog",
-    48: "depositing rime fog",
-    51: "light drizzle",
-    53: "moderate drizzle",
-    55: "dense drizzle",
-    61: "slight rain",
-    63: "moderate rain",
-    65: "heavy rain",
-    71: "slight snow",
-    73: "moderate snow",
-    75: "heavy snow",
-    80: "slight rain showers",
-    81: "moderate rain showers",
-    82: "violent rain showers",
-    95: "thunderstorm",
+    0: "ясно небе",
+    1: "предимно ясно",
+    2: "частична облачност",
+    3: "облачно",
+    45: "мъгла",
+    48: "мъгла със скреж",
+    51: "слаб ръмеж",
+    53: "умерен ръмеж",
+    55: "силен ръмеж",
+    61: "слаб дъжд",
+    63: "умерен дъжд",
+    65: "силен дъжд",
+    71: "слаб сняг",
+    73: "умерен сняг",
+    75: "силен сняг",
+    80: "слаби дъждовни превалявания",
+    81: "умерени дъждовни превалявания",
+    82: "силни превалявания",
+    95: "гръмотевична буря",
   };
 
-  return map[Number(code)] || "forecast available";
+  return map[Number(code)] || "налична прогноза";
 };
 
 const fetchDailyOpenMeteoForecast = async ({ lat, lng, startDate, endDate }) => {
@@ -384,7 +384,7 @@ const fetchForecastForLatLng = async (lat, lng, options = {}) => {
   });
 
   if (!daily.time?.length) {
-    throw new Error("No daily forecast data available");
+    throw new Error("Няма налични данни за дневна прогноза");
   }
 
   return buildForecastFromDailyRow({

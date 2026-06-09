@@ -6,7 +6,7 @@ const requirePremium = async (req, res, next) => {
 
     if (!state.has_premium_access) {
       return res.status(402).json({
-        error: "Premium subscription required for this feature.",
+        error: "За тази функция е нужен Premium абонамент.",
         code: "PREMIUM_REQUIRED",
       });
     }

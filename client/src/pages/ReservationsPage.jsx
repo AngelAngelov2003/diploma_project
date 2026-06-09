@@ -17,14 +17,14 @@ import styles from "./ReservationsPage.module.css";
 const PAGE_SIZE = 5;
 
 const formatDate = (value) => {
-  if (!value) return "Unknown date";
+  if (!value) return "Неизвестна дата";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
   return date.toLocaleDateString();
 };
 
 const formatDateTime = (value) => {
-  if (!value) return "Unknown time";
+  if (!value) return "Неизвестен час";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
   return date.toLocaleString();
@@ -49,10 +49,10 @@ const canPayReservation = (item) => {
 };
 
 const getPaymentLabel = (item) => {
-  if (item?.payment_status === "paid") return "Paid";
-  if (item?.status === "approved_waiting_payment") return "Waiting payment";
-  if (item?.payment_status === "checkout_started") return "Checkout started";
-  return item?.payment_status || "Manual / unpaid";
+  if (item?.payment_status === "paid") return "Платено";
+  if (item?.status === "approved_waiting_payment") return "Очаква плащане";
+  if (item?.payment_status === "checkout_started") return "Плащането е започнато";
+  return item?.payment_status || "Ръчно / неплатено";
 };
 
 const getValidApprovedCount = (items) =>
@@ -86,11 +86,11 @@ const formatReservedSpots = (item) => {
   const spotNumbers = getReservedSpotNumbers(item);
 
   if (spotNumbers.length) {
-    return `${spotNumbers.length} selected`;
+    return `${spotNumbers.length} избрани`;
   }
 
   const count = item.requested_spots || item.people_count || 1;
-  return `${count} requested`;
+  return `${count} заявени`;
 };
 
 function ReservedSpotsChip({ item }) {
@@ -98,14 +98,14 @@ function ReservedSpotsChip({ item }) {
 
   return (
     <div className={`${styles.metaText} ${styles.metaChip} ${spotNumbers.length ? styles.spotChip : ""}`}>
-      <div>Reserved spots: {formatReservedSpots(item)}</div>
+      <div>Запазени места: {formatReservedSpots(item)}</div>
       {spotNumbers.length ? (
         <details className={styles.spotDetails}>
-          <summary>View spot numbers</summary>
+          <summary>Виж номерата на местата</summary>
           <div className={styles.spotNumberList}>
             {spotNumbers.map((value) => (
               <span key={value} className={styles.spotNumberPill}>
-                Spot {value}
+                Място {value}
               </span>
             ))}
           </div>
@@ -125,11 +125,11 @@ const filterReservations = (items, statusFilter, query, textFactory) => {
 };
 
 const MY_STATUS_FILTERS = [
-  { key: "all", label: "All" },
-  { key: "pending", label: "Pending" },
-  { key: "approved", label: "Approved" },
-  { key: "rejected", label: "Rejected" },
-  { key: "cancelled", label: "Cancelled" },
+  { key: "all", label: "Всички" },
+  { key: "pending", label: "Чакащи" },
+  { key: "approved", label: "Одобрени" },
+  { key: "rejected", label: "Отхвърлени" },
+  { key: "cancelled", label: "Отказани" },
 ];
 
 export default function ReservationsPage() {
@@ -160,7 +160,7 @@ export default function ReservationsPage() {
       const myReservationsData = await getMyReservations();
       setMyReservations(myReservationsData || []);
     } catch (error) {
-      notifyError(error, "Failed to load reservations");
+      notifyError(error, "Неуспешно зареждане на резервации");
       setMyReservations([]);
     } finally {
       setLoading(false);
@@ -177,10 +177,10 @@ export default function ReservationsPage() {
     try {
       setSavingId(reservationId);
       await cancelReservation(reservationId);
-      notifySuccess("Reservation cancelled");
+      notifySuccess("Резервацията е отказана");
       await loadReservations();
     } catch (error) {
-      notifyError(error, "Failed to cancel reservation");
+      notifyError(error, "Неуспешно отказване на резервацията");
     } finally {
       setSavingId("");
     }
@@ -194,9 +194,9 @@ export default function ReservationsPage() {
         window.location.href = result.url;
         return;
       }
-      notifyError(null, "Stripe checkout URL was not returned");
+      notifyError(null, "Не беше върнат линк за плащане чрез Stripe");
     } catch (error) {
-      notifyError(error, "Failed to start payment");
+      notifyError(error, "Неуспешно стартиране на плащането");
     } finally {
       setPayingId("");
     }
@@ -215,7 +215,7 @@ export default function ReservationsPage() {
   const paginatedMyReservations = useMemo(() => paginateItems(filteredMyReservations, myPage), [filteredMyReservations, myPage]);
 
   if (loading) {
-    return <div className={styles.loading}>Loading reservations...</div>;
+    return <div className={styles.loading}>Зареждане на резервации...</div>;
   }
 
   return (
@@ -226,36 +226,36 @@ export default function ReservationsPage() {
             <div className={styles.heroIntro}>
               <div className={styles.heroEyebrow}>
                 <FaCalendarCheck />
-                <span>My bookings</span>
+                <span>Моите резервации</span>
               </div>
-              <h2 className={styles.heroTitle}>My Reservations</h2>
+              <h2 className={styles.heroTitle}>Моите резервации</h2>
             </div>
             </div>
         </div>
 
         {reservationSubmitted ? (
           <div className={styles.card} style={{ marginBottom: "16px" }}>
-            Your reservation request was sent successfully. You can track its status here.
+            Заявката за резервация беше изпратена успешно. Можете да следите статуса ѝ тук.
           </div>
         ) : null}
 
         {paymentSuccess ? (
           <div className={styles.card} style={{ marginBottom: "16px" }}>
-            Payment completed. If the status has not updated yet, refresh after the Stripe webhook finishes.
+            Плащането е завършено. Ако статусът още не е обновен, презаредете страницата след обработката от Stripe.
           </div>
         ) : null}
 
         {paymentCancelled ? (
           <div className={styles.card} style={{ marginBottom: "16px" }}>
-            Payment was cancelled. You can start checkout again from the reservation card.
+            Плащането беше отменено. Можете да стартирате плащането отново от картата на резервацията.
           </div>
         ) : null}
 
         <div className={styles.stack}>
           <div ref={mySectionRef} className={styles.card}>
             <div className={styles.sectionHeader}>
-              <h3 className={styles.cardTitle}>My reservations</h3>
-              <SearchInput value={mySearch} onChange={(event) => setMySearch(event.target.value)} placeholder="Search my reservations..." minWidth={260} />
+              <h3 className={styles.cardTitle}>Моите резервации</h3>
+              <SearchInput value={mySearch} onChange={(event) => setMySearch(event.target.value)} placeholder="Търсене в моите резервации..." minWidth={260} />
             </div>
 
             <div className={styles.filterRow}>
@@ -274,7 +274,7 @@ export default function ReservationsPage() {
 
             {filteredMyReservations.length === 0 ? (
               <div className={styles.emptyState}>
-                {myReservations.length === 0 ? "You do not have any reservations yet." : "No reservations match the selected filters."}
+                {myReservations.length === 0 ? "Все още нямате резервации." : "Няма резервации, които съвпадат с избраните филтри."}
               </div>
             ) : (
               <>
@@ -284,31 +284,31 @@ export default function ReservationsPage() {
                       <div className={styles.splitRow}>
                         <div>
                           <div className={styles.itemTitle}>{item.lake_name}</div>
-                          <div className={`${styles.metaText} ${styles.metaBlock}`}>Stay: {formatDate(item.arrival_date || item.start_date)} → {formatDate(item.departure_date || item.end_date)}</div>
+                          <div className={`${styles.metaText} ${styles.metaBlock}`}>Престой: {formatDate(item.arrival_date || item.start_date)} → {formatDate(item.departure_date || item.end_date)}</div>
                           <div className={styles.metaGrid}>
-                            <div className={`${styles.metaText} ${styles.metaChip}`}>Created: {formatDateTime(item.created_at)}</div>
+                            <div className={`${styles.metaText} ${styles.metaChip}`}>Създадена: {formatDateTime(item.created_at)}</div>
                             <ReservedSpotsChip item={item} />
-                            <div className={`${styles.metaText} ${styles.metaChip}`}>Fishing days: {(item.fishing_dates || []).length || 0}</div>
-                            <div className={`${styles.metaText} ${styles.metaChip}`}>Night fishing: {(item.night_fishing_dates || []).length || 0}</div>
-                            <div className={`${styles.metaText} ${styles.metaChip}`}>Rooms: {(item.room_names || []).length ? item.room_names.join(", ") : "None"}</div>
-                            <div className={`${styles.metaText} ${styles.metaChip}`}>Total: €{Number(item.total_amount || 0).toFixed(2)}</div>
-                            <div className={`${styles.metaText} ${styles.metaChip}`}>Payment: {getPaymentLabel(item)}</div>
+                            <div className={`${styles.metaText} ${styles.metaChip}`}>Дни за риболов: {(item.fishing_dates || []).length || 0}</div>
+                            <div className={`${styles.metaText} ${styles.metaChip}`}>Нощен риболов: {(item.night_fishing_dates || []).length || 0}</div>
+                            <div className={`${styles.metaText} ${styles.metaChip}`}>Стаи: {(item.room_names || []).length ? item.room_names.join(", ") : "Няма"}</div>
+                            <div className={`${styles.metaText} ${styles.metaChip}`}>Общо: €{Number(item.total_amount || 0).toFixed(2)}</div>
+                            <div className={`${styles.metaText} ${styles.metaChip}`}>Плащане: {getPaymentLabel(item)}</div>
                           </div>
-                          <div className={`${styles.noteText} ${styles.noteBlock}`}>Notes: {item.notes || "No notes"}</div>
+                          <div className={`${styles.noteText} ${styles.noteBlock}`}>Бележки: {item.notes || "Няма бележки"}</div>
                         </div>
                         <div className={styles.actionColumn}>
                           <StatusBadge status={item.status} />
                           {isReservationPast(item) ? (
-                            <div className={styles.metaText}>Past reservation</div>
+                            <div className={styles.metaText}>Минала резервация</div>
                           ) : null}
                           {canPayReservation(item) ? (
                             <ActionButton type="button" compact disabled={payingId === item.id} onClick={() => handlePayReservation(item.id)}>
-                              {payingId === item.id ? "Opening..." : "Pay now"}
+                              {payingId === item.id ? "Отваряне..." : "Плати сега"}
                             </ActionButton>
                           ) : null}
                           {canCancelReservation(item) ? (
                             <ActionButton type="button" tone="danger" compact disabled={savingId === item.id} onClick={() => handleCancelReservation(item.id)}>
-                              Cancel
+                              Откажи
                             </ActionButton>
                           ) : null}
                         </div>

@@ -39,6 +39,41 @@ import {
 
 const LakePopup = lazy(() => import("./LakePopUp"));
 
+const REGION_NAME_BG = {
+  Blagoevgrad: "Благоевград",
+  Burgas: "Бургас",
+  Dobrich: "Добрич",
+  Gabrovo: "Габрово",
+  Haskovo: "Хасково",
+  Kardzhali: "Кърджали",
+  Kyustendil: "Кюстендил",
+  Lovech: "Ловеч",
+  Montana: "Монтана",
+  Pazardzhik: "Пазарджик",
+  Pernik: "Перник",
+  Pleven: "Плевен",
+  Plovdiv: "Пловдив",
+  Razgrad: "Разград",
+  Ruse: "Русе",
+  Shumen: "Шумен",
+  Silistra: "Силистра",
+  Sliven: "Сливен",
+  Smolyan: "Смолян",
+  Sofia: "София",
+  "Sofia City": "София-град",
+  "Sofia-Grad": "София-град",
+  "Grad Sofiya": "София-град",
+  "Stara Zagora": "Стара Загора",
+  Targovishte: "Търговище",
+  Varna: "Варна",
+  "Veliko Tarnovo": "Велико Търново",
+  Vidin: "Видин",
+  Vratsa: "Враца",
+  Yambol: "Ямбол",
+};
+
+const translateRegionName = (name) => REGION_NAME_BG[name] || name;
+
 const MOBILE_BULGARIA_ZOOM = 6;
 const getInitialBulgariaZoom = () =>
   typeof window !== "undefined" && window.innerWidth <= 640
@@ -398,7 +433,7 @@ function FishingMapCanvas({
       feature?.properties?.NAME_1 ||
       feature?.properties?.adm1_en ||
       feature?.properties?.ADM1_EN ||
-      "Region"
+      "Област"
     );
   }, []);
 
@@ -722,12 +757,12 @@ function FishingMapCanvas({
           className="map-floating-button"
         >
           <FaLocationArrow />
-          My location
+          Моето местоположение
         </button>
 
         <button onClick={handleLocateBulgaria} className="map-floating-button">
           <FaLocationArrow />
-          Bulgaria
+          България
         </button>
 
         {activeLake && (
@@ -736,7 +771,7 @@ function FishingMapCanvas({
             className="map-floating-button secondary"
           >
             <FaTimes />
-            Clear selection
+            Изчисти избора
           </button>
         )}
       </div>
@@ -744,15 +779,15 @@ function FishingMapCanvas({
       {showRegionOverview && !locationModeActive && (
         <div className="map-overview-card">
           <div className="map-overview-card-label">
-            {hoveredRegion ? "Hovered region" : "Overview"}
+            {hoveredRegion ? "Избран регион" : "Обзор"}
           </div>
           <div className="map-overview-card-title">
-            {hoveredRegion || "Explore Bulgaria by region"}
+            {translateRegionName(hoveredRegion) || "Разгледайте България по региони"}
           </div>
           <div className="map-overview-card-text">
             {hoveredRegion
-              ? "Click to zoom into this region and load its lakes."
-              : "Hover a region to preview it, then click to zoom in and view lakes in that area."}
+              ? "Натиснете за приближаване и зареждане на водоемите в региона."
+              : "Посочете регион за преглед, след това натиснете за приближаване и преглед на водоемите в него."}
           </div>
         </div>
       )}
@@ -760,13 +795,13 @@ function FishingMapCanvas({
       {selectedRegion && !activeLake && !showRegionOverview && (
         <div className="map-selected-preview">
           <div className="map-selected-preview-label">
-            {locationModeActive ? "Nearby area" : "Region"}
+            {locationModeActive ? "Близък район" : "Област"}
           </div>
-          <div className="map-selected-preview-title">{selectedRegion}</div>
+          <div className="map-selected-preview-title">{translateRegionName(selectedRegion)}</div>
           <div className="map-selected-preview-text">
             {locationModeActive
-              ? "Showing lakes around your current location."
-              : "Only lakes inside this selected region are loaded."}
+              ? "Показват се водоеми около текущото ви местоположение."
+              : "Заредени са само водоемите в избрания регион."}
           </div>
           {!locationModeActive && (
             <button
@@ -782,7 +817,7 @@ function FishingMapCanvas({
 
       {activeLake && (
         <div className="map-selected-preview">
-          <div className="map-selected-preview-label">Selected location</div>
+          <div className="map-selected-preview-label">Избрана локация</div>
           <div className="map-selected-preview-title">{activeLake.name}</div>
           <div className="map-selected-preview-text">
             {selectedPreviewDescription}
@@ -796,7 +831,7 @@ function FishingMapCanvas({
       )}
 
       {showMapLoadingOverlay && (
-        <div className="map-loading-overlay">Loading map...</div>
+        <div className="map-loading-overlay">Зареждане на картата...</div>
       )}
 
       {overlayOpen && (
@@ -815,7 +850,7 @@ function FishingMapCanvas({
             <Suspense
               fallback={
                 <div style={{ padding: 24, textAlign: "center" }}>
-                  Loading lake details...
+                  Зареждане на детайли за водоема...
                 </div>
               }
             >
