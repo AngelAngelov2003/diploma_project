@@ -49,7 +49,7 @@ const mergeItemsByLakeId = (alerts, favorites) => {
   );
 };
 
-const PAGE_SIZE = 5;
+const PAGE_SIZE = 6;
 
 const paginateItems = (items, currentPage, pageSize = PAGE_SIZE) => {
   const totalItems = items.length;
@@ -213,7 +213,7 @@ export default function SavedLakesPage({ initialTab = "all" }) {
     } catch (error) {
       if (error?.response?.data?.code === "PREMIUM_REQUIRED") {
         setPremiumPromptItem(item);
-        notifyError(null, "За умни известия е нужен Premium абонамент. Отворете Плащания / Premium от менюто.");
+        notifyError(null, "За умни известия е нужен Премиум абонамент. Отворете Плащания / Премиум от менюто.");
       } else {
         notifyError(error, "Неуспешно включване на известието");
       }
@@ -370,7 +370,7 @@ export default function SavedLakesPage({ initialTab = "all" }) {
                   active={activeTab === "alerts"}
                   onClick={() => setActiveTab("alerts")}
                 >
-                  Известия
+                  Alerts
                 </TabButton>
                 <TabButton
                   active={activeTab === "both"}
@@ -393,8 +393,8 @@ export default function SavedLakesPage({ initialTab = "all" }) {
         {premiumPromptItem ? (
           <PremiumLockedCard
             className={styles.premiumLockPanel}
-            title="Умните известия са Premium"
-            message={`Включете Premium, за да получавате автоматични прогнози и известия за${
+            title="Умните известия са Премиум"
+            message={`Надградете, за да включите автоматични известия за прогноза за${
               premiumPromptItem?.lake_name ? ` ${premiumPromptItem.lake_name}` : " запазени водоеми"
             }.`}
             bullets={["Дневни или седмични имейл прогнози", "Умни известия за любими водоеми"]}
@@ -548,6 +548,15 @@ export default function SavedLakesPage({ initialTab = "all" }) {
                     </div>
                   </div>
 
+                  <div className={styles.infoStrip}>
+                    <div className={styles.infoPill}>
+                      <FaHeart /> Любим: {item.is_favorite ? "Да" : "Не"}
+                    </div>
+                    <div className={styles.infoPill}>
+                      <FaBell /> Известия:{" "}
+                      {item.is_active ? "Включени" : "Изключени"}
+                    </div>
+                  </div>
                 </article>
               );
             })}

@@ -42,7 +42,7 @@ export default function BillingPage() {
 
     const params = new URLSearchParams(window.location.search);
     if (params.get("checkout") === "success") {
-      notifySuccess("Плащането е завършено. Premium достъпът ще се появи след потвърждение от Stripe.");
+      notifySuccess("Плащането е завършено. Премиум достъпът ще се появи след потвърждение от Stripe.");
       window.history.replaceState({}, "", "/billing");
     }
   }, []);
@@ -81,15 +81,15 @@ export default function BillingPage() {
     <div className="billing-page">
       <section className="billing-hero">
         <div>
-          <div className="billing-eyebrow"><FaCrown /> Premium план</div>
+          <div className="billing-eyebrow"><FaCrown /> Премиум план</div>
           <h1>Отключете прогнози и умни известия</h1>
           <p>
-            Безплатните потребители могат да използват картата и основната информация за водоемите. Premium потребителите отключват AI риболовната прогноза,
+            Безплатните потребители могат да използват картата и основната информация за водоемите. Премиум потребителите отключват AI риболовната прогноза,
             обясненията към прогнозата и създаването на известия.
           </p>
         </div>
         <div className={`billing-status-card ${hasPremium ? "active" : ""}`}>
-          <span>{hasPremium ? "Premium активен" : "Безплатен план"}</span>
+          <span>{hasPremium ? "Премиум активен" : "Безплатен план"}</span>
           <strong>{getSubscriptionStatusLabel(billing?.subscription_status)}</strong>
           <small>Край на периода: {formatDate(billing?.current_period_end)}</small>
         </div>
@@ -111,7 +111,7 @@ export default function BillingPage() {
           </article>
 
           <article className="billing-card premium">
-            <h2>Premium</h2>
+            <h2>Премиум</h2>
             <div className="billing-price">Задава се в Stripe</div>
             <ul>
               <li><FaCheckCircle /> AI прогноза и оценка</li>

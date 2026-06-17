@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import DatePicker from "../components/ui/DatePicker";
 import ZoomableImage from "../components/ui/ZoomableImage";
-import Pagination from "../components/ui/Pagination";
 import PremiumLockedCard from "../components/common/PremiumLockedCard";
 import { GeoJSON, MapContainer, TileLayer, Marker } from "react-leaflet";
 import {
@@ -168,7 +167,6 @@ const DEFAULT_PAGE_SIZES = {
   catches: 2,
   photos: 10,
   reviews: 4,
-  rooms: 5,
 };
 
 const getTotalPages = (items, pageSize) => {
@@ -186,9 +184,6 @@ const paginateItems = (items, page, pageSize) => {
     items: safeItems.slice(startIndex, startIndex + pageSize),
     totalPages,
     safePage,
-    totalItems: safeItems.length,
-    startIndex,
-    endIndex: Math.min(startIndex + pageSize, safeItems.length),
   };
 };
 
@@ -207,19 +202,66 @@ function CatchSkeletonList() {
   );
 }
 
-function PaginationControls({ page, totalPages, totalItems, startIndex, endIndex, onChange }) {
+function PaginationControls({ page, totalPages, onChange, itemLabel }) {
+  if (totalPages <= 1) {
+    return null;
+  }
+
   return (
-    <Pagination
-      currentPage={page}
-      totalPages={totalPages}
-      totalItems={totalItems}
-      startIndex={startIndex}
-      endIndex={endIndex}
-      onPageChange={onChange}
-    />
+    <div
+      style={{
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        gap: "12px",
+        flexWrap: "wrap",
+        marginTop: "14px",
+      }}
+    >
+      <div style={{ fontSize: "13px", color: "#64748b", fontWeight: 700 }}>
+        Page {page} of {totalPages}
+        {itemLabel ? ` · ${itemLabel}` : ""}
+      </div>
+
+      <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+        <button
+          type="button"
+          onClick={() => onChange(page - 1)}
+          disabled={page <= 1}
+          style={{
+            border: "1px solid #d1d5db",
+            background: "white",
+            color: "#334155",
+            borderRadius: 10,
+            padding: "8px 12px",
+            cursor: page <= 1 ? "not-allowed" : "pointer",
+            fontWeight: 700,
+          }}
+        >
+          Предишна
+        </button>
+
+        <button
+          type="button"
+          onClick={() => onChange(page + 1)}
+          disabled={page >= totalPages}
+          style={{
+            border: "none",
+            background: "#0d6efd",
+            color: "white",
+            borderRadius: 10,
+            padding: "8px 12px",
+            cursor: page >= totalPages ? "not-allowed" : "pointer",
+            fontWeight: 700,
+            opacity: page >= totalPages ? 0.6 : 1,
+          }}
+        >
+          Следваща
+        </button>
+      </div>
+    </div>
   );
 }
-
 
 function LakeDetails() {
   const { id } = useParams();
@@ -262,8 +304,7 @@ function LakeDetails() {
   const [nightFishingRequested, setNightFishingRequested] = useState(false);
   const [nightFishingDates, setNightFishingDates] = useState([]);
   const [selectedRoomIds, setSelectedRoomIds] = useState([]);
-  const [roomGuestCount, setRoomGuestCount] = useState("all");
-  const [roomsPage, setRoomsPage] = useState(1);
+  const [roomGuestCount, setRoomGuestCount] = useState(1);
   const [reservationNotes, setReservationNotes] = useState("");
   const [paymentPreference, setPaymentPreference] = useState("online");
   const [reservationQuote, setReservationQuote] = useState(null);
@@ -390,7 +431,7 @@ function LakeDetails() {
         const forecastErrorCode = forecastData?.error?.response?.data?.code;
         setForecastError(
           forecastErrorCode === "PREMIUM_REQUIRED"
-            ? "Premium subscription required to unlock the full AI fishing forecast."
+            ? "Изисква се Премиум абонамент за пълната AI риболовна прогноза."
             : forecastData?.error?.response?.data?.error ||
               "Прогнозата временно не е достъпна. Опитай отново по-късно."
         );
@@ -562,7 +603,7 @@ function LakeDetails() {
       const errorCode = error?.response?.data?.code;
       setWeeklyForecastError(
         errorCode === "PREMIUM_REQUIRED"
-          ? "Premium subscription required to unlock the weekly forecast."
+          ? "Изисква се Премиум абонамент за седмичната прогноза."
           : error?.response?.data?.error ||
               "Седмичната прогноза временно не е достъпна. Опитай отново по-късно."
       );
@@ -592,25 +633,6 @@ function LakeDetails() {
     [reviews, reviewsPage],
   );
 
-  const roomCapacityOptions = useMemo(() => {
-    const capacities = (bookingOptions?.rooms || [])
-      .map((room) => Number(room.capacity || 1))
-      .filter((capacity) => capacity > 0);
-    return [...new Set(capacities)].sort((a, b) => a - b);
-  }, [bookingOptions?.rooms]);
-
-  const filteredRooms = useMemo(() => {
-    const rooms = bookingOptions?.rooms || [];
-    if (roomGuestCount === "all") return rooms;
-    const selectedCapacity = Number(roomGuestCount) || 1;
-    return rooms.filter((room) => Number(room.capacity || 1) === selectedCapacity);
-  }, [bookingOptions?.rooms, roomGuestCount]);
-
-  const paginatedRooms = useMemo(
-    () => paginateItems(filteredRooms, roomsPage, DEFAULT_PAGE_SIZES.rooms),
-    [filteredRooms, roomsPage],
-  );
-
   useEffect(() => {
     setSpeciesPage((prev) => Math.min(prev, paginatedSpecies.totalPages));
   }, [paginatedSpecies.totalPages]);
@@ -626,14 +648,6 @@ function LakeDetails() {
   useEffect(() => {
     setReviewsPage((prev) => Math.min(prev, paginatedReviews.totalPages));
   }, [paginatedReviews.totalPages]);
-
-  useEffect(() => {
-    setRoomsPage((prev) => Math.min(prev, paginatedRooms.totalPages));
-  }, [paginatedRooms.totalPages]);
-
-  useEffect(() => {
-    setRoomsPage(1);
-  }, [roomGuestCount]);
 
   useEffect(() => {
     setSpeciesPage(1);
@@ -1425,26 +1439,19 @@ function LakeDetails() {
                     </div>
 
                     <label style={{ display: "block", fontSize: "13px", fontWeight: 800, color: "#334155", marginBottom: "8px" }}>
-                      Филтър по капацитет
+                      Брой гости за стая
                     </label>
-                    <select
+                    <input
+                      type="number"
+                      min="1"
+                      max="20"
                       value={roomGuestCount}
-                      onChange={(event) => {
-                        setRoomGuestCount(event.target.value);
-                        setSelectedRoomIds([]);
-                      }}
-                      style={{ maxWidth: "260px", width: "100%", padding: "10px 12px", borderRadius: "10px", border: "1px solid #cbd5e1", marginBottom: "12px", fontWeight: 700, background: "white" }}
-                    >
-                      <option value="all">Всички стаи</option>
-                      {roomCapacityOptions.map((capacity) => (
-                        <option key={capacity} value={capacity}>
-                          {capacity} {capacity === 1 ? "гост" : "гости"}
-                        </option>
-                      ))}
-                    </select>
+                      onChange={(event) => setRoomGuestCount(Math.max(1, Math.min(20, Number(event.target.value) || 1)))}
+                      style={{ maxWidth: "220px", width: "100%", padding: "10px 12px", borderRadius: "10px", border: "1px solid #cbd5e1", marginBottom: "12px", fontWeight: 700 }}
+                    />
 
                     <div className={styles.roomList}>
-                      {paginatedRooms.items.map((room) => {
+                      {bookingOptions.rooms.filter((room) => Number(room.capacity || 1) >= roomGuestCount).map((room) => {
                         const liveRoom = (availability?.rooms || []).find((item) => String(item.id) === String(room.id));
                         const isAvailable = liveRoom ? liveRoom.is_available : true;
                         const selected = selectedRoomIds.includes(room.id);
@@ -1453,7 +1460,7 @@ function LakeDetails() {
                             key={room.id}
                             type="button"
                             disabled={!isAvailable || savingReservation || !lake.is_reservable}
-                            className={`${styles.roomOptionCard} ${!isAvailable ? styles.roomOptionCardReserved : ""} ${selected ? styles.roomOptionCardSelected : ""}`}
+                            className={`${styles.roomOptionCard} ${selected ? styles.roomOptionCardSelected : ""}`}
                             onClick={() => setSelectedRoomIds((prev) => prev.includes(room.id) ? prev.filter((item) => item !== room.id) : [...prev, room.id])}
                           >
                             <span className={styles.roomOptionMain}>
@@ -1462,27 +1469,17 @@ function LakeDetails() {
                               <b>{formatCurrency(room.price_per_night)} / нощ</b>
                             </span>
                             <span className={styles.roomOptionAction}>
-                              {!isAvailable ? "Заето за периода" : selected ? "Избрано" : "Избери"}
+                              {!isAvailable ? "Заето" : selected ? "Избрано" : "Избери"}
                             </span>
                           </button>
                         );
                       })}
-                      {!filteredRooms.length ? (
+                      {!bookingOptions.rooms.some((room) => Number(room.capacity || 1) >= roomGuestCount) ? (
                         <div style={{ fontSize: "13px", color: "#64748b", padding: "12px" }}>
-                          Няма стая с такъв капацитет. Изберете друг филтър или друг период.
+                          Няма свободна стая с такъв капацитет. Намалете броя гости или изберете друг период.
                         </div>
                       ) : null}
                     </div>
-                    {filteredRooms.length > DEFAULT_PAGE_SIZES.rooms ? (
-                      <PaginationControls
-                        page={paginatedRooms.safePage}
-                        totalPages={paginatedRooms.totalPages}
-                        totalItems={paginatedRooms.totalItems}
-                        startIndex={paginatedRooms.startIndex}
-                        endIndex={paginatedRooms.endIndex}
-                        onChange={setRoomsPage}
-                      />
-                    ) : null}
                   </div>
                 ) : null}
 
@@ -1606,9 +1603,9 @@ function LakeDetails() {
               <div style={{ gridColumn: isMobile ? "auto" : "span 1" }}>
                 <PremiumLockedCard
                   compact
-                  title="Smart alerts are Premium"
-                  message="Любимите водоеми остават безплатни, но автоматичните известия за прогноза изискват Premium достъп."
-                  bullets={["Daily or weekly forecast emails", "Premium lake notifications"]}
+                  title="Умните известия са Премиум"
+                  message="Любимите водоеми остават безплатни, но автоматичните известия за прогноза изискват Премиум достъп."
+                  bullets={["Дневни или седмични имейли с прогноза", "Премиум известия за водоем"]}
                   onUpgrade={goToBilling}
                 />
               </div>
@@ -2080,7 +2077,7 @@ function LakeDetails() {
               </>
             ) : isPremiumRequired ? (
               <PremiumLockedCard
-                title="Forecast Score: Premium Required"
+                title="Оценка на прогнозата: изисква се Премиум"
                 message="Unlock the full AI fishing forecast for this lake, including the score, weather conditions, and explanation."
                 bullets={[
                   "Full fishing index and forecast score",
@@ -2166,9 +2163,6 @@ function LakeDetails() {
                 <PaginationControls
                   page={paginatedSpecies.safePage}
                   totalPages={paginatedSpecies.totalPages}
-                  totalItems={paginatedSpecies.totalItems}
-                  startIndex={paginatedSpecies.startIndex}
-                  endIndex={paginatedSpecies.endIndex}
                   onChange={setSpeciesPage}
                   itemLabel={`${speciesSummary.length} species`}
                 />
@@ -2269,9 +2263,6 @@ function LakeDetails() {
                 <PaginationControls
                   page={paginatedCatches.safePage}
                   totalPages={paginatedCatches.totalPages}
-                  totalItems={paginatedCatches.totalItems}
-                  startIndex={paginatedCatches.startIndex}
-                  endIndex={paginatedCatches.endIndex}
                   onChange={setCatchesPage}
                   itemLabel={`${catches.length} catches`}
                 />
@@ -2331,9 +2322,6 @@ function LakeDetails() {
               <PaginationControls
                 page={paginatedPhotos.safePage}
                 totalPages={paginatedPhotos.totalPages}
-                totalItems={paginatedPhotos.totalItems}
-                startIndex={paginatedPhotos.startIndex}
-                endIndex={paginatedPhotos.endIndex}
                 onChange={setPhotosPage}
                 itemLabel={`${photos.length} photos`}
               />
@@ -2579,9 +2567,6 @@ function LakeDetails() {
                   <PaginationControls
                     page={paginatedReviews.safePage}
                     totalPages={paginatedReviews.totalPages}
-                    totalItems={paginatedReviews.totalItems}
-                    startIndex={paginatedReviews.startIndex}
-                    endIndex={paginatedReviews.endIndex}
                     onChange={setReviewsPage}
                     itemLabel={`${reviews.length} reviews`}
                   />
