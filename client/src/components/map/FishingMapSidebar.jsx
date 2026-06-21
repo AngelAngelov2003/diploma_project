@@ -248,8 +248,8 @@ function FishingMapSidebar({
               />
 
               <div className="map-distance-slider-scale">
-                <span>{MIN_DISTANCE_KM} km</span>
-                <span>{MAX_DISTANCE_KM} km</span>
+                <span>{MIN_DISTANCE_KM} км</span>
+                <span>{MAX_DISTANCE_KM} км</span>
               </div>
 
               <div className="map-distance-slider-actions">

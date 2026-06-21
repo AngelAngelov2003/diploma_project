@@ -9,7 +9,6 @@ const BASE_FIELDS_SQL = `
   price_per_day,
   capacity,
   is_reservable,
-  availability_notes,
   dedupe_key
 `;
 
@@ -359,8 +358,7 @@ const getWaterBodyById = async (waterBodyId) => {
         capacity,
         spots_count,
         is_reservable,
-        availability_notes,
-        allows_night_fishing,
+              allows_night_fishing,
         night_fishing_price,
         has_housing,
         created_at,

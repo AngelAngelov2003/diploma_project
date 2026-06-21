@@ -535,13 +535,11 @@ export default function AdminDashboard() {
   const buildLakePayload = (lake) => ({
     name: String(lake.name || "").trim(),
     description: String(lake.description || "").trim(),
-    type: String(lake.type || "").trim(),
     is_private: Boolean(lake.is_private),
     owner_id: lake.owner_id || null,
     price_per_day: Number(lake.price_per_day || 0),
     capacity: Number(lake.capacity || 1),
     is_reservable: Boolean(lake.is_reservable),
-    availability_notes: String(lake.availability_notes || "").trim(),
   });
 
   const saveLake = async (lake, options = {}) => {
@@ -729,7 +727,7 @@ export default function AdminDashboard() {
             onClick={() => setActiveTab("overview")}
             icon={<FaChartBar />}
           >
-            Overview
+            Обобщение
           </TabButton>
 
           <TabButton
@@ -908,7 +906,7 @@ export default function AdminDashboard() {
                       >
                         <div>
                           <div className={ui.fieldLabel}>
-                            Name
+                            Име
                           </div>
                           <input
                             type="text"
@@ -920,45 +918,50 @@ export default function AdminDashboard() {
 
                         <div>
                           <div className={ui.fieldLabel}>
-                            Type
+                            Тип
                           </div>
                           <input
                             type="text"
                             value={lake.type || ""}
-                            onChange={(e) => updateLakeLocal(lake.id, "type", e.target.value)}
                             className={styles.input}
+                            readOnly
+                            aria-readonly="true"
                           />
                         </div>
 
-                        <div>
-                          <div className={ui.fieldLabel}>
-                            Price на ден (€)
-                          </div>
-                          <input
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            value={Number(lake.price_per_day || 0)}
-                            onChange={(e) =>
-                              updateLakeLocal(lake.id, "price_per_day", e.target.value)
-                            }
-                            className={styles.input}
-                          />
-                          <div className={ui.helperText}>Показва се на потребителите като {formatCurrency(lake.price_per_day || 0)} на ден</div>
-                        </div>
+                        {lake.owner_id ? (
+                          <>
+                            <div>
+                              <div className={ui.fieldLabel}>
+                                Цена на ден (€)
+                              </div>
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={Number(lake.price_per_day || 0)}
+                                onChange={(e) =>
+                                  updateLakeLocal(lake.id, "price_per_day", e.target.value)
+                                }
+                                className={styles.input}
+                              />
+                              <div className={ui.helperText}>Показва се на потребителите като {formatCurrency(lake.price_per_day || 0)} на ден</div>
+                            </div>
 
-                        <div>
-                          <div className={ui.fieldLabel}>
-                            Capacity
-                          </div>
-                          <input
-                            type="number"
-                            min="1"
-                            value={Number(lake.capacity || 1)}
-                            onChange={(e) => updateLakeLocal(lake.id, "capacity", e.target.value)}
-                            className={styles.input}
-                          />
-                        </div>
+                            <div>
+                              <div className={ui.fieldLabel}>
+                                Капацитет
+                              </div>
+                              <input
+                                type="number"
+                                min="1"
+                                value={Number(lake.capacity || 1)}
+                                onChange={(e) => updateLakeLocal(lake.id, "capacity", e.target.value)}
+                                className={styles.input}
+                              />
+                            </div>
+                          </>
+                        ) : null}
 
                         <div>
                           <div className={ui.fieldLabel}>
@@ -972,7 +975,7 @@ export default function AdminDashboard() {
                                 prev.map((item) => (item.id === lake.id ? nextLake : item)),
                               );
                               await saveLake(nextLake, {
-                                successMessage: "Режим на водоема updated",
+                                successMessage: "Режимът на водоема е обновен",
                                 showSuccessToast: true,
                               });
                             }}
@@ -987,11 +990,7 @@ export default function AdminDashboard() {
                               Частен, с резервации
                             </option>
                           </select>
-                          <div className={styles.helperText}>
-                            Публичните водоеми са отворени в атласа и не могат да имат резервации или собственик.
-                            Частните водоеми се управляват от собственик, а само режимът с резервации поддържа
-                            резервации и заявки за собственост.
-                          </div>
+
                         </div>
 
                         <div>
@@ -1027,19 +1026,6 @@ export default function AdminDashboard() {
                         />
                       </div>
 
-                      <div style={{ marginTop: 12 }}>
-                        <div className={ui.fieldLabel}>
-                          Бележки за наличност
-                        </div>
-                        <textarea
-                          rows={3}
-                          value={lake.availability_notes || ""}
-                          onChange={(e) =>
-                            updateLakeLocal(lake.id, "availability_notes", e.target.value)
-                          }
-                          className={styles.textarea}
-                        />
-                      </div>
 
                       <div
                         style={{
@@ -1155,7 +1141,7 @@ export default function AdminDashboard() {
 
                         <div>
                           <div className={ui.fieldLabel}>
-                            Email
+                            Имейл
                           </div>
                           <input
                             type="email"
@@ -1188,18 +1174,20 @@ export default function AdminDashboard() {
 
                         <div>
                           <div className={ui.fieldLabel}>
-                            Активен
+                            Статус
                           </div>
-                          <select
-                            value={user.is_active ? "true" : "false"}
-                            onChange={(e) =>
-                              updateUserLocal(user.id, "is_active", e.target.value === "true")
-                            }
+                          <div
                             className={styles.input}
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              background: user.is_active ? "#f0fdf4" : "#fef2f2",
+                              color: user.is_active ? "#166534" : "#991b1b",
+                              fontWeight: 700,
+                            }}
                           >
-                            <option value="true">Активен</option>
-                            <option value="false">Неактивен</option>
-                          </select>
+                            {user.is_active ? "Активен" : "Блокиран"}
+                          </div>
                         </div>
                       </div>
 
@@ -1214,8 +1202,7 @@ export default function AdminDashboard() {
                         }}
                       >
                         <div className={ui.metaText}>
-                          Created: {formatDateTime(user.created_at)} | Потвърден:{" "}
-                          {user.is_verified ? "Yes" : "No"}
+                          Създаден: {formatDateTime(user.created_at)} | Потвърден: {user.is_verified ? "Да" : "Не"}
                         </div>
 
                         <div className={ui.buttonRow}>
@@ -1695,7 +1682,7 @@ export default function AdminDashboard() {
                               className={ui.inlineLink}
                             >
                               <FaFileAlt />
-                              Open document
+                              Отвори документа
                             </a>
                           ) : (
                             <div className={styles.muted}>Няма качен документ.</div>

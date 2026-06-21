@@ -6,14 +6,14 @@ const OwnerProLockedCard = React.forwardRef(
   (
     {
       title = "Функция за собственици",
-      message = "Надградете до Owner Pro, за да отключите този бизнес инструмент за вашия водоем.",
+      message = "Завършете настройките, за да отключите този бизнес инструмент за вашия водоем.",
       bullets = [],
       onUpgrade,
       onClose,
       compact = false,
       className = "",
-      closeLabel = "Затвори Owner Pro прозореца",
-      buttonLabel = "Надгради до Owner Pro",
+      closeLabel = "Затвори прозореца за собственически функции",
+      buttonLabel = "Към настройките",
     },
     ref
   ) => {
@@ -42,7 +42,7 @@ const OwnerProLockedCard = React.forwardRef(
 
         <div className="locked-card__content">
           <div className="locked-card__badge locked-card__badge--owner">
-            <FaStore /> Owner Pro функция
+            <FaStore /> Собственическа функция
           </div>
 
           <div className="locked-card__layout">

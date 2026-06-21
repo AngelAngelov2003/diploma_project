@@ -212,7 +212,7 @@ export default function ZoomableImage({
               onClick={resetZoom}
               disabled={zoom === 1}
             >
-              Reset
+              Нулирай
             </button>
           </div>
 

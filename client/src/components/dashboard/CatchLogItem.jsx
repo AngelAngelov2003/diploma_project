@@ -80,7 +80,7 @@ export default function CatchLogItem({ log, onLakeClick, onUpdate, onDelete, sav
                 </label>
                 <label>
                   Време на улова
-                  <input type="datetime-local" value={form.catch_time} onChange={(e) => setForm((prev) => ({ ...prev, catch_time: e.target.value }))} />
+                  <input type="datetime-local" lang="bg-BG" value={form.catch_time} onChange={(e) => setForm((prev) => ({ ...prev, catch_time: e.target.value }))} />
                 </label>
                 <label className={styles.notesField}>
                   Бележки

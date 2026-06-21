@@ -224,7 +224,7 @@ export default function DatePicker({
                   setOpen(false);
                 }}
               >
-                Clear
+                Изчисти
               </button>
             ) : null}
             <button type="button" className={styles.footerButton} onClick={() => setOpen(false)}>Затвори</button>

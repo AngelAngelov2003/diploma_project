@@ -13,7 +13,6 @@ const getLakesOwnedByUser = async (userId) => {
         price_per_day,
         capacity,
         is_reservable,
-        availability_notes,
         created_at,
         updated_at
       FROM water_bodies

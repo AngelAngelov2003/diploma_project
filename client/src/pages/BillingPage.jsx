@@ -5,19 +5,19 @@ import { notifyError, notifySuccess } from "../ui/toast";
 import "./BillingPage.css";
 
 const getSubscriptionStatusLabel = (status) => ({
-  active: "активен",
-  trialing: "пробен период",
-  inactive: "неактивен",
-  canceled: "отказан",
-  cancelled: "отказан",
-  past_due: "просрочен",
-  unpaid: "неплатен",
-}[status] || status || "неактивен");
+  active: "Активен",
+  trialing: "Пробен период",
+  inactive: "Неактивен",
+  canceled: "Отказан",
+  cancelled: "Отказан",
+  past_due: "Просрочен",
+  unpaid: "Неплатен",
+}[status] || status || "Неактивен");
 
 const formatDate = (value) => {
-  if (!value) return "Не е активен";
+  if (!value) return "Няма зададен край";
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "Не е активен";
+  if (Number.isNaN(date.getTime())) return "Няма зададен край";
   return date.toLocaleDateString();
 };
 
@@ -76,6 +76,10 @@ export default function BillingPage() {
   };
 
   const hasPremium = Boolean(billing?.has_premium_access);
+  const currentPlanName = hasPremium ? "Премиум" : "Безплатен";
+  const currentPlanStatus = hasPremium
+    ? getSubscriptionStatusLabel(billing?.subscription_status || "active")
+    : "Активен";
 
   return (
     <div className="billing-page">
@@ -89,9 +93,12 @@ export default function BillingPage() {
           </p>
         </div>
         <div className={`billing-status-card ${hasPremium ? "active" : ""}`}>
-          <span>{hasPremium ? "Премиум активен" : "Безплатен план"}</span>
-          <strong>{getSubscriptionStatusLabel(billing?.subscription_status)}</strong>
-          <small>Край на периода: {formatDate(billing?.current_period_end)}</small>
+          <span>Текущ план</span>
+          <strong>{currentPlanName}</strong>
+          <small>Статус: {currentPlanStatus}</small>
+          {hasPremium && (
+            <small>Край на периода: {formatDate(billing?.current_period_end)}</small>
+          )}
         </div>
       </section>
 

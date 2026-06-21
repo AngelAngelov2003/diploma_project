@@ -298,13 +298,14 @@ const getOwnerRevenueSummary = async (ownerId, stripe = null) => {
   const totalsQ = await pool.query(
     `
       SELECT
-        COALESCE(SUM(CASE WHEN status = 'paid' THEN amount_total ELSE 0 END), 0)::numeric AS total_volume,
-        COALESCE(SUM(CASE WHEN status = 'paid' THEN platform_fee_amount ELSE 0 END), 0)::numeric AS platform_fees,
-        COALESCE(SUM(CASE WHEN status = 'paid' THEN owner_amount ELSE 0 END), 0)::numeric AS owner_earnings,
-        COALESCE(SUM(CASE WHEN status IN ('pending', 'checkout_started') THEN owner_amount ELSE 0 END), 0)::numeric AS pending_checkout_amount,
-        COUNT(*) FILTER (WHERE status = 'paid')::int AS paid_payments_count
-      FROM reservation_payments
-      WHERE owner_id = $1::uuid
+        COALESCE(SUM(CASE WHEN rp.status = 'paid' AND COALESCE(lr.status, '') NOT IN ('cancelled', 'canceled', 'rejected') THEN rp.amount_total ELSE 0 END), 0)::numeric AS total_volume,
+        COALESCE(SUM(CASE WHEN rp.status = 'paid' AND COALESCE(lr.status, '') NOT IN ('cancelled', 'canceled', 'rejected') THEN rp.platform_fee_amount ELSE 0 END), 0)::numeric AS platform_fees,
+        COALESCE(SUM(CASE WHEN rp.status = 'paid' AND COALESCE(lr.status, '') NOT IN ('cancelled', 'canceled', 'rejected') THEN rp.owner_amount ELSE 0 END), 0)::numeric AS owner_earnings,
+        COALESCE(SUM(CASE WHEN rp.status IN ('pending', 'checkout_started') AND COALESCE(lr.status, '') NOT IN ('cancelled', 'canceled', 'rejected') THEN rp.owner_amount ELSE 0 END), 0)::numeric AS pending_checkout_amount,
+        COUNT(*) FILTER (WHERE rp.status = 'paid' AND COALESCE(lr.status, '') NOT IN ('cancelled', 'canceled', 'rejected'))::int AS paid_payments_count
+      FROM reservation_payments rp
+      LEFT JOIN lake_reservations lr ON lr.id = rp.reservation_id
+      WHERE rp.owner_id = $1::uuid
     `,
     [ownerId]
   );
@@ -332,6 +333,7 @@ const getOwnerRevenueSummary = async (ownerId, stripe = null) => {
       LEFT JOIN users u ON u.id = rp.user_id
       LEFT JOIN lake_reservations lr ON lr.id = rp.reservation_id
       WHERE rp.owner_id = $1::uuid
+        AND COALESCE(lr.status, '') NOT IN ('cancelled', 'canceled', 'rejected')
       ORDER BY COALESCE(rp.paid_at, rp.created_at) DESC
       LIMIT 12
     `,
@@ -376,13 +378,14 @@ const getAdminRevenueSummary = async () => {
   const paymentsQ = await pool.query(
     `
       SELECT
-        COALESCE(SUM(CASE WHEN status = 'paid' THEN amount_total ELSE 0 END), 0)::numeric AS total_volume,
-        COALESCE(SUM(CASE WHEN status = 'paid' THEN platform_fee_amount ELSE 0 END), 0)::numeric AS platform_commissions,
-        COALESCE(SUM(CASE WHEN status = 'paid' THEN owner_amount ELSE 0 END), 0)::numeric AS owner_earnings,
-        COALESCE(SUM(CASE WHEN status IN ('pending', 'checkout_started') THEN amount_total ELSE 0 END), 0)::numeric AS pending_checkout_volume,
-        COUNT(*) FILTER (WHERE status = 'paid')::int AS paid_payments_count,
-        COUNT(*) FILTER (WHERE status IN ('pending', 'checkout_started'))::int AS pending_payments_count
-      FROM reservation_payments
+        COALESCE(SUM(CASE WHEN rp.status = 'paid' AND COALESCE(lr.status, '') NOT IN ('cancelled', 'canceled', 'rejected') THEN rp.amount_total ELSE 0 END), 0)::numeric AS total_volume,
+        COALESCE(SUM(CASE WHEN rp.status = 'paid' AND COALESCE(lr.status, '') NOT IN ('cancelled', 'canceled', 'rejected') THEN rp.platform_fee_amount ELSE 0 END), 0)::numeric AS platform_commissions,
+        COALESCE(SUM(CASE WHEN rp.status = 'paid' AND COALESCE(lr.status, '') NOT IN ('cancelled', 'canceled', 'rejected') THEN rp.owner_amount ELSE 0 END), 0)::numeric AS owner_earnings,
+        COALESCE(SUM(CASE WHEN rp.status IN ('pending', 'checkout_started') AND COALESCE(lr.status, '') NOT IN ('cancelled', 'canceled', 'rejected') THEN rp.amount_total ELSE 0 END), 0)::numeric AS pending_checkout_volume,
+        COUNT(*) FILTER (WHERE rp.status = 'paid' AND COALESCE(lr.status, '') NOT IN ('cancelled', 'canceled', 'rejected'))::int AS paid_payments_count,
+        COUNT(*) FILTER (WHERE rp.status IN ('pending', 'checkout_started') AND COALESCE(lr.status, '') NOT IN ('cancelled', 'canceled', 'rejected'))::int AS pending_payments_count
+      FROM reservation_payments rp
+      LEFT JOIN lake_reservations lr ON lr.id = rp.reservation_id
     `
   );
 

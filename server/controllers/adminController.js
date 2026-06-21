@@ -287,7 +287,6 @@ const getWaterBodies = async (req, res) => {
         w.price_per_day,
         w.capacity,
         w.is_reservable,
-        w.availability_notes,
         w.created_at,
         w.updated_at,
         u.full_name AS owner_name,
@@ -315,7 +314,6 @@ const updateWaterBody = async (req, res) => {
       price_per_day,
       capacity,
       is_reservable,
-      availability_notes,
     } = req.body;
 
     const existing = await pool.query(
@@ -335,7 +333,7 @@ const updateWaterBody = async (req, res) => {
 
     const nextName = String(name ?? current.name ?? "").trim();
     const nextDescription = String(description ?? current.description ?? "").trim() || null;
-    const nextType = String(type ?? current.type ?? "").trim() || null;
+    const nextType = String(current.type ?? "").trim() || null;
     let nextIsPrivate =
       typeof is_private === "boolean" ? is_private : Boolean(current.is_private);
     const nextOwnerId =
@@ -346,10 +344,6 @@ const updateWaterBody = async (req, res) => {
       capacity !== undefined ? Number(capacity) : Number(current.capacity || 1);
     let nextIsReservable =
       typeof is_reservable === "boolean" ? is_reservable : Boolean(current.is_reservable);
-    const nextAvailabilityNotes =
-      String(availability_notes ?? current.availability_notes ?? "").trim() || null;
-
-
     if (nextIsReservable) {
       nextIsPrivate = true;
     }
@@ -414,10 +408,9 @@ const updateWaterBody = async (req, res) => {
           price_per_day = $7,
           capacity = $8,
           is_reservable = $9,
-          availability_notes = $10,
           updated_at = NOW()
         WHERE id = $1
-        RETURNING id, name, description, type, is_private, owner_id, price_per_day, capacity, is_reservable, availability_notes, created_at, updated_at
+        RETURNING id, name, description, type, is_private, owner_id, price_per_day, capacity, is_reservable, created_at, updated_at
       `,
       [
         waterBodyId,
@@ -429,7 +422,6 @@ const updateWaterBody = async (req, res) => {
         nextPricePerDay,
         nextCapacity,
         nextIsReservable,
-        nextAvailabilityNotes,
       ]
     );
 

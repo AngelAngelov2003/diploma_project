@@ -167,6 +167,7 @@ const DEFAULT_PAGE_SIZES = {
   catches: 2,
   photos: 10,
   reviews: 4,
+  rooms: 4,
 };
 
 const getTotalPages = (items, pageSize) => {
@@ -219,7 +220,7 @@ function PaginationControls({ page, totalPages, onChange, itemLabel }) {
       }}
     >
       <div style={{ fontSize: "13px", color: "#64748b", fontWeight: 700 }}>
-        Page {page} of {totalPages}
+        Страница {page} от {totalPages}
         {itemLabel ? ` · ${itemLabel}` : ""}
       </div>
 
@@ -288,6 +289,7 @@ function LakeDetails() {
   const [catchesPage, setCatchesPage] = useState(1);
   const [photosPage, setPhotosPage] = useState(1);
   const [reviewsPage, setReviewsPage] = useState(1);
+  const [roomsPage, setRoomsPage] = useState(1);
 
   const [alertState, setAlertState] = useState(DEFAULT_ALERT_STATE);
   const [savingAlertState, setSavingAlertState] = useState(false);
@@ -633,6 +635,25 @@ function LakeDetails() {
     [reviews, reviewsPage],
   );
 
+  const roomCapacityOptions = useMemo(() => {
+    const capacities = (bookingOptions?.rooms || [])
+      .map((room) => Number(room.capacity || 1))
+      .filter((capacity) => Number.isFinite(capacity) && capacity > 0);
+
+    return Array.from(new Set(capacities)).sort((a, b) => a - b);
+  }, [bookingOptions?.rooms]);
+
+  const filteredRooms = useMemo(
+    () => (bookingOptions?.rooms || []).filter((room) => Number(room.capacity || 1) >= roomGuestCount),
+    [bookingOptions?.rooms, roomGuestCount],
+  );
+
+  const paginatedRooms = useMemo(
+    () => paginateItems(filteredRooms, roomsPage, DEFAULT_PAGE_SIZES.rooms),
+    [filteredRooms, roomsPage],
+  );
+
+
   useEffect(() => {
     setSpeciesPage((prev) => Math.min(prev, paginatedSpecies.totalPages));
   }, [paginatedSpecies.totalPages]);
@@ -650,10 +671,29 @@ function LakeDetails() {
   }, [paginatedReviews.totalPages]);
 
   useEffect(() => {
+    setRoomsPage((prev) => Math.min(prev, paginatedRooms.totalPages));
+  }, [paginatedRooms.totalPages]);
+
+  useEffect(() => {
+    setRoomsPage(1);
+  }, [roomGuestCount, bookingOptions?.rooms]);
+
+  useEffect(() => {
+    if (!roomCapacityOptions.length) {
+      return;
+    }
+
+    if (!roomCapacityOptions.includes(Number(roomGuestCount))) {
+      setRoomGuestCount(roomCapacityOptions[0]);
+    }
+  }, [roomCapacityOptions, roomGuestCount]);
+
+  useEffect(() => {
     setSpeciesPage(1);
     setCatchesPage(1);
     setPhotosPage(1);
     setReviewsPage(1);
+    setRoomsPage(1);
     setDescriptionExpanded(false);
   }, [id]);
 
@@ -668,7 +708,7 @@ function LakeDetails() {
     const normalizedRating = Number(reviewRating);
 
     if (!Number.isInteger(normalizedRating) || normalizedRating < 1 || normalizedRating > 5) {
-      notifyError(null, "Rating must be between 1 and 5");
+      notifyError(null, "Оценката трябва да бъде между 1 и 5");
       return;
     }
 
@@ -963,7 +1003,7 @@ function LakeDetails() {
       });
 
       if (paymentPreference === "online") {
-        notifySuccess("Reservation created. Redirecting to secure payment...");
+        notifySuccess("Резервацията е създадена. Пренасочване към сигурно плащане...");
         const payment = await startReservationPayment(reservation.id);
         if (payment?.url) {
           window.location.href = payment.url;
@@ -1085,7 +1125,7 @@ function LakeDetails() {
               marginBottom: "6px",
             }}
           >
-            Details за водоема
+            Детайли за водоема
           </div>
 
           <h1
@@ -1141,25 +1181,6 @@ function LakeDetails() {
               Заявка за резервация
             </h2>
 
-            {lake.availability_notes ? (
-              <div
-                style={{
-                  background: "#f8fafc",
-                  border: "1px solid #e2e8f0",
-                  borderRadius: "12px",
-                  padding: "14px",
-                  marginBottom: "16px",
-                }}
-              >
-                <div style={{ fontSize: "12px", color: "#64748b", marginBottom: "6px" }}>
-                  Бележки от собственика
-                </div>
-                <div style={{ fontSize: "14px", fontWeight: 700, color: "#0f172a" }}>
-                  {lake.availability_notes}
-                </div>
-              </div>
-            ) : null}
-
             {!!blockedDates.length && (
               <div
                 style={{
@@ -1177,7 +1198,7 @@ function LakeDetails() {
                     marginBottom: "8px",
                   }}
                 >
-                  Blocked дати
+                  Блокирани дати
                 </div>
                 <div style={{ display: "grid", gap: "8px" }}>
                   {blockedDates.map((item) => (
@@ -1224,7 +1245,7 @@ function LakeDetails() {
                         endValue={departureDate}
                         min={new Date().toISOString().split("T")[0]}
                         disabledDates={unavailableDates}
-                        placeholder="Choose fishing date or range"
+                        placeholder="Изберете дата или период за риболов"
                         onRangeChange={({ start, end }) => {
                           setArrivalDate(start);
                           setDepartureDate(end || start);
@@ -1394,7 +1415,7 @@ function LakeDetails() {
                         <span style={{ display: "block", fontSize: "13px", color: "#0f172a", fontWeight: 800 }}>Включи нощен риболов</span>
                         <span style={{ display: "block", fontSize: "12px", color: "#64748b", marginTop: "4px" }}>
                           Добавете това, ако ще ловите през нощта
-                          {nightFishingPrice ? ` (${formatCurrency(nightFishingPrice)} / night)` : ""}. Онлайн плащането създава незабавно платена резервация; заявките с плащане на място изчакват одобрение от собственика.
+                          {nightFishingPrice ? ` (${formatCurrency(nightFishingPrice)} / нощ)` : ""}. Онлайн плащането създава незабавно платена резервация; заявките с плащане на място изчакват одобрение от собственика.
                         </span>
                       </span>
                     </label>
@@ -1441,17 +1462,21 @@ function LakeDetails() {
                     <label style={{ display: "block", fontSize: "13px", fontWeight: 800, color: "#334155", marginBottom: "8px" }}>
                       Брой гости за стая
                     </label>
-                    <input
-                      type="number"
-                      min="1"
-                      max="20"
+                    <select
                       value={roomGuestCount}
-                      onChange={(event) => setRoomGuestCount(Math.max(1, Math.min(20, Number(event.target.value) || 1)))}
-                      style={{ maxWidth: "220px", width: "100%", padding: "10px 12px", borderRadius: "10px", border: "1px solid #cbd5e1", marginBottom: "12px", fontWeight: 700 }}
-                    />
+                      onChange={(event) => setRoomGuestCount(Number(event.target.value) || roomCapacityOptions[0] || 1)}
+                      disabled={!roomCapacityOptions.length}
+                      style={{ maxWidth: "220px", width: "100%", padding: "10px 12px", borderRadius: "10px", border: "1px solid #cbd5e1", marginBottom: "12px", fontWeight: 700, background: "#ffffff" }}
+                    >
+                      {roomCapacityOptions.map((capacity) => (
+                        <option key={capacity} value={capacity}>
+                          {capacity} {capacity === 1 ? "гост" : "гости"}
+                        </option>
+                      ))}
+                    </select>
 
                     <div className={styles.roomList}>
-                      {bookingOptions.rooms.filter((room) => Number(room.capacity || 1) >= roomGuestCount).map((room) => {
+                      {paginatedRooms.items.map((room) => {
                         const liveRoom = (availability?.rooms || []).find((item) => String(item.id) === String(room.id));
                         const isAvailable = liveRoom ? liveRoom.is_available : true;
                         const selected = selectedRoomIds.includes(room.id);
@@ -1474,12 +1499,19 @@ function LakeDetails() {
                           </button>
                         );
                       })}
-                      {!bookingOptions.rooms.some((room) => Number(room.capacity || 1) >= roomGuestCount) ? (
+                      {!filteredRooms.length ? (
                         <div style={{ fontSize: "13px", color: "#64748b", padding: "12px" }}>
                           Няма свободна стая с такъв капацитет. Намалете броя гости или изберете друг период.
                         </div>
                       ) : null}
                     </div>
+
+                    <PaginationControls
+                      page={paginatedRooms.safePage}
+                      totalPages={paginatedRooms.totalPages}
+                      onChange={setRoomsPage}
+                      itemLabel={`${filteredRooms.length} стаи`}
+                    />
                   </div>
                 ) : null}
 
@@ -1653,7 +1685,7 @@ function LakeDetails() {
                       marginBottom: "6px",
                     }}
                   >
-                    Frequency
+                    Честота
                   </div>
                   <select
                     value={alertState.notification_frequency || "daily"}
@@ -1664,7 +1696,7 @@ function LakeDetails() {
                           ...alertState,
                           notification_frequency: event.target.value,
                         },
-                        "Frequency updated",
+                        "Честотата е обновена",
                       )
                     }
                     style={{
@@ -1743,7 +1775,7 @@ function LakeDetails() {
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", flexWrap: "wrap", marginBottom: "14px" }}>
               <h2 style={{ ...sectionTitleStyle, margin: 0 }}>
                 <FaCloudSun />
-                Forecast and fishing index
+                Прогноза и риболовен индекс
                 <span style={{ fontSize: 12, fontWeight: 900, color: "#2563eb", background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 999, padding: "4px 9px" }}>
                   {displayedForecastDateLabel}
                 </span>
@@ -1763,7 +1795,7 @@ function LakeDetails() {
                   opacity: weeklyForecastLoading || isPremiumRequired ? 0.65 : 1,
                 }}
               >
-                {weeklyForecastLoading ? "Loading week..." : showWeeklyForecast ? "Hide weekly" : "Show weekly"}
+                {weeklyForecastLoading ? "Зареждане..." : showWeeklyForecast ? "Скрий седмичната" : "Покажи седмичната"}
               </button>
             </div>
 
@@ -2000,7 +2032,7 @@ function LakeDetails() {
                         marginBottom: "6px",
                       }}
                     >
-                      Location
+                      Местоположение
                     </div>
                     <div
                       style={{
@@ -2040,9 +2072,9 @@ function LakeDetails() {
                         lineHeight: 1.8,
                       }}
                     >
-                      Weather score: {displayedForecastBreakdown.weather_score ?? "-"} / 100
+                      Оценка за времето: {displayedForecastBreakdown.weather_score ?? "-"} / 100
                       <br />
-                      Moon score: {displayedForecastBreakdown.moon_score ?? "-"} / 100
+                      Оценка за луната: {displayedForecastBreakdown.moon_score ?? "-"} / 100
                     </div>
                   </div>
                 )}
@@ -2078,11 +2110,11 @@ function LakeDetails() {
             ) : isPremiumRequired ? (
               <PremiumLockedCard
                 title="Оценка на прогнозата: изисква се Премиум"
-                message="Unlock the full AI fishing forecast for this lake, including the score, weather conditions, and explanation."
+                message="Отключете пълната AI прогноза за този водоем, включително оценка, метеорологични условия и обяснение."
                 bullets={[
-                  "Full fishing index and forecast score",
-                  "Daily prediction details",
-                  "AI explanation and smart alert access",
+                  "Пълен риболовен индекс и прогнозна оценка",
+                  "Подробности за дневната прогноза",
+                  "AI обяснение и достъп до умни известия",
                 ]}
                 onUpgrade={goToBilling}
               />
@@ -2150,11 +2182,11 @@ function LakeDetails() {
                           lineHeight: 1.7,
                         }}
                       >
-                        Catches: {item.catches_count}
+                        Улови: {item.catch_count}
                         <br />
-                        Average weight: {item.avg_weight_kg ?? "-"} kg
+                        Средно тегло: {item.avg_weight_kg ?? "-"} kg
                         <br />
-                        Max weight: {item.max_weight_kg ?? "-"} kg
+                        Максимално тегло: {item.max_weight_kg ?? "-"} kg
                       </div>
                     </div>
                   ))}
@@ -2164,7 +2196,7 @@ function LakeDetails() {
                   page={paginatedSpecies.safePage}
                   totalPages={paginatedSpecies.totalPages}
                   onChange={setSpeciesPage}
-                  itemLabel={`${speciesSummary.length} species`}
+                  itemLabel={`${speciesSummary.length} вида`}
                 />
               </>
             )}
@@ -2180,7 +2212,7 @@ function LakeDetails() {
               <CatchSkeletonList />
             ) : catches.length === 0 ? (
               <div style={{ color: "#64748b" }}>
-                No catches logged for this lake yet.
+                Все още няма записани улови за този водоем.
               </div>
             ) : (
               <>
@@ -2264,7 +2296,7 @@ function LakeDetails() {
                   page={paginatedCatches.safePage}
                   totalPages={paginatedCatches.totalPages}
                   onChange={setCatchesPage}
-                  itemLabel={`${catches.length} catches`}
+                  itemLabel={`${catches.length} улова`}
                 />
               </>
             )}
@@ -2312,7 +2344,7 @@ function LakeDetails() {
                         {photo.caption || "Снимка на водоема"}
                       </div>
                       <div style={{ fontSize: "12px", color: "#64748b" }}>
-                        Uploaded {formatDateTime(photo.created_at)}
+                        Качена на {formatDateTime(photo.created_at)}
                       </div>
                     </div>
                   </div>
@@ -2323,7 +2355,7 @@ function LakeDetails() {
                 page={paginatedPhotos.safePage}
                 totalPages={paginatedPhotos.totalPages}
                 onChange={setPhotosPage}
-                itemLabel={`${photos.length} photos`}
+                itemLabel={`${photos.length} снимки`}
               />
               </>
             </div>
@@ -2381,8 +2413,7 @@ function LakeDetails() {
                   marginBottom: "18px",
                 }}
               >
-                {reviewsSummary.reviews_count ?? 0} review
-                {Number(reviewsSummary.reviews_count) === 1 ? "" : "s"}
+                {reviewsSummary.reviews_count ?? 0} {Number(reviewsSummary.reviews_count) === 1 ? "отзив" : "отзива"}
               </div>
 
 
@@ -2436,7 +2467,7 @@ function LakeDetails() {
                   }
                   rows={4}
                   disabled={savingReview}
-                  placeholder="Share your experience with this lake..."
+                  placeholder="Споделете впечатленията си за този водоем..."
                   style={{
                     width: "100%",
                     maxWidth: "100%",
@@ -2475,7 +2506,7 @@ function LakeDetails() {
                       fontWeight: 700,
                     }}
                   >
-                    {savingReview ? "Запазване..." : "Save review"}
+                    {savingReview ? "Запазване..." : "Запази отзива"}
                   </button>
 
                   <button
@@ -2524,7 +2555,7 @@ function LakeDetails() {
                           }}
                         >
                           <div style={{ fontWeight: 800, color: "#0f172a" }}>
-                            {review.full_name || "Anonymous"}
+                            {review.full_name || "Анонимен потребител"}
                           </div>
 
                           <div
@@ -2558,7 +2589,7 @@ function LakeDetails() {
                             lineHeight: 1.6,
                           }}
                         >
-                          {review.comment || "No comment provided."}
+                          {review.comment || "Няма добавен коментар."}
                         </div>
                       </div>
                     ))}
@@ -2568,7 +2599,7 @@ function LakeDetails() {
                     page={paginatedReviews.safePage}
                     totalPages={paginatedReviews.totalPages}
                     onChange={setReviewsPage}
-                    itemLabel={`${reviews.length} reviews`}
+                    itemLabel={`${reviews.length} ${reviews.length === 1 ? "отзив" : "отзива"}`}
                   />
                 </>
               )}
@@ -2595,12 +2626,12 @@ function LakeDetails() {
             >
               <FaLock style={{ color: "#1d4ed8" }} />
               <div style={{ fontWeight: 800, color: "#1e3a8a" }}>
-                Private lake access
+                Достъп до частен водоем
               </div>
             </div>
             <div style={{ color: "#334155", lineHeight: 1.6 }}>
-              This lake is marked as private. Reservations are managed by the
-              lake owner.
+              Този водоем е обозначен като частен. Резервациите се управляват от
+              собственика на водоема.
             </div>
           </div>
         )}

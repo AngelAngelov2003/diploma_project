@@ -39,6 +39,7 @@ const isReservationPast = (item) => {
 
 const canCancelReservation = (item) => {
   if (isReservationPast(item)) return false;
+  if (item?.payment_status === "paid") return false;
   if (typeof item?.can_cancel === "boolean") return item.can_cancel;
   return ["pending", "approved"].includes(String(item?.status || ""));
 };

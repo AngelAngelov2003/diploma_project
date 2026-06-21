@@ -20,6 +20,15 @@ import {
   FaCrown,
 } from "react-icons/fa";
 
+const getRoleLabel = (role) => {
+  const labels = {
+    admin: "Администратор",
+    owner: "Собственик",
+    user: "Потребител",
+  };
+  return labels[role] || role;
+};
+
 const Navigation = ({ isAuthenticated, onLogout, currentUser }) => {
   const [showMenu, setShowMenu] = useState(false);
   const [reservationBadges, setReservationBadges] = useState({ user_reservation_updates: 0, owner_pending_reservations: 0 });
@@ -227,7 +236,7 @@ const Navigation = ({ isAuthenticated, onLogout, currentUser }) => {
                   <div className="main-user-dropdown">
                     <div className="main-user-dropdown-header">
                       {currentUser?.full_name || "Потребител"}
-                      {currentUser?.role ? ` • ${currentUser.role}` : ""}
+                      {currentUser?.role ? ` • ${getRoleLabel(currentUser.role)}` : ""}
                     </div>
 
                     <div

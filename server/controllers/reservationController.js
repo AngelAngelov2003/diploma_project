@@ -680,15 +680,25 @@ const getMyReservations = async (req, res) => {
         r.night_fishing_amount,
         r.rooms_amount,
         r.total_amount,
-        r.payment_status,
+        CASE
+          WHEN EXISTS (SELECT 1 FROM reservation_payments rp WHERE rp.reservation_id = r.id AND rp.status = 'paid') THEN 'paid'
+          ELSE r.payment_status
+        END AS payment_status,
         r.payment_method,
-        r.payment_required,
+        CASE
+          WHEN EXISTS (SELECT 1 FROM reservation_payments rp WHERE rp.reservation_id = r.id AND rp.status = 'paid') THEN FALSE
+          ELSE r.payment_required
+        END AS payment_required,
         r.platform_fee_amount,
         r.owner_amount,
         r.stripe_checkout_session_id,
         r.stripe_payment_intent_id,
-        r.paid_at,
-        r.status,
+        COALESCE(r.paid_at, (SELECT MAX(rp.paid_at) FROM reservation_payments rp WHERE rp.reservation_id = r.id AND rp.status = 'paid')) AS paid_at,
+        CASE
+          WHEN r.status = 'approved_waiting_payment'
+           AND EXISTS (SELECT 1 FROM reservation_payments rp WHERE rp.reservation_id = r.id AND rp.status = 'paid') THEN 'approved'
+          ELSE r.status
+        END AS status,
         r.created_at,
         r.updated_at,
         ((COALESCE(r.end_date, r.start_date, r.reservation_date)::timestamp >= CURRENT_TIMESTAMP) AND r.status IN ('pending', 'approved', 'approved_waiting_payment')) AS can_cancel,
@@ -727,15 +737,25 @@ const getIncomingReservations = async (req, res) => {
         r.night_fishing_amount,
         r.rooms_amount,
         r.total_amount,
-        r.payment_status,
+        CASE
+          WHEN EXISTS (SELECT 1 FROM reservation_payments rp WHERE rp.reservation_id = r.id AND rp.status = 'paid') THEN 'paid'
+          ELSE r.payment_status
+        END AS payment_status,
         r.payment_method,
-        r.payment_required,
+        CASE
+          WHEN EXISTS (SELECT 1 FROM reservation_payments rp WHERE rp.reservation_id = r.id AND rp.status = 'paid') THEN FALSE
+          ELSE r.payment_required
+        END AS payment_required,
         r.platform_fee_amount,
         r.owner_amount,
         r.stripe_checkout_session_id,
         r.stripe_payment_intent_id,
-        r.paid_at,
-        r.status,
+        COALESCE(r.paid_at, (SELECT MAX(rp.paid_at) FROM reservation_payments rp WHERE rp.reservation_id = r.id AND rp.status = 'paid')) AS paid_at,
+        CASE
+          WHEN r.status = 'approved_waiting_payment'
+           AND EXISTS (SELECT 1 FROM reservation_payments rp WHERE rp.reservation_id = r.id AND rp.status = 'paid') THEN 'approved'
+          ELSE r.status
+        END AS status,
         r.created_at,
         r.updated_at,
         (COALESCE(r.end_date, r.start_date, r.reservation_date)::date < CURRENT_DATE) AS is_past,
@@ -1041,6 +1061,7 @@ const cancelReservation = async (req, res) => {
       SELECT
         id,
         status,
+        payment_status,
         COALESCE(end_date, start_date, reservation_date) AS departure_date
       FROM lake_reservations
       WHERE id = $1 AND user_id = $2
@@ -1050,6 +1071,13 @@ const cancelReservation = async (req, res) => {
     if (!existing.rows.length) return res.status(404).json({ error: "Резервацията не е намерена" });
 
     const current = existing.rows[0];
+    const paidPaymentQ = await pool.query(
+      `SELECT 1 FROM reservation_payments WHERE reservation_id = $1 AND status = 'paid' LIMIT 1`,
+      [reservationId]
+    );
+    if (current.payment_status === "paid" || paidPaymentQ.rowCount > 0) {
+      return res.status(400).json({ error: "Платена резервация не може да бъде отказана без обработка на възстановяване на сумата" });
+    }
     if (!canUserCancelReservation(current)) {
       return res.status(400).json({
         error: isReservationPast(current)
@@ -1058,7 +1086,14 @@ const cancelReservation = async (req, res) => {
       });
     }
 
-    await pool.query(`UPDATE lake_reservations SET status = 'cancelled', payment_required = FALSE, updated_at = NOW() WHERE id = $1 AND user_id = $2`, [reservationId, req.user]);
+    await pool.query(`
+      UPDATE lake_reservations
+      SET status = 'cancelled',
+          payment_required = FALSE,
+          payment_status = CASE WHEN payment_status = 'paid' THEN payment_status ELSE 'cancelled' END,
+          updated_at = NOW()
+      WHERE id = $1 AND user_id = $2
+    `, [reservationId, req.user]);
     await pool.query(`UPDATE reservation_payments SET status = 'cancelled', updated_at = NOW() WHERE reservation_id = $1 AND status = 'pending'`, [reservationId]);
     const reservation = await getReservationById(reservationId);
     queueReservationEmail(() => notifyOwnerReservationCancelled(reservationId), "reservation cancellation notification");
@@ -1081,6 +1116,15 @@ const updateReservationStatus = async (req, res) => {
     }
     const lake = await getLakeBookingContext(reservation.water_body_id);
     if (!lake || String(lake.owner_id) !== String(req.user) || !lake.is_private) return res.status(403).json({ error: "Нямате разрешение" });
+
+    const paidPaymentQ = await pool.query(
+      `SELECT 1 FROM reservation_payments WHERE reservation_id = $1 AND status = 'paid' LIMIT 1`,
+      [reservationId]
+    );
+    const reservationIsPaid = reservation.payment_status === "paid" || paidPaymentQ.rowCount > 0;
+    if (reservationIsPaid && status !== "approved") {
+      return res.status(400).json({ error: "Платена резервация не може да бъде върната или отхвърлена без обработка на възстановяване на сумата" });
+    }
 
     const blockedDates = await getBlockedDateStrings(reservation.water_body_id, reservation.arrival_date, reservation.departure_date);
     const usedDates = [...(reservation.fishing_dates || []), ...(reservation.night_fishing_dates || [])];
@@ -1108,7 +1152,11 @@ const updateReservationStatus = async (req, res) => {
     let paymentRequired = false;
     let paymentStatus = reservation.payment_status || "unpaid";
 
-    if (status === "approved" && toNumber(reservation.total_amount, 0) > 0) {
+    if (reservationIsPaid) {
+      nextStatus = "approved";
+      paymentRequired = false;
+      paymentStatus = "paid";
+    } else if (status === "approved" && toNumber(reservation.total_amount, 0) > 0) {
       const onlinePayment = await canUseOnlinePayments(lake.owner_id);
       if (onlinePayment.enabled) {
         nextStatus = "approved_waiting_payment";

@@ -361,10 +361,10 @@ export const focusLakeOnMap = (map, lake, options = {}) => {
 
 export const createLakeIcon = (isSelected = false) =>
   L.divIcon({
-    className: "custom-водоем-marker-wrapper",
+    className: "custom-lake-marker-wrapper",
     html: `
       <div class="custom-lake-marker ${isSelected ? "selected" : ""}">
-        <div class="custom-водоем-marker-dot"></div>
+        <div class="custom-lake-marker-dot"></div>
       </div>
     `,
     iconSize: [24, 24],

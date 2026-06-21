@@ -35,7 +35,6 @@ const getOwnerLakes = async (req, res) => {
         w.capacity,
         w.spots_count,
         w.is_reservable,
-        w.availability_notes,
         w.allows_night_fishing,
         w.night_fishing_price,
         w.has_housing,
@@ -109,13 +108,12 @@ const updateOwnerLake = async (req, res) => {
     if (!current) return res.status(404).json({ error: 'Водоемът не е намерен или не е ваш' });
     const nextName = String(req.body.name ?? current.name ?? '').trim();
     const nextDescription = String(req.body.description ?? current.description ?? '').trim() || null;
-    const nextType = String(req.body.type ?? current.type ?? '').trim() || null;
+    const nextType = String(current.type ?? '').trim() || null;
     let nextIsPrivate = typeof req.body.is_private === 'boolean' ? req.body.is_private : Boolean(current.is_private);
     let nextIsReservable = typeof req.body.is_reservable === 'boolean' ? req.body.is_reservable : Boolean(current.is_reservable);
     const nextPricePerDay = req.body.price_per_day !== undefined ? Number(req.body.price_per_day) : Number(current.price_per_day || 0);
     const nextCapacity = req.body.capacity !== undefined ? Number(req.body.capacity) : Number(current.capacity || 1);
     const nextSpotsCount = req.body.spots_count !== undefined ? Number(req.body.spots_count) : Number(current.spots_count || 0);
-    const nextAvailabilityNotes = String(req.body.availability_notes ?? current.availability_notes ?? '').trim() || null;
     const nextAllowsNightFishing = typeof req.body.allows_night_fishing === 'boolean' ? req.body.allows_night_fishing : Boolean(current.allows_night_fishing);
     const nextNightFishingPrice = req.body.night_fishing_price !== undefined ? Number(req.body.night_fishing_price) : Number(current.night_fishing_price || 0);
     const nextHasHousing = typeof req.body.has_housing === 'boolean' ? req.body.has_housing : Boolean(current.has_housing);
@@ -128,10 +126,10 @@ const updateOwnerLake = async (req, res) => {
     if (!Number.isFinite(nextNightFishingPrice) || nextNightFishingPrice < 0) return res.status(400).json({ error: 'night_fishing_price must be 0 or greater' });
     const q = await pool.query(`
       UPDATE water_bodies
-      SET name = $3, description = $4, type = $5, is_private = $6, price_per_day = $7, capacity = $8, spots_count = $9, is_reservable = $10, availability_notes = $11, allows_night_fishing = $12, night_fishing_price = $13, has_housing = $14, updated_at = NOW()
+      SET name = $3, description = $4, type = $5, is_private = $6, price_per_day = $7, capacity = $8, spots_count = $9, is_reservable = $10, allows_night_fishing = $11, night_fishing_price = $12, has_housing = $13, updated_at = NOW()
       WHERE id = $1 AND owner_id = $2
-      RETURNING id, name, description, type, is_private, owner_id, price_per_day, capacity, spots_count, is_reservable, availability_notes, allows_night_fishing, night_fishing_price, has_housing, created_at, updated_at
-    `, [waterBodyId, req.user, nextName, nextDescription, nextType, nextIsPrivate, nextPricePerDay, nextCapacity, nextSpotsCount, nextIsReservable, nextAvailabilityNotes, nextAllowsNightFishing, nextNightFishingPrice, nextHasHousing]);
+      RETURNING id, name, description, type, is_private, owner_id, price_per_day, capacity, spots_count, is_reservable, allows_night_fishing, night_fishing_price, has_housing, created_at, updated_at
+    `, [waterBodyId, req.user, nextName, nextDescription, nextType, nextIsPrivate, nextPricePerDay, nextCapacity, nextSpotsCount, nextIsReservable, nextAllowsNightFishing, nextNightFishingPrice, nextHasHousing]);
     await refreshWaterBodyMaterializedViews();
     res.json(q.rows[0]);
   } catch (err) {
@@ -165,14 +163,24 @@ const getOwnerLakeReservations = async (req, res) => {
         r.night_fishing_amount,
         r.rooms_amount,
         r.total_amount,
-        r.payment_status,
-        r.payment_required,
+        CASE
+          WHEN EXISTS (SELECT 1 FROM reservation_payments rp WHERE rp.reservation_id = r.id AND rp.status = 'paid') THEN 'paid'
+          ELSE r.payment_status
+        END AS payment_status,
+        CASE
+          WHEN EXISTS (SELECT 1 FROM reservation_payments rp WHERE rp.reservation_id = r.id AND rp.status = 'paid') THEN FALSE
+          ELSE r.payment_required
+        END AS payment_required,
         r.platform_fee_amount,
         r.owner_amount,
         r.stripe_checkout_session_id,
         r.stripe_payment_intent_id,
-        r.paid_at,
-        r.status,
+        COALESCE(r.paid_at, (SELECT MAX(rp.paid_at) FROM reservation_payments rp WHERE rp.reservation_id = r.id AND rp.status = 'paid')) AS paid_at,
+        CASE
+          WHEN r.status = 'approved_waiting_payment'
+           AND EXISTS (SELECT 1 FROM reservation_payments rp WHERE rp.reservation_id = r.id AND rp.status = 'paid') THEN 'approved'
+          ELSE r.status
+        END AS status,
         r.created_at,
         r.updated_at,
         w.name AS lake_name,
@@ -237,6 +245,7 @@ const getOwnerLakeEarnings = async (req, res) => {
       FROM lake_reservations
       WHERE water_body_id = $1
         AND payment_status = 'paid'
+        AND status NOT IN ('cancelled', 'canceled', 'rejected')
         AND COALESCE(paid_at, updated_at, created_at) >= $2
     `, [req.params.waterBodyId, monthStart]);
 
@@ -259,6 +268,7 @@ const getOwnerLakeEarnings = async (req, res) => {
       WHERE r.water_body_id = $1
         AND w.owner_id = $2
         AND r.payment_status = 'paid'
+        AND r.status NOT IN ('cancelled', 'canceled', 'rejected')
       ORDER BY COALESCE(r.paid_at, r.created_at) DESC
       LIMIT 50
     `, [req.params.waterBodyId, req.user]);
@@ -274,6 +284,7 @@ const getOwnerLakeEarnings = async (req, res) => {
       FROM lake_reservations
       WHERE water_body_id = $1
         AND payment_status = 'paid'
+        AND status NOT IN ('cancelled', 'canceled', 'rejected')
       GROUP BY DATE_TRUNC('month', COALESCE(paid_at, updated_at, created_at))
       ORDER BY DATE_TRUNC('month', COALESCE(paid_at, updated_at, created_at)) DESC
       LIMIT 12

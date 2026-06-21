@@ -374,8 +374,7 @@ const getBookingOptions = async (req, res) => {
         capacity,
         allows_night_fishing,
         night_fishing_price,
-        has_housing,
-        availability_notes
+        has_housing
       FROM water_bodies
       WHERE id = $1
       LIMIT 1

@@ -689,6 +689,7 @@ const LakePopup = ({ lake, map }) => {
           <label>Време на улова</label>
           <input
             type="datetime-local"
+            lang="bg-BG"
             value={catchTime}
             onChange={(e) => setCatchTime(e.target.value)}
             disabled={saving}

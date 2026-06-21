@@ -123,7 +123,6 @@ async function insertElement(el) {
       price_per_day,
       capacity,
       is_reservable,
-      availability_notes,
       created_at,
       updated_at
     )
@@ -139,9 +138,8 @@ async function insertElement(el) {
       ST_X(ST_Centroid(ST_SetSRID(ST_GeomFromGeoJSON($4), 4326))),
       ST_SetSRID(ST_GeomFromGeoJSON($4), 4326),
       0,
-      0,
+      1,
       false,
-      NULL,
       NOW(),
       NOW()
     )

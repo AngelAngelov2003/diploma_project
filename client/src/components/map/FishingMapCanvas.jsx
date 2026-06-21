@@ -809,7 +809,7 @@ function FishingMapCanvas({
               className="map-selected-preview-action"
               onClick={handleLocateBulgaria}
             >
-              Show all regions
+              Покажи всички региони
             </button>
           )}
         </div>

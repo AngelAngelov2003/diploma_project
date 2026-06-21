@@ -125,6 +125,7 @@ const ensureReservationDomainTables = async () => {
         ADD COLUMN IF NOT EXISTS spots_count INTEGER NOT NULL DEFAULT 0
       `);
 
+
       await run(`
         CREATE TABLE IF NOT EXISTS lake_sectors (
           id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
