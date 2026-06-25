@@ -156,8 +156,8 @@ const translateForecastText = (value) => {
     [/waxing moon/gi, "нарастваща луна"],
     [/full moon/gi, "пълнолуние"],
     [/new moon/gi, "новолуние"],
-    [/Score combines ML prediction with weather and moon factors\.?/gi, "Оценката комбинира ML прогноза с фактори от времето и луната."],
-    [/ML model was unavailable, so a heuristic forecast was used\.?/gi, "ML моделът не беше наличен, затова беше използвана евристична прогноза."],
+    [/Score combines ML prediction with weather and moon factors\.?/gi, "Оценката се изчислява чрез прогнозния модул на база времето и лунната фаза."],
+    [/ML model was unavailable, so a heuristic forecast was used\.?/gi, "Основният прогнозен модул не беше наличен, затова беше използвана резервна формула."],
   ];
   return replacements.reduce((text, [pattern, replacement]) => text.replace(pattern, replacement), String(value));
 };
@@ -433,7 +433,7 @@ function LakeDetails() {
         const forecastErrorCode = forecastData?.error?.response?.data?.code;
         setForecastError(
           forecastErrorCode === "PREMIUM_REQUIRED"
-            ? "Изисква се Премиум абонамент за пълната AI риболовна прогноза."
+            ? "Изисква се Премиум абонамент за подробната риболовна прогноза."
             : forecastData?.error?.response?.data?.error ||
               "Прогнозата временно не е достъпна. Опитай отново по-късно."
         );
@@ -736,6 +736,8 @@ function LakeDetails() {
       return;
     }
 
+    if (!window.confirm("Сигурни ли сте, че искате да премахнете своя отзив?")) return;
+
     try {
       setSavingReview(true);
       await deleteMyWaterBodyReview(id);
@@ -749,6 +751,8 @@ function LakeDetails() {
   };
 
   const saveAlertSettings = async (nextState, successMessage) => {
+    if (alertState.enabled && !nextState.enabled && !window.confirm("Сигурни ли сте, че искате да изключите известията за този водоем?")) return;
+
     try {
       setSavingAlertState(true);
 
@@ -795,6 +799,7 @@ function LakeDetails() {
       setSavingAlertState(true);
 
       if (alertState.favorite) {
+        if (!window.confirm("Сигурни ли сте, че искате да премахнете този водоем от любими?")) return;
         if (alertState.enabled) {
           await updateAlert(id, { is_favorite: false });
         } else {
@@ -2110,11 +2115,11 @@ function LakeDetails() {
             ) : isPremiumRequired ? (
               <PremiumLockedCard
                 title="Оценка на прогнозата: изисква се Премиум"
-                message="Отключете пълната AI прогноза за този водоем, включително оценка, метеорологични условия и обяснение."
+                message="Отключете подробната прогноза за този водоем, включително оценка, метеорологични условия и обяснение."
                 bullets={[
                   "Пълен риболовен индекс и прогнозна оценка",
                   "Подробности за дневната прогноза",
-                  "AI обяснение и достъп до умни известия",
+                  "Обяснение на оценката и достъп до автоматични известия",
                 ]}
                 onUpgrade={goToBilling}
               />

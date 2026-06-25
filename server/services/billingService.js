@@ -28,7 +28,7 @@ const isOwnerConnectReady = (billing) => {
   return Boolean(billing.stripe_connected_account_id) && CONNECT_READY_STATUSES.has(String(billing.connect_onboarding_status || "").toLowerCase());
 };
 
-const roleHasPremiumAccess = (role) => ["admin", "owner"].includes(String(role || "user").toLowerCase());
+const roleHasPremiumAccess = (role) => ["admin"].includes(String(role || "user").toLowerCase());
 
 const getOrCreateUserBillingProfile = async (userId) => {
   await pool.query(
@@ -80,13 +80,25 @@ const getOrCreateOwnerBillingProfile = async (ownerId) => {
 
 const getUserPremiumState = async (userId, role = "user") => {
   const billing = await getOrCreateUserBillingProfile(userId);
-  const hasPremiumAccess = roleHasPremiumAccess(role) || isPremiumBilling(billing);
+  const normalizedRole = String(role || "user").toLowerCase();
+  const subscriptionIsActive = isPremiumBilling(billing);
+  const premiumIncludedByRole = roleHasPremiumAccess(normalizedRole);
+  const hasPremiumAccess = premiumIncludedByRole || subscriptionIsActive;
+  const hasStripeCustomer = Boolean(billing?.stripe_customer_id);
+  const hasStripeSubscription = Boolean(billing?.stripe_subscription_id);
 
   return {
+    role: normalizedRole,
     subscription_tier: billing?.subscription_tier || "free",
     subscription_status: billing?.subscription_status || "inactive",
     current_period_end: billing?.current_period_end || null,
     has_premium_access: hasPremiumAccess,
+    premium_included_by_role: premiumIncludedByRole,
+    access_source: subscriptionIsActive ? "subscription" : premiumIncludedByRole ? normalizedRole : "free",
+    has_stripe_customer: hasStripeCustomer,
+    has_stripe_subscription: hasStripeSubscription,
+    can_start_premium_checkout: !premiumIncludedByRole && !subscriptionIsActive,
+    can_manage_premium_subscription: hasStripeCustomer,
   };
 };
 

@@ -85,8 +85,8 @@ const createClaimRequest = async (req, res) => {
     const lakeQ = await pool.query(`SELECT id, name, is_private, is_reservable, owner_id FROM water_bodies WHERE id = $1`, [waterBodyId]);
     if (!lakeQ.rows.length) return res.status(404).json({ error: 'Водоемът не е намерен' });
     const lake = lakeQ.rows[0];
-    if (!lake.is_private || !lake.is_reservable) return res.status(400).json({ error: 'Only private, reservable lakes can be requested' });
-    if (lake.owner_id) return res.status(400).json({ error: 'This lake already has an owner' });
+    if (!lake.is_private) return res.status(400).json({ error: 'Може да се подава заявка само за частен водоем' });
+    if (lake.owner_id) return res.status(400).json({ error: 'Този водоем вече има собственик' });
     const existingPendingQ = await pool.query(`SELECT id FROM lake_owner_claim_requests WHERE water_body_id = $1 AND user_id = $2 AND status = 'pending' LIMIT 1`, [waterBodyId, req.user]);
     if (existingPendingQ.rows.length) return res.status(400).json({ error: 'You already have a pending request for this lake' });
     const q = await pool.query(`

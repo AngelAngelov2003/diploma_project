@@ -17,6 +17,7 @@ const { stripeWebhook } = require("./controllers/stripeWebhookController");
 
 const {
   ensureAlertJobRunsTable,
+  ensureUserAccountFlags,
   ensureUserNotificationPreferencesTable,
   ensureLakeOwnerClaimRequestsTable,
   ensureSubscriptionDeliveriesTable,
@@ -91,6 +92,7 @@ app.use((err, req, res, next) => {
 
 const startServer = async () => {
   await ensureAlertJobRunsTable();
+  await ensureUserAccountFlags();
   await ensureUserNotificationPreferencesTable();
   await ensureLakeOwnerClaimRequestsTable();
   await ensureSubscriptionDeliveriesTable();

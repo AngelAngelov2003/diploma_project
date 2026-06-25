@@ -199,7 +199,6 @@ const updateUser = async (req, res) => {
     const nextRole = String(role ?? current.role ?? "user").trim().toLowerCase();
     const nextIsActive =
       typeof is_active === "boolean" ? is_active : Boolean(current.is_active);
-
     if (!nextFullName) {
       return res.status(400).json({ error: "Име и фамилия са задължителни" });
     }
@@ -253,6 +252,8 @@ const updateUser = async (req, res) => {
 };
 
 const deleteUser = async (req, res) => {
+  const client = await pool.connect();
+
   try {
     const { userId } = req.params;
 
@@ -260,17 +261,29 @@ const deleteUser = async (req, res) => {
       return res.status(400).json({ error: "Администраторът не може да изтрие собствения си акаунт" });
     }
 
-    const existing = await pool.query(`SELECT id FROM users WHERE id = $1`, [userId]);
+    const existing = await client.query(`SELECT id, role FROM users WHERE id = $1`, [userId]);
 
     if (!existing.rows.length) {
       return res.status(404).json({ error: "Потребителят не е намерен" });
     }
 
-    await pool.query(`DELETE FROM users WHERE id = $1`, [userId]);
+    await client.query("BEGIN");
+    try {
+      await cleanupOwnerLakeData(client, userId);
+      await client.query(`DELETE FROM users WHERE id = $1`, [userId]);
+      await client.query("COMMIT");
+    } catch (deleteErr) {
+      await client.query("ROLLBACK");
+      throw deleteErr;
+    }
 
+    await refreshWaterBodyMaterializedViews();
     res.json({ ok: true });
   } catch (err) {
+    console.error("DELETE /admin/users/:userId failed:", err);
     res.status(500).json({ error: "Неуспешно изтриване на потребителя" });
+  } finally {
+    client.release();
   }
 };
 
@@ -333,7 +346,18 @@ const updateWaterBody = async (req, res) => {
 
     const nextName = String(name ?? current.name ?? "").trim();
     const nextDescription = String(description ?? current.description ?? "").trim() || null;
-    const nextType = String(current.type ?? "").trim() || null;
+    const rawType = String(type ?? current.type ?? "reservoir").trim().toLowerCase();
+    const typeAliases = {
+      dam: "reservoir",
+      reservoir: "reservoir",
+      lake: "lake",
+      pond: "lake",
+      river: "lake",
+      canal: "lake",
+      язовир: "reservoir",
+      езеро: "lake",
+    };
+    const nextType = typeAliases[rawType] || "lake";
     let nextIsPrivate =
       typeof is_private === "boolean" ? is_private : Boolean(current.is_private);
     const nextOwnerId =
@@ -462,17 +486,18 @@ const getReviews = async (req, res) => {
         r.rating,
         r.comment,
         r.created_at,
-        u.full_name,
+        COALESCE(u.full_name, 'Изтрит потребител') AS full_name,
         u.email,
-        w.name AS lake_name
+        COALESCE(w.name, 'Изтрит водоем') AS lake_name
       FROM water_body_reviews r
-      JOIN users u ON u.id = r.user_id
-      JOIN water_bodies w ON w.id = r.water_body_id
-      ORDER BY r.created_at DESC
+      LEFT JOIN users u ON u.id = r.user_id
+      LEFT JOIN water_bodies w ON w.id = r.water_body_id
+      ORDER BY r.created_at DESC NULLS LAST
     `);
 
     res.json(q.rows);
   } catch (err) {
+    console.error("getReviews admin error:", err);
     res.status(500).json({ error: "Неуспешно зареждане на отзивите" });
   }
 };
@@ -569,10 +594,10 @@ const updateOwnerClaimRequest = async (req, res) => {
 
     const request = existingQ.rows[0];
 
-    if (nextStatus === "approved" && (!request.is_private || !request.is_reservable)) {
+    if (nextStatus === "approved" && !request.is_private) {
       await client.query("ROLLBACK");
       return res.status(400).json({
-        error: "Избраният водоем трябва да бъде частен и достъпен за резервации",
+        error: "Избраният водоем трябва да бъде частен",
       });
     }
 

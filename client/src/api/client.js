@@ -15,7 +15,16 @@ const isAuthFailure = (status, message) => {
   const normalized = String(message || "").toLowerCase();
   return (
     status === 403 &&
-    (normalized.includes("token") || normalized.includes("authorization"))
+    (
+      normalized.includes("token") ||
+      normalized.includes("authorization") ||
+      normalized.includes("inactive") ||
+      normalized.includes("неактив") ||
+      normalized.includes("деактив") ||
+      normalized.includes("not verified") ||
+      normalized.includes("не е потвърден") ||
+      normalized.includes("потвърдете имейла")
+    )
   );
 };
 

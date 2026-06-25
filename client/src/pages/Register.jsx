@@ -51,17 +51,17 @@ function Register({ setAuth, setCurrentUser }) {
         password,
       });
 
-      localStorage.setItem("token", data.token);
-      setCurrentUser(data.user || null);
-      setAuth(true);
+      localStorage.removeItem("token");
+      setCurrentUser(null);
+      setAuth(false);
 
-      const successMessage = "Регистрацията е успешна";
+      const successMessage = data?.message || "Регистрацията е успешна. Потвърдете имейла си, преди да влезете.";
       notifySuccess(successMessage);
       setMessage(successMessage);
 
       setTimeout(() => {
-        navigate("/");
-      }, 700);
+        navigate("/login");
+      }, 1200);
     } catch (error) {
       const errorMessage = getErrorMessage(error, "Регистрацията е неуспешна");
       notifyError(error, "Регистрацията е неуспешна");
@@ -90,7 +90,7 @@ function Register({ setAuth, setCurrentUser }) {
       {message && (
         <p
           style={{
-            color: message.toLowerCase().includes("successful")
+            color: message.toLowerCase().includes("успеш")
               ? "green"
               : "red",
           }}

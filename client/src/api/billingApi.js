@@ -35,3 +35,9 @@ export const getOwnerRevenueSummary = async () => {
   const { data } = await api.get("/billing/owner/revenue");
   return data;
 };
+
+
+export const openOwnerConnectDashboard = async () => {
+  const { data } = await api.post("/billing/owner/connect/login-link");
+  return data;
+};

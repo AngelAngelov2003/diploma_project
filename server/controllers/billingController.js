@@ -53,6 +53,12 @@ const getOwnerRevenueSummary = async (req, res, next) => {
 
 const createPremiumCheckoutSession = async (req, res, next) => {
   try {
+    if (billingService.roleHasPremiumAccess(req.userRole)) {
+      return res.status(400).json({
+        error: "Premium достъпът е включен за администратори. Не е нужен потребителски абонамент.",
+      });
+    }
+
     const priceId = process.env.STRIPE_USER_PREMIUM_PRICE_ID;
     if (!priceId) {
       return res.status(500).json({ error: "Липсва STRIPE_USER_PREMIUM_PRICE_ID в server/.env" });
@@ -153,6 +159,24 @@ const createOwnerConnectOnboardingLink = async (req, res, next) => {
   }
 };
 
+
+const createOwnerConnectLoginLink = async (req, res, next) => {
+  try {
+    if (!requireOwnerRole(req, res)) return;
+    const stripe = requireStripe();
+    const billing = await billingService.getOrCreateOwnerBillingProfile(req.user);
+
+    if (!billing?.stripe_connected_account_id) {
+      return res.status(400).json({ error: "Все още няма свързан Stripe Connect акаунт." });
+    }
+
+    const link = await stripe.accounts.createLoginLink(billing.stripe_connected_account_id);
+    res.json({ url: link.url });
+  } catch (err) {
+    next(err);
+  }
+};
+
 const refreshOwnerConnectStatus = async (req, res, next) => {
   try {
     if (!requireOwnerRole(req, res)) return;
@@ -179,5 +203,6 @@ module.exports = {
   createPremiumCheckoutSession,
   createCustomerPortalSession,
   createOwnerConnectOnboardingLink,
+  createOwnerConnectLoginLink,
   refreshOwnerConnectStatus,
 };

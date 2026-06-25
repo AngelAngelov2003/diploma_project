@@ -261,10 +261,10 @@ export default function AdminDashboard() {
       setLoadingReviews(true);
       setReviewsError("");
       const data = await getAdminReviews();
-      setReviews(data || []);
+      setReviews(Array.isArray(data) ? data : []);
     } catch (error) {
-      setReviewsError(error?.response?.data?.error || "Неуспешно зареждане на ревютата");
-      notifyError(error, "Неуспешно зареждане на ревютата");
+      setReviewsError(error?.response?.data?.error || "Неуспешно зареждане на отзивите");
+      notifyError(error, "Неуспешно зареждане на отзивите");
       setReviews([]);
     } finally {
       setLoadingReviews(false);
@@ -520,6 +520,12 @@ export default function AdminDashboard() {
     );
   };
 
+  const normalizeLakeType = (value) => {
+    const raw = String(value || "reservoir").trim().toLowerCase();
+    if (["reservoir", "dam", "язовир"].includes(raw)) return "reservoir";
+    return "lake";
+  };
+
   const updateUserLocal = (userId, field, value) => {
     setUsers((prev) =>
       prev.map((user) => (user.id === userId ? { ...user, [field]: value } : user)),
@@ -535,6 +541,7 @@ export default function AdminDashboard() {
   const buildLakePayload = (lake) => ({
     name: String(lake.name || "").trim(),
     description: String(lake.description || "").trim(),
+    type: normalizeLakeType(lake.type),
     is_private: Boolean(lake.is_private),
     owner_id: lake.owner_id || null,
     price_per_day: Number(lake.price_per_day || 0),
@@ -564,6 +571,7 @@ export default function AdminDashboard() {
   };
 
   const deleteLake = async (lakeId) => {
+    if (!window.confirm("Сигурни ли сте, че искате да изтриете този водоем? Това действие не може да бъде отменено.")) return;
     try {
       setDeletingId(lakeId);
       await deleteAdminWaterBody(lakeId);
@@ -585,6 +593,7 @@ export default function AdminDashboard() {
         full_name: String(user.full_name || "").trim(),
         role: String(user.role || "user").trim(),
         is_active: Boolean(user.is_active),
+        is_verified: Boolean(user.is_verified),
       };
 
       await updateAdminUser(user.id, payload);
@@ -600,6 +609,7 @@ export default function AdminDashboard() {
   };
 
   const deleteUser = async (userId) => {
+    if (!window.confirm("Сигурни ли сте, че искате да изтриете този потребител? Това действие не може да бъде отменено.")) return;
     try {
       setDeletingId(userId);
       await deleteAdminUser(userId);
@@ -616,6 +626,7 @@ export default function AdminDashboard() {
   };
 
   const deleteReview = async (reviewId) => {
+    if (!window.confirm("Сигурни ли сте, че искате да изтриете този отзив?")) return;
     try {
       setDeletingId(reviewId);
       await deleteAdminReview(reviewId);
@@ -630,6 +641,7 @@ export default function AdminDashboard() {
   };
 
   const deleteCatchLog = async (catchId) => {
+    if (!window.confirm("Сигурни ли сте, че искате да изтриете този запис за улов?")) return;
     try {
       setDeletingId(catchId);
       await deleteAdminCatchLog(catchId);
@@ -644,6 +656,7 @@ export default function AdminDashboard() {
   };
 
   const deleteGalleryPhoto = async (photoId) => {
+    if (!window.confirm("Сигурни ли сте, че искате да изтриете тази снимка?")) return;
     try {
       setDeletingId(photoId);
       await deleteAdminGalleryPhoto(photoId);
@@ -684,6 +697,7 @@ export default function AdminDashboard() {
   };
 
   const deleteOwnerClaim = async (requestId) => {
+    if (!window.confirm("Сигурни ли сте, че искате да изтриете тази заявка за собственост?")) return;
     try {
       setDeletingId(requestId);
       await deleteAdminOwnerClaimRequest(requestId);
@@ -920,13 +934,14 @@ export default function AdminDashboard() {
                           <div className={ui.fieldLabel}>
                             Тип
                           </div>
-                          <input
-                            type="text"
-                            value={lake.type || ""}
+                          <select
+                            value={normalizeLakeType(lake.type)}
+                            onChange={(e) => updateLakeLocal(lake.id, "type", e.target.value)}
                             className={styles.input}
-                            readOnly
-                            aria-readonly="true"
-                          />
+                          >
+                            <option value="reservoir">Язовир</option>
+                            <option value="lake">Езеро</option>
+                          </select>
                         </div>
 
                         {lake.owner_id ? (

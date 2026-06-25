@@ -141,8 +141,8 @@ const buildForecastExplanation = ({ temp, pressure, wind, moonPhase, weatherScor
     reasons,
     warnings,
     model_note: usedFallback
-      ? "Резултатът от ML сървъра не беше наличен, затова е използвана резервна прогнозна логика."
-      : "Оценката комбинира ML прогноза с фактори за времето и луната.",
+      ? "Резултатът от прогнозния сървър не беше наличен, затова е използвана резервна прогнозна формула."
+      : "Оценката се изчислява чрез прогнозна формула на база времето и лунната фаза.",
     factors: {
       weather_score: clampScore(weatherScore),
       moon_score: clampScore(moonScore),
@@ -232,7 +232,7 @@ const getPredictScore = async (conditions) => {
 
       if (attempt === 2) {
         console.error(
-          "[forecastService] ML prediction failed; using heuristic fallback.",
+          "[forecastService] Forecast server prediction failed; using formula fallback.",
           error?.message || error,
         );
       }

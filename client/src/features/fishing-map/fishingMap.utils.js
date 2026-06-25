@@ -1,3 +1,4 @@
+import { REGION_NAME_BG } from "../../utils/bulgarianLabeles";
 import React from "react";
 import L from "leaflet";
 
@@ -147,11 +148,11 @@ export const formatWaterBodyType = (type) => {
     .toLowerCase();
 
   const labels = {
-    lake: "Водоем",
+    lake: "Езеро",
     reservoir: "Язовир",
     pond: "Езеро",
-    river: "Река",
-    canal: "Канал",
+    river: "Езеро",
+    canal: "Езеро",
     dam: "Язовир",
     private: "Частен водоем",
     public: "Общодостъпен водоем",
@@ -184,7 +185,7 @@ export const highlightText = (text, query) => {
 };
 
 export const getRegionNameFromFeature = (feature) => {
-  return (
+  const rawName = (
     feature?.properties?.shapeName ||
     feature?.properties?.name ||
     feature?.properties?.NAME_1 ||
@@ -192,6 +193,8 @@ export const getRegionNameFromFeature = (feature) => {
     feature?.properties?.ADM1_EN ||
     "Област"
   );
+
+  return REGION_NAME_BG[rawName] || rawName;
 };
 
 const normalizeRegionRings = (geometry) => {

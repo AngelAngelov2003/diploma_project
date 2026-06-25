@@ -6,6 +6,12 @@ import { getMyClaimRequests, submitClaimRequest } from "../api/ownerApi";
 import { searchWaterBodies } from "../api/waterBodiesApi";
 import styles from "./BecomeOwner.module.css";
 
+const formatWaterTypeLabel = (value) => {
+  const raw = String(value || "").trim().toLowerCase();
+  if (["reservoir", "dam", "язовир"].includes(raw)) return "Язовир";
+  return "Езеро";
+};
+
 const DEFAULT_FORM = {
   lakeSearch: "",
   selectedLakeId: "",
@@ -92,7 +98,6 @@ export default function BecomeOwner() {
                 ...item,
                 canRequestOwnership: Boolean(
                   item?.is_private &&
-                    item?.is_reservable &&
                     !item?.owner_id
                 ),
               }))
@@ -115,10 +120,6 @@ export default function BecomeOwner() {
       return;
     }
 
-    if (!lake?.is_reservable) {
-      notifyError(null, "Този водоем все още не приема резервации");
-      return;
-    }
 
     if (lake?.owner_id) {
       notifyError(null, "Този водоем вече има собственик");
@@ -219,7 +220,7 @@ export default function BecomeOwner() {
                 />
                 <div className={styles.helperText}>
                   Потърсете съществуващия частен водоем, който притежавате или управлявате. Показват се само частни водоеми. Водоем може да бъде
-                  избран само ако приема резервации и все още няма собственик.
+                  избран, ако все още няма собственик. Резервациите могат да бъдат активирани по-късно от панела на собственика.
                 </div>
 
                 {searchLoading ? <div className={styles.helperText}>Търсене на водоеми...</div> : null}
@@ -243,7 +244,7 @@ export default function BecomeOwner() {
                         >
                           <span className={styles.resultTitle}>{lake.name}</span>
                           <span className={styles.resultMeta}>
-                            {lake.type || "Няма тип"}
+                            {formatWaterTypeLabel(lake.type)}
                             {lake.is_private ? " · Частен" : " · Публичен"}
                             {lake.is_reservable ? " · Приема резервации" : " · Не приема резервации"}
                             {lake.owner_id ? " · Има собственик" : " · Без собственик"}
@@ -254,8 +255,8 @@ export default function BecomeOwner() {
                             <span className={styles.resultHint}>
                               {lake.owner_id
                                 ? "Този водоем вече има собственик."
-                                : !lake.is_reservable
-                                ? "Този водоем все още не приема резервации."
+                                : !lake.is_private
+                                ? "Заявка може да се подаде само за частен водоем."
                                 : "За този водоем все още не може да се подаде заявка."}
                             </span>
                           ) : null}

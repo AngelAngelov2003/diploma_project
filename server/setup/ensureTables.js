@@ -1,6 +1,28 @@
 const pool = require("../db");
 
 const ensureAlertJobRunsTable = async () => {};
+
+const ensureUserAccountFlags = async () => {
+  await pool.query(`
+    ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS is_verified BOOLEAN NOT NULL DEFAULT FALSE,
+    ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE
+  `);
+
+  await pool.query(`
+    ALTER TABLE users
+    ALTER COLUMN is_verified SET DEFAULT FALSE,
+    ALTER COLUMN is_active SET DEFAULT TRUE
+  `);
+
+  
+  await pool.query(`
+    UPDATE users
+    SET is_verified = TRUE, updated_at = NOW()
+    WHERE role = 'admin' AND is_verified IS DISTINCT FROM TRUE
+  `);
+};
+
 const ensureUserNotificationPreferencesTable = async () => {};
 const ensureLakeOwnerClaimRequestsTable = async () => {};
 const ensureSubscriptionDeliveriesTable = async () => {};
@@ -415,6 +437,7 @@ const ensureReservationDomainTables = async () => {
 
 module.exports = {
   ensureAlertJobRunsTable,
+  ensureUserAccountFlags,
   ensureUserNotificationPreferencesTable,
   ensureLakeOwnerClaimRequestsTable,
   ensureSubscriptionDeliveriesTable,

@@ -239,6 +239,7 @@ const LakePopup = ({ lake, map }) => {
       setAlertLoading(true);
 
       if (alertEnabled) {
+        if (!window.confirm("Сигурни ли сте, че искате да изключите известията за този водоем?")) return;
         await api.delete(`/alerts/${lake.id}`);
         setAlertEnabled(false);
         notifySuccess("Известието е изключено");
@@ -255,7 +256,7 @@ const LakePopup = ({ lake, map }) => {
       if (err?.response?.data?.code === "PREMIUM_REQUIRED") {
         setAlertLocked(true);
         setActivePanel("premium-alert");
-        notifyError(null, "За умни известия е нужен Premium абонамент. Отворете Плащания / Premium от менюто.");
+        notifyError(null, "За автоматични известия е нужен Premium абонамент. Отворете Плащания / Premium от менюто.");
       } else {
         notifyError(
           err,
@@ -275,6 +276,7 @@ const LakePopup = ({ lake, map }) => {
       setAlertLoading(true);
 
       if (favoriteEnabled) {
+        if (!window.confirm("Сигурни ли сте, че искате да премахнете този водоем от любими?")) return;
         await api.delete(`/favorites/${lake.id}`);
         setFavoriteEnabled(false);
         notifySuccess("Премахнато от любими");
@@ -470,7 +472,7 @@ const LakePopup = ({ lake, map }) => {
           className="lake-popup-panel-card"
           compact
           title="Оценка на прогнозата: нужен е Premium"
-          message="Отключете пълната AI риболовна прогноза, дневните детайли и умните известия за водоема."
+          message="Отключете подробната риболовна прогноза, дневните детайли и автоматичните известия за водоема."
           onUpgrade={() => navigate("/billing")}
           onClose={() => {
             setForecastLocked(false);
@@ -506,7 +508,7 @@ const LakePopup = ({ lake, map }) => {
             <FaChartBar />
             <span>Риболовна прогноза</span>
           </div>
-          <p>Актуални условия и AI оценка за този водоем.</p>
+          <p>Актуални условия и прогнозна оценка за този водоем.</p>
           <button
             type="button"
             className="lake-popup-weekly-toggle"
@@ -615,8 +617,8 @@ const LakePopup = ({ lake, map }) => {
         className="lake-popup-panel-card"
         compact
         title="Умни известия: нужен е Premium"
-        message="Отключете автоматични известия за прогноза и умни известия за водоема."
-        bullets={["Дневни или седмични известия за прогноза", "Умни известия за любими водоеми"]}
+        message="Отключете автоматични известия за прогноза за този водоем."
+        bullets={["Дневни или седмични известия за прогноза", "Известия за любими водоеми"]}
         onUpgrade={() => navigate("/billing")}
         onClose={() => {
           setAlertLocked(false);
@@ -728,7 +730,11 @@ const LakePopup = ({ lake, map }) => {
               />
               <button
                 type="button"
-                onClick={() => setImage(null)}
+                onClick={() => {
+                  if (window.confirm("Сигурни ли сте, че искате да премахнете избраната снимка?")) {
+                    setImage(null);
+                  }
+                }}
                 disabled={saving}
                 className="lake-popup-secondary-button"
               >

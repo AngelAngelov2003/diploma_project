@@ -213,7 +213,7 @@ export default function SavedLakesPage({ initialTab = "all" }) {
     } catch (error) {
       if (error?.response?.data?.code === "PREMIUM_REQUIRED") {
         setPremiumPromptItem(item);
-        notifyError(null, "За умни известия е нужен Премиум абонамент. Отворете Плащания / Премиум от менюто.");
+        notifyError(null, "За автоматични известия е нужен Премиум абонамент. Отворете Плащания / Премиум от менюто.");
       } else {
         notifyError(error, "Неуспешно включване на известието");
       }
@@ -225,6 +225,7 @@ export default function SavedLakesPage({ initialTab = "all" }) {
   const disableAlert = async (item) => {
     try {
       setSavingId(item.water_body_id);
+      if (!window.confirm("Сигурни ли сте, че искате да изключите известията за този водоем?")) return;
       await deleteAlert(item.water_body_id);
       setAlerts((prev) =>
         prev.filter(
@@ -281,6 +282,7 @@ export default function SavedLakesPage({ initialTab = "all" }) {
   };
 
   const removeFavorite = async (item) => {
+    if (!window.confirm("Сигурни ли сте, че искате да премахнете този водоем от любими?")) return;
     try {
       setSavingId(item.water_body_id);
       await deleteFavorite(item.water_body_id);
@@ -397,7 +399,7 @@ export default function SavedLakesPage({ initialTab = "all" }) {
             message={`Надградете, за да включите автоматични известия за прогноза за${
               premiumPromptItem?.lake_name ? ` ${premiumPromptItem.lake_name}` : " запазени водоеми"
             }.`}
-            bullets={["Дневни или седмични имейл прогнози", "Умни известия за любими водоеми"]}
+            bullets={["Дневни или седмични имейл прогнози", "Известия за любими водоеми"]}
             onUpgrade={() => navigate("/billing")}
             onClose={() => setPremiumPromptItem(null)}
           />

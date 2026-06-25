@@ -427,7 +427,7 @@ function FishingMapCanvas({
   );
 
   const getRegionName = useCallback((feature) => {
-    return (
+    const rawName = (
       feature?.properties?.shapeName ||
       feature?.properties?.name ||
       feature?.properties?.NAME_1 ||
@@ -435,6 +435,8 @@ function FishingMapCanvas({
       feature?.properties?.ADM1_EN ||
       "Област"
     );
+
+    return translateRegionName(rawName);
   }, []);
 
   const clearHoveredRegion = useCallback(() => {

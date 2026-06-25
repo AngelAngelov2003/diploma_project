@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { FaCheckCircle, FaCreditCard, FaCrown, FaExternalLinkAlt, FaLockOpen } from "react-icons/fa";
+import { FaCheckCircle, FaCreditCard, FaCrown, FaExternalLinkAlt, FaInfoCircle, FaLockOpen } from "react-icons/fa";
 import { getBillingStatus, openBillingPortal, startPremiumCheckout } from "../api/billingApi";
 import { notifyError, notifySuccess } from "../ui/toast";
 import "./BillingPage.css";
@@ -13,6 +13,11 @@ const getSubscriptionStatusLabel = (status) => ({
   past_due: "Просрочен",
   unpaid: "Неплатен",
 }[status] || status || "Неактивен");
+
+const getRoleLabel = (role) => ({
+  owner: "собственик",
+  admin: "администратор",
+}[String(role || "").toLowerCase()] || "потребител");
 
 const formatDate = (value) => {
   if (!value) return "Няма зададен край";
@@ -76,29 +81,36 @@ export default function BillingPage() {
   };
 
   const hasPremium = Boolean(billing?.has_premium_access);
+  const premiumIncludedByRole = Boolean(billing?.premium_included_by_role);
+  const canStartCheckout = Boolean(billing?.can_start_premium_checkout);
+  const canManageSubscription = Boolean(billing?.can_manage_premium_subscription);
   const currentPlanName = hasPremium ? "Премиум" : "Безплатен";
-  const currentPlanStatus = hasPremium
-    ? getSubscriptionStatusLabel(billing?.subscription_status || "active")
-    : "Активен";
+  const currentPlanStatus = premiumIncludedByRole
+    ? `Включен с роля ${getRoleLabel(billing?.role)}`
+    : hasPremium
+      ? getSubscriptionStatusLabel(billing?.subscription_status || "active")
+      : "Активен";
 
   return (
     <div className="billing-page">
       <section className="billing-hero">
         <div>
           <div className="billing-eyebrow"><FaCrown /> Премиум план</div>
-          <h1>Отключете прогнози и умни известия</h1>
+          <h1>Отключете подробни прогнози и известия</h1>
           <p>
-            Безплатните потребители могат да използват картата и основната информация за водоемите. Премиум потребителите отключват AI риболовната прогноза,
-            обясненията към прогнозата и създаването на известия.
+            Безплатните потребители могат да използват картата и основната информация за водоемите. Премиум потребителите отключват подробна риболовна прогноза,
+            изчислена по прогнозна формула с метеорологични условия и лунна фаза, както и създаването на известия.
           </p>
         </div>
         <div className={`billing-status-card ${hasPremium ? "active" : ""}`}>
-          <span>Текущ план</span>
+          <span>Текущ достъп</span>
           <strong>{currentPlanName}</strong>
           <small>Статус: {currentPlanStatus}</small>
-          {hasPremium && (
+          {premiumIncludedByRole ? (
+            <small>Потребителски Stripe абонамент: Не се изисква</small>
+          ) : hasPremium ? (
             <small>Край на периода: {formatDate(billing?.current_period_end)}</small>
-          )}
+          ) : null}
         </div>
       </section>
 
@@ -121,20 +133,30 @@ export default function BillingPage() {
             <h2>Премиум</h2>
             <div className="billing-price">Задава се в Stripe</div>
             <ul>
-              <li><FaCheckCircle /> AI прогноза и оценка</li>
-              <li><FaCheckCircle /> Обяснение на прогнозата</li>
+              <li><FaCheckCircle /> Прогнозна оценка за риболов</li>
+              <li><FaCheckCircle /> Детайли към прогнозата</li>
               <li><FaCheckCircle /> Създаване на известия</li>
-              <li><FaCheckCircle /> Бъдещи премиум анализи</li>
+              <li><FaCheckCircle /> Бъдещи премиум статистики</li>
             </ul>
-            {hasPremium ? (
+
+            {premiumIncludedByRole && (
+              <div className="billing-info-box">
+                <FaInfoCircle />
+                <span>
+                  Премиум достъпът е включен за {getRoleLabel(billing?.role)}. Месечен потребителски абонамент не е нужен.
+                </span>
+              </div>
+            )}
+
+            {canManageSubscription ? (
               <button type="button" onClick={handlePortal} disabled={busyAction === "portal"}>
                 <FaCreditCard /> Управление на плащанията <FaExternalLinkAlt />
               </button>
-            ) : (
+            ) : canStartCheckout ? (
               <button type="button" onClick={handleSubscribe} disabled={busyAction === "checkout"}>
                 <FaLockOpen /> Надграждане чрез Stripe
               </button>
-            )}
+            ) : null}
           </article>
         </div>
       )}

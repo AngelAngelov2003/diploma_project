@@ -47,14 +47,9 @@ const register = async (req, res) => {
       console.error("verification email error:", emailErr);
     }
 
-    const token = jwt.sign(
-      { user_id: newUser.rows[0].id },
-      process.env.JWT_SECRET || "secret_key",
-      { expiresIn: "1h" }
-    );
-
-    res.json({
-      token,
+    res.status(201).json({
+      message: "Регистрацията е успешна. Изпратихме линк за потвърждение на имейла. Потвърдете профила, преди да влезете.",
+      requires_email_verification: true,
       user: newUser.rows[0],
     });
   } catch (err) {
@@ -75,6 +70,14 @@ const login = async (req, res) => {
       return res.status(403).json({ error: "Вашият акаунт е неактивен" });
     }
 
+    // Администраторските профили могат да влизат дори ако са създадени преди
+    // въвеждането на email verification и нямат записан потвърден статус.
+    if (user.rows[0].role !== "admin" && user.rows[0].is_verified !== true) {
+      return res.status(403).json({
+        error: "Профилът не е потвърден. Моля, отворете линка за потвърждение, изпратен на вашия имейл."
+      });
+    }
+
     const validPassword = await bcrypt.compare(password, user.rows[0].password_hash);
     if (!validPassword) {
       return res.status(401).json("Паролата или имейлът са неправилни");
@@ -93,7 +96,7 @@ const login = async (req, res) => {
         full_name: user.rows[0].full_name,
         email: user.rows[0].email,
         role: user.rows[0].role || "user",
-        is_verified: user.rows[0].is_verified,
+        is_verified: user.rows[0].role === "admin" ? true : user.rows[0].is_verified,
         is_active: user.rows[0].is_active,
         created_at: user.rows[0].created_at,
         updated_at: user.rows[0].updated_at,

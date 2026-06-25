@@ -52,6 +52,16 @@ const getUploadUrl = (imageUrl) => {
 
 const parseMoneyInput = (value) => value.replace(/[^0-9.]/g, "").replace(/(\..*)\./g, "$1");
 
+const normalizeLakeType = (value) => {
+  const raw = String(value || "lake").trim().toLowerCase();
+  if (["reservoir", "dam", "язовир"].includes(raw)) return "reservoir";
+  return "lake";
+};
+
+const formatLakeType = (value) => {
+  return normalizeLakeType(value) === "reservoir" ? "Язовир" : "Езеро";
+};
+
 const TAB_ITEMS = [
   { key: "overview", label: "Обзор" },
   { key: "reservations", label: "Резервации" },
@@ -107,6 +117,146 @@ const translateMonthLabel = (label = "") => {
     .replace(/October/g,"Октомври")
     .replace(/November/g,"Ноември")
     .replace(/December/g,"Декември");
+};
+
+const escapeReportHtml = (value) => String(value ?? "")
+  .replace(/&/g, "&amp;")
+  .replace(/</g, "&lt;")
+  .replace(/>/g, "&gt;")
+  .replace(/"/g, "&quot;")
+  .replace(/'/g, "&#039;");
+
+const buildMonthlyReportHtml = (lake, report) => {
+  const monthLabel = translateMonthLabel(report?.month_label || report?.month_key || "месец");
+  const generatedAt = new Date().toLocaleString("bg-BG");
+  const totalRevenue = Number(report?.total_revenue || 0);
+  const platformFee = Number(report?.platform_fee || 0);
+  const ownerEarnings = Number(report?.owner_earnings || 0);
+  const paidReservations = Number(report?.paid_reservations || 0);
+  const averageReservation = paidReservations > 0 ? totalRevenue / paidReservations : 0;
+  const commissionPercent = totalRevenue > 0 ? (platformFee / totalRevenue) * 100 : 0;
+
+  return `<!doctype html>
+<html lang="bg">
+<head>
+  <meta charset="utf-8" />
+  <title>Месечен отчет - ${escapeReportHtml(monthLabel)}</title>
+  <style>
+    @page { size: A4; margin: 18mm; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #eef2f7; color: #0f172a; font-family: Arial, Helvetica, sans-serif; }
+    .page { width: 210mm; min-height: 297mm; margin: 0 auto; background: #fff; padding: 32px; box-shadow: 0 12px 30px rgba(15, 23, 42, 0.12); }
+    .header { display: flex; justify-content: space-between; gap: 24px; align-items: flex-start; padding: 24px; border-radius: 22px; color: #fff; background: linear-gradient(135deg, #0f172a 0%, #1d4ed8 100%); }
+    .brand { display: flex; align-items: center; gap: 14px; }
+    .logo { width: 50px; height: 50px; display: grid; place-items: center; border-radius: 16px; background: rgba(255,255,255,0.14); font-size: 26px; font-weight: 800; }
+    .brand h1 { margin: 0; font-size: 25px; letter-spacing: -0.02em; }
+    .brand p { margin: 4px 0 0; opacity: 0.84; font-size: 13px; }
+    .report-meta { text-align: right; font-size: 13px; line-height: 1.6; opacity: 0.95; }
+    .section { margin-top: 24px; }
+    .section-title { margin: 0 0 12px; font-size: 16px; color: #1e3a8a; text-transform: uppercase; letter-spacing: 0.06em; }
+    .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .info-box, .summary-card { border: 1px solid #e2e8f0; border-radius: 18px; padding: 16px; background: #f8fafc; }
+    .label { margin: 0 0 5px; color: #64748b; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; }
+    .value { margin: 0; font-size: 17px; font-weight: 700; }
+    .summary-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+    .summary-card { min-height: 100px; background: #fff; }
+    .summary-card.important { background: #eff6ff; border-color: #bfdbfe; }
+    .summary-card .amount { margin: 8px 0 0; font-size: 21px; font-weight: 800; color: #0f172a; }
+    table { width: 100%; border-collapse: collapse; overflow: hidden; border-radius: 16px; border: 1px solid #e2e8f0; }
+    th { background: #1e3a8a; color: #fff; padding: 13px 12px; text-align: left; font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; }
+    td { padding: 13px 12px; border-bottom: 1px solid #e2e8f0; font-size: 14px; }
+    tr:last-child td { border-bottom: 0; }
+    .right { text-align: right; }
+    .note { margin-top: 24px; padding: 16px 18px; border-left: 4px solid #2563eb; border-radius: 14px; background: #eff6ff; color: #1e3a8a; line-height: 1.5; font-size: 13px; }
+    .footer { margin-top: 34px; padding-top: 16px; border-top: 1px solid #e2e8f0; display: flex; justify-content: space-between; gap: 16px; color: #64748b; font-size: 12px; }
+    .actions { position: fixed; top: 18px; right: 18px; display: flex; gap: 10px; }
+    .actions button { border: 0; border-radius: 999px; padding: 10px 16px; color: #fff; background: #1d4ed8; cursor: pointer; font-weight: 700; box-shadow: 0 8px 18px rgba(29, 78, 216, 0.25); }
+    @media print { body { background: #fff; } .page { width: auto; min-height: auto; margin: 0; padding: 0; box-shadow: none; } .actions { display: none; } }
+  </style>
+</head>
+<body>
+  <div class="actions"><button onclick="window.print()">Принтирай / Запази като PDF</button></div>
+  <main class="page">
+    <header class="header">
+      <div class="brand">
+        <div class="logo">₣</div>
+        <div>
+          <h1>Fishing Platform</h1>
+          <p>Месечен отчет за приходи на собственик</p>
+        </div>
+      </div>
+      <div class="report-meta">
+        <strong>Owner Revenue Statement</strong><br />
+        Период: ${escapeReportHtml(monthLabel)}<br />
+        Генериран: ${escapeReportHtml(generatedAt)}
+      </div>
+    </header>
+
+    <section class="section">
+      <h2 class="section-title">Информация за отчета</h2>
+      <div class="info-grid">
+        <div class="info-box">
+          <p class="label">Водоем</p>
+          <p class="value">${escapeReportHtml(lake?.name || "Неизвестен водоем")}</p>
+        </div>
+        <div class="info-box">
+          <p class="label">Период</p>
+          <p class="value">${escapeReportHtml(monthLabel)}</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">Финансово обобщение</h2>
+      <div class="summary-grid">
+        <div class="summary-card"><p class="label">Общи приходи</p><p class="amount">${escapeReportHtml(formatCurrency(totalRevenue))}</p></div>
+        <div class="summary-card"><p class="label">Комисиона</p><p class="amount">${escapeReportHtml(formatCurrency(platformFee))}</p></div>
+        <div class="summary-card important"><p class="label">Приход за собственика</p><p class="amount">${escapeReportHtml(formatCurrency(ownerEarnings))}</p></div>
+        <div class="summary-card"><p class="label">Платени резервации</p><p class="amount">${paidReservations}</p></div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">Детайли</h2>
+      <table>
+        <thead>
+          <tr><th>Показател</th><th class="right">Стойност</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Обща стойност на платените резервации</td><td class="right">${escapeReportHtml(formatCurrency(totalRevenue))}</td></tr>
+          <tr><td>Комисиона на платформата</td><td class="right">${escapeReportHtml(formatCurrency(platformFee))}</td></tr>
+          <tr><td>Нетен приход за собственика</td><td class="right">${escapeReportHtml(formatCurrency(ownerEarnings))}</td></tr>
+          <tr><td>Средна стойност на резервация</td><td class="right">${escapeReportHtml(formatCurrency(averageReservation))}</td></tr>
+          <tr><td>Процент комисиона</td><td class="right">${commissionPercent.toFixed(2)}%</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <div class="note">
+      Този отчет е автоматично генериран от системата и служи за справка на собственика.
+      Официалните данъчни и банкови документи се управляват в Stripe Connect акаунта.
+    </div>
+
+    <footer class="footer">
+      <span>Fishing Platform · Автоматично генериран отчет</span>
+      <span>${escapeReportHtml(monthLabel)}</span>
+    </footer>
+  </main>
+</body>
+</html>`;
+};
+
+const downloadMonthlyReportNote = (lake, report) => {
+  const html = buildMonthlyReportHtml(lake, report);
+  const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `monthly-earnings-report-${report?.month_key || "report"}.html`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
 };
 
 const getTodayDateString = () => new Date().toISOString().slice(0, 10);
@@ -469,6 +619,7 @@ export default function OwnerPanel() {
   };
 
   const handleDeleteBlockedDate = async (lakeId, blockedDateId) => {
+    if (!window.confirm("Сигурни ли сте, че искате да премахнете тази блокирана дата?")) return;
     try {
       setBusyLakeId(lakeId);
       await deleteBlockedDate(lakeId, blockedDateId);
@@ -612,6 +763,7 @@ export default function OwnerPanel() {
   };
 
   const handleDeleteRoom = async (lakeId, roomId) => {
+    if (!window.confirm("Сигурни ли сте, че искате да изтриете тази стая?")) return;
     try {
       setBusyLakeId(lakeId);
       await deleteLakeRoom(lakeId, roomId);
@@ -628,6 +780,7 @@ export default function OwnerPanel() {
   };
 
   const handleRemoveSelectedPhoto = (lakeId, index) => {
+    if (!window.confirm("Сигурни ли сте, че искате да премахнете избраната снимка?")) return;
     setPhotoFilesByLake((prev) => {
       const current = [...(prev[lakeId] || [])];
       current.splice(index, 1);
@@ -647,6 +800,7 @@ export default function OwnerPanel() {
   };
 
   const handleClearSelectedPhotos = (lakeId) => {
+    if (!window.confirm("Сигурни ли сте, че искате да изчистите всички избрани снимки?")) return;
     (photoPreviewsByLake[lakeId] || []).forEach((preview) => {
       if (preview?.url) URL.revokeObjectURL(preview.url);
     });
@@ -692,6 +846,7 @@ export default function OwnerPanel() {
   };
 
   const handleDeletePhoto = async (lakeId, photoId) => {
+    if (!window.confirm("Сигурни ли сте, че искате да премахнете тази снимка от галерията?")) return;
     try {
       setBusyLakeId(lakeId);
       await deleteLakePhoto(lakeId, photoId);
@@ -708,6 +863,7 @@ export default function OwnerPanel() {
   };
 
   const handleDeleteCatchPhoto = async (lakeId, catchId) => {
+    if (!window.confirm("Сигурни ли сте, че искате да премахнете снимката към този улов?")) return;
     try {
       setBusyLakeId(lakeId);
       await deleteOwnerCatchPhoto(lakeId, catchId);
@@ -832,7 +988,12 @@ export default function OwnerPanel() {
         notifySuccess("Статусът за изплащания е обновен");
         return;
       }
-      if (action === "portal" || action === "upgrade") {
+      if (action === "portal") {
+        const data = await billingApi.openOwnerConnectDashboard();
+        if (data?.url) window.location.href = data.url;
+        return;
+      }
+      if (action === "upgrade") {
         setActiveTabByLake((prev) => {
           const firstLakeId = lakes[0]?.id;
           return firstLakeId ? { ...prev, [firstLakeId]: "billing" } : prev;
@@ -933,7 +1094,7 @@ export default function OwnerPanel() {
                       </div>
 
                       <div className={styles.metaText}>
-                        {lake.type || "Без тип"} · {formatCurrency(lake.price_per_day || 0)} на ден · резервен капацитет {lake.capacity || 1}
+                        {formatLakeType(lake.type)} · {formatCurrency(lake.price_per_day || 0)} на ден · резервен капацитет {lake.capacity || 1}
                       </div>
                     </div>
 
@@ -1088,7 +1249,7 @@ export default function OwnerPanel() {
                               <div>
                                 <div className={styles.settingTitle}>Приема резервации</div>
                                 <div className={styles.settingText}>
-                                  Позволява на потребителите да изпращат заявки за резервация.
+                                  Позволява на потребителите да изпращат заявки за резервация. Собственикът може да включи тази опция за назначен частен водоем.
                                 </div>
                               </div>
                             </label>
@@ -1177,7 +1338,7 @@ export default function OwnerPanel() {
                               <input
                                 className={styles.input}
                                 type="text"
-                                value={lake.type || ""}
+                                value={formatLakeType(lake.type)}
                                 readOnly
                                 aria-readonly="true"
                               />
@@ -2037,6 +2198,13 @@ export default function OwnerPanel() {
                                     <div key={report.month_key} className={styles.reportRow}>
                                       <strong>Отчет за {translateMonthLabel(report.month_label)}</strong>
                                       <span>{formatCurrency(report.owner_earnings || 0)} приходи за собственика</span>
+                                      <button
+                                        type="button"
+                                        className={styles.filterButton}
+                                        onClick={() => downloadMonthlyReportNote(lake, report)}
+                                      >
+                                        Изтегли отчет
+                                      </button>
                                     </div>
                                   ))}
                                 </div>
