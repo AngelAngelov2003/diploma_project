@@ -12,5 +12,7 @@ router.get("/billing/owner/status", authorize, billingController.getOwnerBilling
 router.get("/billing/owner/revenue", authorize, billingController.getOwnerRevenueSummary);
 router.post("/billing/owner/connect/onboarding", authorize, billingController.createOwnerConnectOnboardingLink);
 router.post("/billing/owner/connect/refresh", authorize, billingController.refreshOwnerConnectStatus);
+router.post("/billing/owner/connect/login-link", authorize, billingController.createOwnerConnectLoginLink);
+router.patch("/billing/owner/online-payments", authorize, billingController.updateOwnerOnlinePayments);
 
 module.exports = router;

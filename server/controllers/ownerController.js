@@ -245,7 +245,7 @@ const getOwnerLakeEarnings = async (req, res) => {
       FROM lake_reservations
       WHERE water_body_id = $1
         AND payment_status = 'paid'
-        AND status NOT IN ('cancelled', 'canceled', 'rejected')
+        AND status NOT IN ('rejected')
         AND COALESCE(paid_at, updated_at, created_at) >= $2
     `, [req.params.waterBodyId, monthStart]);
 
@@ -257,6 +257,10 @@ const getOwnerLakeEarnings = async (req, res) => {
         r.owner_amount,
         r.payment_status,
         r.status,
+        CASE
+          WHEN r.payment_status = 'paid' AND r.status IN ('cancelled', 'canceled') THEN true
+          ELSE false
+        END AS cancelled_without_refund,
         r.paid_at,
         r.created_at,
         w.name AS lake_name,
@@ -268,7 +272,7 @@ const getOwnerLakeEarnings = async (req, res) => {
       WHERE r.water_body_id = $1
         AND w.owner_id = $2
         AND r.payment_status = 'paid'
-        AND r.status NOT IN ('cancelled', 'canceled', 'rejected')
+        AND r.status NOT IN ('rejected')
       ORDER BY COALESCE(r.paid_at, r.created_at) DESC
       LIMIT 50
     `, [req.params.waterBodyId, req.user]);
@@ -284,7 +288,7 @@ const getOwnerLakeEarnings = async (req, res) => {
       FROM lake_reservations
       WHERE water_body_id = $1
         AND payment_status = 'paid'
-        AND status NOT IN ('cancelled', 'canceled', 'rejected')
+        AND status NOT IN ('rejected')
       GROUP BY DATE_TRUNC('month', COALESCE(paid_at, updated_at, created_at))
       ORDER BY DATE_TRUNC('month', COALESCE(paid_at, updated_at, created_at)) DESC
       LIMIT 12
@@ -722,27 +726,6 @@ const getOwnerLakeCatches = async (req, res) => {
   }
 };
 
-const deleteOwnerCatchPhoto = async (req, res) => {
-  try {
-    await ensureSchema();
-    const lake = await ensureOwnedLake(req.params.waterBodyId, req.user);
-    if (!lake) return res.status(404).json({ error: 'Водоемът не е намерен или не е ваш' });
-
-    const q = await pool.query(
-      `UPDATE catch_logs
-       SET image_url = NULL
-       WHERE id = $1 AND water_body_id = $2 AND image_url IS NOT NULL
-       RETURNING id`,
-      [req.params.catchId, req.params.waterBodyId]
-    );
-
-    if (!q.rows.length) return res.status(404).json({ error: 'Catch photo not found' });
-    res.json({ ok: true });
-  } catch (err) {
-    res.status(500).json({ error: err.message || 'Failed to remove user catch photo' });
-  }
-};
-
 const reportOwnerLakeCatch = async (req, res) => {
   try {
     await ensureSchema();
@@ -793,6 +776,5 @@ module.exports = {
   uploadLakePhoto,
   deleteLakePhoto,
   getOwnerLakeCatches,
-  deleteOwnerCatchPhoto,
   reportOwnerLakeCatch,
 };

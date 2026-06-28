@@ -68,7 +68,7 @@ const getOrCreateOwnerBillingProfile = async (ownerId) => {
       SELECT owner_id, stripe_customer_id, stripe_subscription_id, owner_plan,
              subscription_status, current_period_end, stripe_connected_account_id,
              connect_onboarding_status, charges_enabled, payouts_enabled,
-             details_submitted, created_at, updated_at
+             details_submitted, online_payments_enabled, created_at, updated_at
       FROM owner_billing_profiles
       WHERE owner_id = $1
     `,
@@ -118,9 +118,29 @@ const getOwnerBillingState = async (ownerId, role = "user") => {
     charges_enabled: Boolean(billing?.charges_enabled),
     payouts_enabled: Boolean(billing?.payouts_enabled),
     details_submitted: Boolean(billing?.details_submitted),
+    online_payments_enabled: Boolean(billing?.online_payments_enabled),
     connect_ready: connectReady,
+    online_payments_available: connectReady && Boolean(billing?.online_payments_enabled),
     platform_fee_percent: Number(process.env.PLATFORM_FEE_PERCENT || 10),
   };
+};
+
+
+const setOwnerOnlinePaymentsEnabled = async (ownerId, enabled) => {
+  const q = await pool.query(
+    `
+      UPDATE owner_billing_profiles
+      SET online_payments_enabled = $2, updated_at = NOW()
+      WHERE owner_id = $1
+      RETURNING owner_id, stripe_customer_id, stripe_subscription_id, owner_plan,
+                subscription_status, current_period_end, stripe_connected_account_id,
+                connect_onboarding_status, charges_enabled, payouts_enabled,
+                details_submitted, online_payments_enabled, created_at, updated_at
+    `,
+    [ownerId, Boolean(enabled)]
+  );
+
+  return q.rows[0] || null;
 };
 
 const setStripeCustomerId = async (userId, stripeCustomerId) => {
@@ -310,11 +330,11 @@ const getOwnerRevenueSummary = async (ownerId, stripe = null) => {
   const totalsQ = await pool.query(
     `
       SELECT
-        COALESCE(SUM(CASE WHEN rp.status = 'paid' AND COALESCE(lr.status, '') NOT IN ('cancelled', 'canceled', 'rejected') THEN rp.amount_total ELSE 0 END), 0)::numeric AS total_volume,
-        COALESCE(SUM(CASE WHEN rp.status = 'paid' AND COALESCE(lr.status, '') NOT IN ('cancelled', 'canceled', 'rejected') THEN rp.platform_fee_amount ELSE 0 END), 0)::numeric AS platform_fees,
-        COALESCE(SUM(CASE WHEN rp.status = 'paid' AND COALESCE(lr.status, '') NOT IN ('cancelled', 'canceled', 'rejected') THEN rp.owner_amount ELSE 0 END), 0)::numeric AS owner_earnings,
+        COALESCE(SUM(CASE WHEN rp.status = 'paid' AND COALESCE(lr.status, '') NOT IN ('rejected') THEN rp.amount_total ELSE 0 END), 0)::numeric AS total_volume,
+        COALESCE(SUM(CASE WHEN rp.status = 'paid' AND COALESCE(lr.status, '') NOT IN ('rejected') THEN rp.platform_fee_amount ELSE 0 END), 0)::numeric AS platform_fees,
+        COALESCE(SUM(CASE WHEN rp.status = 'paid' AND COALESCE(lr.status, '') NOT IN ('rejected') THEN rp.owner_amount ELSE 0 END), 0)::numeric AS owner_earnings,
         COALESCE(SUM(CASE WHEN rp.status IN ('pending', 'checkout_started') AND COALESCE(lr.status, '') NOT IN ('cancelled', 'canceled', 'rejected') THEN rp.owner_amount ELSE 0 END), 0)::numeric AS pending_checkout_amount,
-        COUNT(*) FILTER (WHERE rp.status = 'paid' AND COALESCE(lr.status, '') NOT IN ('cancelled', 'canceled', 'rejected'))::int AS paid_payments_count
+        COUNT(*) FILTER (WHERE rp.status = 'paid' AND COALESCE(lr.status, '') NOT IN ('rejected'))::int AS paid_payments_count
       FROM reservation_payments rp
       LEFT JOIN lake_reservations lr ON lr.id = rp.reservation_id
       WHERE rp.owner_id = $1::uuid
@@ -345,7 +365,10 @@ const getOwnerRevenueSummary = async (ownerId, stripe = null) => {
       LEFT JOIN users u ON u.id = rp.user_id
       LEFT JOIN lake_reservations lr ON lr.id = rp.reservation_id
       WHERE rp.owner_id = $1::uuid
-        AND COALESCE(lr.status, '') NOT IN ('cancelled', 'canceled', 'rejected')
+        AND (
+          COALESCE(lr.status, '') NOT IN ('cancelled', 'canceled', 'rejected')
+          OR (rp.status = 'paid' AND COALESCE(lr.status, '') IN ('cancelled', 'canceled'))
+        )
       ORDER BY COALESCE(rp.paid_at, rp.created_at) DESC
       LIMIT 12
     `,
@@ -390,11 +413,11 @@ const getAdminRevenueSummary = async () => {
   const paymentsQ = await pool.query(
     `
       SELECT
-        COALESCE(SUM(CASE WHEN rp.status = 'paid' AND COALESCE(lr.status, '') NOT IN ('cancelled', 'canceled', 'rejected') THEN rp.amount_total ELSE 0 END), 0)::numeric AS total_volume,
-        COALESCE(SUM(CASE WHEN rp.status = 'paid' AND COALESCE(lr.status, '') NOT IN ('cancelled', 'canceled', 'rejected') THEN rp.platform_fee_amount ELSE 0 END), 0)::numeric AS platform_commissions,
-        COALESCE(SUM(CASE WHEN rp.status = 'paid' AND COALESCE(lr.status, '') NOT IN ('cancelled', 'canceled', 'rejected') THEN rp.owner_amount ELSE 0 END), 0)::numeric AS owner_earnings,
+        COALESCE(SUM(CASE WHEN rp.status = 'paid' AND COALESCE(lr.status, '') NOT IN ('rejected') THEN rp.amount_total ELSE 0 END), 0)::numeric AS total_volume,
+        COALESCE(SUM(CASE WHEN rp.status = 'paid' AND COALESCE(lr.status, '') NOT IN ('rejected') THEN rp.platform_fee_amount ELSE 0 END), 0)::numeric AS platform_commissions,
+        COALESCE(SUM(CASE WHEN rp.status = 'paid' AND COALESCE(lr.status, '') NOT IN ('rejected') THEN rp.owner_amount ELSE 0 END), 0)::numeric AS owner_earnings,
         COALESCE(SUM(CASE WHEN rp.status IN ('pending', 'checkout_started') AND COALESCE(lr.status, '') NOT IN ('cancelled', 'canceled', 'rejected') THEN rp.amount_total ELSE 0 END), 0)::numeric AS pending_checkout_volume,
-        COUNT(*) FILTER (WHERE rp.status = 'paid' AND COALESCE(lr.status, '') NOT IN ('cancelled', 'canceled', 'rejected'))::int AS paid_payments_count,
+        COUNT(*) FILTER (WHERE rp.status = 'paid' AND COALESCE(lr.status, '') NOT IN ('rejected'))::int AS paid_payments_count,
         COUNT(*) FILTER (WHERE rp.status IN ('pending', 'checkout_started') AND COALESCE(lr.status, '') NOT IN ('cancelled', 'canceled', 'rejected'))::int AS pending_payments_count
       FROM reservation_payments rp
       LEFT JOIN lake_reservations lr ON lr.id = rp.reservation_id
@@ -498,7 +521,10 @@ const markReservationPaymentFailed = async ({ checkoutSessionId, reservationId }
     await pool.query(
       `
         UPDATE lake_reservations
-        SET payment_status = 'failed', updated_at = NOW()
+        SET status = 'cancelled',
+            payment_required = FALSE,
+            payment_status = 'expired',
+            updated_at = NOW()
         WHERE id = $1 AND status = 'approved_waiting_payment'
       `,
       [reservationId]
@@ -522,6 +548,7 @@ module.exports = {
   getOrCreateOwnerBillingProfile,
   getUserPremiumState,
   getOwnerBillingState,
+  setOwnerOnlinePaymentsEnabled,
   setStripeCustomerId,
   setOwnerStripeCustomerId,
   setOwnerConnectedAccount,

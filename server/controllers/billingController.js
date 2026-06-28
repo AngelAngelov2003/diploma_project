@@ -51,6 +51,28 @@ const getOwnerRevenueSummary = async (req, res, next) => {
   }
 };
 
+
+const updateOwnerOnlinePayments = async (req, res, next) => {
+  try {
+    if (!requireOwnerRole(req, res)) return;
+
+    const enabled = Boolean(req.body?.enabled);
+    const currentState = await billingService.getOwnerBillingState(req.user, req.userRole);
+
+    if (enabled && !currentState.connect_ready) {
+      return res.status(400).json({
+        error: "Първо завършете настройката на Stripe Connect, преди да включите онлайн плащанията.",
+      });
+    }
+
+    await billingService.setOwnerOnlinePaymentsEnabled(req.user, enabled);
+    const state = await billingService.getOwnerBillingState(req.user, req.userRole);
+    res.json(state);
+  } catch (err) {
+    next(err);
+  }
+};
+
 const createPremiumCheckoutSession = async (req, res, next) => {
   try {
     if (billingService.roleHasPremiumAccess(req.userRole)) {
@@ -205,4 +227,5 @@ module.exports = {
   createOwnerConnectOnboardingLink,
   createOwnerConnectLoginLink,
   refreshOwnerConnectStatus,
+  updateOwnerOnlinePayments,
 };

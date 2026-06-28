@@ -102,9 +102,17 @@ const ensureBillingTables = async () => {
       charges_enabled BOOLEAN NOT NULL DEFAULT FALSE,
       payouts_enabled BOOLEAN NOT NULL DEFAULT FALSE,
       details_submitted BOOLEAN NOT NULL DEFAULT FALSE,
+      online_payments_enabled BOOLEAN NOT NULL DEFAULT FALSE,
       created_at TIMESTAMP NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMP NOT NULL DEFAULT NOW()
     )
+  `);
+
+
+
+  await pool.query(`
+    ALTER TABLE owner_billing_profiles
+    ADD COLUMN IF NOT EXISTS online_payments_enabled BOOLEAN NOT NULL DEFAULT FALSE
   `);
 
   await pool.query(`
@@ -398,6 +406,14 @@ const ensureReservationDomainTables = async () => {
       await run(`
         CREATE INDEX IF NOT EXISTS idx_lake_user_reports_water_body_id
         ON lake_user_reports (water_body_id)
+      `);
+      await run(`
+        ALTER TABLE lake_user_reports
+        ADD COLUMN IF NOT EXISTS admin_note TEXT
+      `);
+      await run(`
+        ALTER TABLE lake_user_reports
+        ADD COLUMN IF NOT EXISTS resolved_by UUID REFERENCES users(id) ON DELETE SET NULL
       `);
 
       await run(`

@@ -18,6 +18,7 @@ import {
   FaUserPlus,
   FaFileSignature,
   FaCrown,
+  FaMoneyBillWave,
 } from "react-icons/fa";
 
 const getRoleLabel = (role) => {
@@ -314,6 +315,14 @@ const Navigation = ({ isAuthenticated, onLogout, currentUser }) => {
                           <span>Панел на собственика</span>
                           {showOwnerNewBadge ? <NewBadge /> : null}
                           <Badge count={ownerReservationBadgeCount} />
+                        </div>
+
+                        <div
+                          onClick={() => { markOwnerPagesSeen(); closeMenuAndNavigate("/owner?tab=billing"); }}
+                          className="main-user-dropdown-item responsive-menu-item"
+                        >
+                          <FaMoneyBillWave />
+                          <span>Плащания и приходи</span>
                         </div>
                       </>
                     )}

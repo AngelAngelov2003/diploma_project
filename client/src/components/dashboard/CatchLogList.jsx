@@ -1,9 +1,10 @@
 import React from "react";
 import styles from "./CatchLogItem.module.css";
 import CatchLogItem from "./CatchLogItem";
+import { SectionLoadingState } from "../common/PageLoadingState";
 
 export default function CatchLogList({ logs, onLakeClick, onUpdate, onDelete, savingId, loading, hasAnyCatches }) {
-  if (loading) return <p>Зареждане на улови…</p>;
+  if (loading) return <SectionLoadingState title="Зареждане на улови..." subtitle="Подготвяме списъка с вашите записи." cards={1} rows={3} />;
 
   if (!logs.length) {
     return <p>{hasAnyCatches ? "Няма улови, които съвпадат с филтрите." : "Все още няма записани улови."}</p>;

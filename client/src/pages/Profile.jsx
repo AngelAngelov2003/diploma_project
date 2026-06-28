@@ -9,6 +9,7 @@ import {
   updateProfile,
 } from "../api/profileApi";
 import ActionButton from "../components/ui/ActionButton";
+import PageLoadingState from "../components/common/PageLoadingState";
 import styles from "./Profile.module.css";
 
 const DEFAULT_PROFILE = {
@@ -189,7 +190,7 @@ export default function Profile({ setCurrentUser }) {
   };
 
   if (loading) {
-    return <div className={styles.loading}>Зареждане на профил...</div>;
+    return <PageLoadingState title="Зареждане на профил..." subtitle="Подготвяме личните данни, паролата и настройките за известия." cards={3} rows={2} />;
   }
 
   return (

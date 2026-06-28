@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { FaCheckCircle, FaCreditCard, FaCrown, FaExternalLinkAlt, FaInfoCircle, FaLockOpen } from "react-icons/fa";
 import { getBillingStatus, openBillingPortal, startPremiumCheckout } from "../api/billingApi";
 import { notifyError, notifySuccess } from "../ui/toast";
+import PageLoadingState from "../components/common/PageLoadingState";
 import "./BillingPage.css";
 
 const getSubscriptionStatusLabel = (status) => ({
@@ -115,7 +116,7 @@ export default function BillingPage() {
       </section>
 
       {loading ? (
-        <div className="billing-card">Зареждане на плащания...</div>
+        <PageLoadingState title="Зареждане на плащания..." subtitle="Проверяваме Stripe статуса и премиум достъпа." cards={2} rows={2} compact />
       ) : (
         <div className="billing-grid">
           <article className="billing-card">

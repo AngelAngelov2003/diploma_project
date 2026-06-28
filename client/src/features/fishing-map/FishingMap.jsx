@@ -669,28 +669,8 @@ function FishingMap() {
       setShowRegionOverview(false);
     }
 
-    const isSmallScreen =
-      typeof window !== "undefined" ? window.innerWidth <= 640 : false;
-
     mapInstance.invalidateSize(false);
-
-    if (isSmallScreen) {
-      mapInstance.setView(BULGARIA_CENTER, getInitialBulgariaZoom(), { animate: true });
-      return;
-    }
-
-    const bounds = L.geoJSON(bulgariaRegions).getBounds();
-
-    if (bounds?.isValid?.()) {
-      mapInstance.fitBounds(bounds.pad(0.12), {
-        paddingTopLeft: [48, 82],
-        paddingBottomRight: [48, 56],
-        maxZoom: BULGARIA_ZOOM,
-        animate: true,
-      });
-    } else {
-      mapInstance.flyTo(BULGARIA_CENTER, BULGARIA_ZOOM, { duration: 1.2 });
-    }
+    mapInstance.setView(BULGARIA_CENTER, getInitialBulgariaZoom(), { animate: true });
   }, [mapInstance, locationModeActive, distanceFilterActive]);
 
   const handleUseMyLocation = useCallback(async () => {
@@ -805,28 +785,8 @@ function FishingMap() {
     }
 
     if (mapInstance) {
-      const isSmallScreen =
-      typeof window !== "undefined" ? window.innerWidth <= 640 : false;
-
-    mapInstance.invalidateSize(false);
-
-    if (isSmallScreen) {
-      mapInstance.setView(BULGARIA_CENTER, getInitialBulgariaZoom(), { animate: true });
-      return;
-    }
-
-    const bounds = L.geoJSON(bulgariaRegions).getBounds();
-
-    if (bounds?.isValid?.()) {
-      mapInstance.fitBounds(bounds.pad(0.12), {
-        paddingTopLeft: [48, 82],
-        paddingBottomRight: [48, 56],
-        maxZoom: BULGARIA_ZOOM,
-        animate: true,
-      });
-    } else {
-      mapInstance.flyTo(BULGARIA_CENTER, BULGARIA_ZOOM, { duration: 1.2 });
-    }
+      mapInstance.invalidateSize(false);
+    mapInstance.setView(BULGARIA_CENTER, getInitialBulgariaZoom(), { animate: true });
     }
   }, [sortBy, mapInstance]);
 

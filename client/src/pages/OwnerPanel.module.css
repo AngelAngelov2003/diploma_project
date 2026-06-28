@@ -1558,3 +1558,143 @@
   font-size: 14px;
   font-weight: 600;
 }
+
+.paymentControlCard {
+  background: #f8fafc;
+  border: 1px solid #dbeafe;
+  border-radius: 18px;
+  padding: 18px;
+  margin-bottom: 16px;
+}
+
+.paymentControlHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.paymentControlSubtitle {
+  margin: 8px 0 0;
+  color: #475569;
+  line-height: 1.55;
+}
+
+.paymentStatusGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.paymentStatusItem {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 12px;
+  display: grid;
+  gap: 5px;
+}
+
+.paymentStatusItem span {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.paymentStatusItem strong {
+  color: #0f172a;
+  font-size: 18px;
+}
+
+.paymentStatusItem:nth-child(3) strong {
+  font-size: 36px;
+  font-weight: 900;
+  color: #2563eb;
+  line-height: 1;
+}
+
+.paymentStatusItem:nth-child(3) span {
+  font-size: 13px;
+}
+
+.paymentStatusOk {
+  color: #047857 !important;
+}
+
+.paymentStatusWarn {
+  color: #b45309 !important;
+}
+
+.paymentNotice {
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  border-radius: 14px;
+  color: #7c2d12;
+  line-height: 1.5;
+  padding: 12px;
+  margin-bottom: 12px;
+}
+
+.stripeSummaryGrid {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(220px, 1.2fr);
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.stripeSummaryItem,
+.stripeCommissionItem {
+  border: 1px solid #dbeafe;
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 14px 16px;
+  display: grid;
+  gap: 6px;
+}
+
+.stripeSummaryItem span,
+.stripeCommissionItem span {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.stripeSummaryItem strong {
+  font-size: 20px;
+  font-weight: 900;
+}
+
+.stripeCommissionItem {
+  background: linear-gradient(135deg, #eff6ff, #ffffff);
+  border-color: #bfdbfe;
+}
+
+.stripeCommissionItem strong {
+  color: #2563eb;
+  font-size: 38px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.stripeCommissionItem small {
+  color: #475569;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+@media (max-width: 720px) {
+  .stripeSummaryGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .stripeCommissionItem strong {
+    font-size: 34px;
+  }
+}

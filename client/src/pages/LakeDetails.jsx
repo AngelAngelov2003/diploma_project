@@ -538,6 +538,11 @@ function LakeDetails() {
 
   const bookingLake = useMemo(() => bookingOptions?.lake || null, [bookingOptions?.lake]);
 
+  const onlinePaymentsAvailable = Boolean(bookingLake?.online_payments_available);
+  const platformFeePercent = Number.isFinite(Number(bookingLake?.platform_fee_percent))
+    ? Number(bookingLake.platform_fee_percent)
+    : 10;
+
   const allowsNightFishing = useMemo(() => Boolean(
     lake?.allows_night_fishing ??
     lake?.allowsNightFishing ??
@@ -677,6 +682,12 @@ function LakeDetails() {
   useEffect(() => {
     setRoomsPage(1);
   }, [roomGuestCount, bookingOptions?.rooms]);
+
+  useEffect(() => {
+    if (!onlinePaymentsAvailable && paymentPreference === "online") {
+      setPaymentPreference("on_arrival");
+    }
+  }, [onlinePaymentsAvailable, paymentPreference]);
 
   useEffect(() => {
     if (!roomCapacityOptions.length) {
@@ -1531,10 +1542,15 @@ function LakeDetails() {
                     <button
                       type="button"
                       className={`${styles.paymentChoiceCard} ${paymentPreference === "online" ? styles.paymentChoiceCardActive : ""}`}
-                      onClick={() => setPaymentPreference("online")}
+                      onClick={() => onlinePaymentsAvailable && setPaymentPreference("online")}
+                      disabled={!onlinePaymentsAvailable}
                     >
                       <strong>Плати онлайн сега</strong>
-                      <span>Сигурно Stripe плащане. Няма стъпка за одобрение от собственика, ако плащането е налично.</span>
+                      <span>
+                        {onlinePaymentsAvailable
+                          ? `Сигурно Stripe плащане. Комисионната на платформата към собственика е ${platformFeePercent}%.`
+                          : "Собственикът не приема онлайн плащания за този водоем в момента."}
+                      </span>
                     </button>
                     <button
                       type="button"

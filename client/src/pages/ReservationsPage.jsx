@@ -12,6 +12,7 @@ import Pagination from "../components/ui/Pagination";
 import SearchInput from "../components/ui/SearchInput";
 import StatusBadge from "../components/ui/StatusBadge";
 import TabButton from "../components/ui/TabButton";
+import PageLoadingState from "../components/common/PageLoadingState";
 import styles from "./ReservationsPage.module.css";
 
 const PAGE_SIZE = 5;
@@ -216,7 +217,7 @@ export default function ReservationsPage() {
   const paginatedMyReservations = useMemo(() => paginateItems(filteredMyReservations, myPage), [filteredMyReservations, myPage]);
 
   if (loading) {
-    return <div className={styles.loading}>Зареждане на резервации...</div>;
+    return <PageLoadingState title="Зареждане на резервации..." subtitle="Зареждаме вашите заявки, плащания и статуси по резервациите." cards={3} rows={4} />;
   }
 
   return (

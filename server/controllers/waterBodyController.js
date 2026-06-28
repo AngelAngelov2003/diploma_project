@@ -3,6 +3,44 @@ const waterBodyService = require("../services/waterBodyService");
 const { fetchForecastForLatLng, fetchWeeklyForecastForLatLng } = require("../services/forecastService");
 const { ensureReservationDomainTables } = require("../setup/ensureTables");
 
+const ACTIVE_RESERVATION_STATUSES = ["pending", "approved"];
+const PAYMENT_HOLD_STATUSES = ["approved_waiting_payment"];
+const DEFAULT_PAYMENT_HOLD_MINUTES = 30;
+
+const getPaymentHoldMinutes = () => {
+  const value = Number(process.env.RESERVATION_PAYMENT_HOLD_MINUTES || DEFAULT_PAYMENT_HOLD_MINUTES);
+  return Number.isFinite(value) && value >= 30 ? Math.floor(value) : DEFAULT_PAYMENT_HOLD_MINUTES;
+};
+
+const cleanupExpiredPaymentHolds = async () => {
+  const holdMinutes = getPaymentHoldMinutes();
+  const expiredQ = await pool.query(`
+    UPDATE lake_reservations r
+    SET status = 'cancelled',
+        payment_required = FALSE,
+        payment_status = 'expired',
+        updated_at = NOW()
+    WHERE r.status = 'approved_waiting_payment'
+      AND COALESCE(r.payment_status, '') <> 'paid'
+      AND r.updated_at < NOW() - ($1::int * interval '1 minute')
+      AND NOT EXISTS (
+        SELECT 1 FROM reservation_payments rp
+        WHERE rp.reservation_id = r.id AND rp.status = 'paid'
+      )
+    RETURNING r.id
+  `, [holdMinutes]);
+
+  const expiredIds = expiredQ.rows.map((row) => row.id);
+  if (expiredIds.length) {
+    await pool.query(`
+      UPDATE reservation_payments
+      SET status = 'expired', updated_at = NOW()
+      WHERE reservation_id = ANY($1::uuid[])
+        AND status IN ('pending', 'checkout_started')
+    `, [expiredIds]);
+  }
+};
+
 const getWaterBodies = async (req, res) => {
   try {
     const rows = await waterBodyService.getAllWaterBodies();
@@ -363,22 +401,29 @@ const deleteMyReview = async (req, res) => {
 const getBookingOptions = async (req, res) => {
   try {
     await ensureReservationDomainTables();
+    await cleanupExpiredPaymentHolds();
     const { waterBodyId } = req.params;
 
     const lakeQ = await pool.query(`
       SELECT
-        id,
-        is_private,
-        is_reservable,
-        price_per_day,
-        capacity,
-        allows_night_fishing,
-        night_fishing_price,
-        has_housing
-      FROM water_bodies
-      WHERE id = $1
+        w.id,
+        w.is_private,
+        w.is_reservable,
+        w.price_per_day,
+        w.capacity,
+        w.allows_night_fishing,
+        w.night_fishing_price,
+        w.has_housing,
+        COALESCE(obp.online_payments_enabled, FALSE) AS online_payments_enabled,
+        (COALESCE(obp.online_payments_enabled, FALSE)
+          AND obp.stripe_connected_account_id IS NOT NULL
+          AND COALESCE(obp.connect_onboarding_status, '') IN ('complete', 'enabled')) AS online_payments_available,
+        $2::numeric AS platform_fee_percent
+      FROM water_bodies w
+      LEFT JOIN owner_billing_profiles obp ON obp.owner_id = w.owner_id
+      WHERE w.id = $1
       LIMIT 1
-    `, [waterBodyId]);
+    `, [waterBodyId, Number(process.env.PLATFORM_FEE_PERCENT || 10)]);
 
     if (!lakeQ.rows.length) {
       return res.status(404).json({ error: "Водоемът не е намерен" });
@@ -406,6 +451,7 @@ const getBookingOptions = async (req, res) => {
 const getAvailability = async (req, res) => {
   try {
     await ensureReservationDomainTables();
+    await cleanupExpiredPaymentHolds();
     const { waterBodyId } = req.params;
     const startDate = String(req.query.start_date || req.query.arrival_date || "").trim();
     const endDate = String(req.query.end_date || req.query.departure_date || startDate || "").trim();
@@ -430,7 +476,9 @@ const getAvailability = async (req, res) => {
     }
 
     const lake = lakeQ.rows[0];
-    const activeStatuses = ["pending", "approved"];
+    const activeStatuses = ACTIVE_RESERVATION_STATUSES;
+    const paymentHoldStatuses = PAYMENT_HOLD_STATUSES;
+    const paymentHoldMinutes = getPaymentHoldMinutes();
 
     const [spotsQ, reservedSpotsQ, reservedSpotCountQ, roomsQ, reservedRoomsQ, blockedDatesQ] = await Promise.all([
       pool.query(`
@@ -445,15 +493,29 @@ const getAvailability = async (req, res) => {
         JOIN lake_reservations r ON r.id = rs.reservation_id
         WHERE r.water_body_id = $1
           AND daterange(r.start_date::date, (r.end_date::date + 1)::date, '[)') && daterange($2::date, ($3::date + 1)::date, '[)')
-          AND r.status = ANY($4::text[])
-      `, [waterBodyId, startDate, endDate, activeStatuses]),
+          AND (
+            r.status = ANY($4::text[])
+            OR (
+              r.status = ANY($5::text[])
+              AND COALESCE(r.payment_status, '') IN ('unpaid', 'checkout_started')
+              AND r.updated_at >= NOW() - ($6::int * interval '1 minute')
+            )
+          )
+      `, [waterBodyId, startDate, endDate, activeStatuses, paymentHoldStatuses, paymentHoldMinutes]),
       pool.query(`
         SELECT COALESCE(SUM(r.requested_spots), 0)::int AS reserved_spots
         FROM lake_reservations r
         WHERE r.water_body_id = $1
           AND daterange(r.start_date::date, (r.end_date::date + 1)::date, '[)') && daterange($2::date, ($3::date + 1)::date, '[)')
-          AND r.status = ANY($4::text[])
-      `, [waterBodyId, startDate, endDate, activeStatuses]),
+          AND (
+            r.status = ANY($4::text[])
+            OR (
+              r.status = ANY($5::text[])
+              AND COALESCE(r.payment_status, '') IN ('unpaid', 'checkout_started')
+              AND r.updated_at >= NOW() - ($6::int * interval '1 minute')
+            )
+          )
+      `, [waterBodyId, startDate, endDate, activeStatuses, paymentHoldStatuses, paymentHoldMinutes]),
       pool.query(`
         SELECT id, name, capacity, price_per_night, is_active, sort_order
         FROM lake_rooms
@@ -466,8 +528,15 @@ const getAvailability = async (req, res) => {
         JOIN lake_reservations r ON r.id = rrm.reservation_id
         WHERE r.water_body_id = $1
           AND daterange(r.start_date::date, (r.end_date::date + 1)::date, '[)') && daterange($2::date, ($3::date + 1)::date, '[)')
-          AND r.status = ANY($4::text[])
-      `, [waterBodyId, startDate, endDate, activeStatuses]),
+          AND (
+            r.status = ANY($4::text[])
+            OR (
+              r.status = ANY($5::text[])
+              AND COALESCE(r.payment_status, '') IN ('unpaid', 'checkout_started')
+              AND r.updated_at >= NOW() - ($6::int * interval '1 minute')
+            )
+          )
+      `, [waterBodyId, startDate, endDate, activeStatuses, paymentHoldStatuses, paymentHoldMinutes]),
       pool.query(`
         SELECT id, blocked_date::text AS blocked_date, reason
         FROM lake_blocked_dates
@@ -521,6 +590,7 @@ const getAvailability = async (req, res) => {
 const getUnavailableDates = async (req, res) => {
   try {
     await ensureReservationDomainTables();
+    await cleanupExpiredPaymentHolds();
     const { waterBodyId } = req.params;
     const startDate = String(req.query.start_date || "").trim();
     const endDate = String(req.query.end_date || "").trim();
@@ -550,7 +620,14 @@ const getUnavailableDates = async (req, res) => {
         FROM days d
         LEFT JOIN lake_reservations r
           ON r.water_body_id = $1
-         AND r.status = ANY($4::text[])
+         AND (
+           r.status = ANY($4::text[])
+           OR (
+             r.status = ANY($5::text[])
+             AND COALESCE(r.payment_status, '') IN ('unpaid', 'checkout_started')
+             AND r.updated_at >= NOW() - ($6::int * interval '1 minute')
+           )
+         )
          AND daterange(r.start_date::date, (r.end_date::date + 1)::date, '[)') && daterange(d.day, (d.day + 1)::date, '[)')
         GROUP BY d.day
       ),
@@ -573,7 +650,7 @@ const getUnavailableDates = async (req, res) => {
       FROM days d
       LEFT JOIN reserved r ON r.day = d.day
       ORDER BY d.day ASC
-    `, [waterBodyId, startDate, endDate, ["pending", "approved"]]);
+    `, [waterBodyId, startDate, endDate, ACTIVE_RESERVATION_STATUSES, PAYMENT_HOLD_STATUSES, getPaymentHoldMinutes()]);
 
     res.json({
       range: { start_date: startDate, end_date: endDate },

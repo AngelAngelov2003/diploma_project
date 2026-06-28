@@ -22,6 +22,7 @@ import {
   getMyFavorites,
   updateAlert,
 } from "../api/alertsApi";
+import PageLoadingState from "../components/common/PageLoadingState";
 import styles from "./SavedLakesPage.module.css";
 
 const mergeItemsByLakeId = (alerts, favorites) => {
@@ -311,7 +312,7 @@ export default function SavedLakesPage({ initialTab = "all" }) {
   const goToDetails = (waterBodyId) => navigate(`/lakes/${waterBodyId}`);
 
   if (loading) {
-    return <div className={styles.loading}>Зареждане на любими водоеми…</div>;
+    return <PageLoadingState title="Зареждане на любими водоеми..." subtitle="Подготвяме запазените водоеми, известията и настройките за прогнози." cards={3} rows={3} />;
   }
 
   return (

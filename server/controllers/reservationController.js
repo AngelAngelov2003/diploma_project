@@ -4,8 +4,10 @@ const { sendEmail, getSmtpSummary } = require("../services/emailService");
 const billingService = require("../services/billingService");
 const { requireStripe, getAppUrl } = require("../services/stripeService");
 
-const ACTIVE_RESERVATION_STATUSES = ["pending", "approved", "approved_waiting_payment"];
+const ACTIVE_RESERVATION_STATUSES = ["pending", "approved"];
+const PAYMENT_HOLD_STATUSES = ["approved_waiting_payment"];
 const MANAGEABLE_STATUSES = ["approved", "approved_waiting_payment", "rejected", "pending"];
+const DEFAULT_PAYMENT_HOLD_MINUTES = 30;
 
 let schemaEnsured = false;
 const ensureSchema = async () => {
@@ -34,6 +36,42 @@ const buildPaymentBreakdown = (totalAmount) => {
 
 const getReservationCurrency = () => String(process.env.STRIPE_RESERVATION_CURRENCY || "eur").toLowerCase();
 
+const getPaymentHoldMinutes = () => {
+  const value = Number(process.env.RESERVATION_PAYMENT_HOLD_MINUTES || DEFAULT_PAYMENT_HOLD_MINUTES);
+  return Number.isFinite(value) && value >= 30 ? Math.floor(value) : DEFAULT_PAYMENT_HOLD_MINUTES;
+};
+
+const cleanupExpiredPaymentHolds = async () => {
+  const holdMinutes = getPaymentHoldMinutes();
+  const expiredQ = await pool.query(`
+    UPDATE lake_reservations r
+    SET status = 'cancelled',
+        payment_required = FALSE,
+        payment_status = 'expired',
+        updated_at = NOW()
+    WHERE r.status = 'approved_waiting_payment'
+      AND COALESCE(r.payment_status, '') <> 'paid'
+      AND r.updated_at < NOW() - ($1::int * interval '1 minute')
+      AND NOT EXISTS (
+        SELECT 1 FROM reservation_payments rp
+        WHERE rp.reservation_id = r.id AND rp.status = 'paid'
+      )
+    RETURNING r.id
+  `, [holdMinutes]);
+
+  const expiredIds = expiredQ.rows.map((row) => row.id);
+  if (expiredIds.length) {
+    await pool.query(`
+      UPDATE reservation_payments
+      SET status = 'expired', updated_at = NOW()
+      WHERE reservation_id = ANY($1::uuid[])
+        AND status IN ('pending', 'checkout_started')
+    `, [expiredIds]);
+  }
+  return expiredIds;
+};
+
+
 const toStripeAmount = (value) => Math.max(0, Math.round(toNumber(value, 0) * 100));
 
 const canUseOnlinePayments = async (ownerId) => {
@@ -41,6 +79,9 @@ const canUseOnlinePayments = async (ownerId) => {
   const ownerState = await billingService.getOwnerBillingState(ownerId, "owner");
   if (!ownerState.connect_ready || !ownerState.stripe_connected_account_id) {
     return { enabled: false, reason: "Настройката на Stripe изплащанията за собственика не е завършена" };
+  }
+  if (!ownerState.online_payments_enabled) {
+    return { enabled: false, reason: "Собственикът е изключил онлайн плащанията за резервации" };
   }
   return { enabled: true, ownerState };
 };
@@ -528,7 +569,7 @@ const getSelectedSpots = async (spotIds, waterBodyId) => {
 };
 
 const getReservedSpotIds = async ({ waterBodyId, arrival, departure, excludedReservationId = null }) => {
-  const params = [waterBodyId, arrival, departure, ACTIVE_RESERVATION_STATUSES];
+  const params = [waterBodyId, arrival, departure, ACTIVE_RESERVATION_STATUSES, PAYMENT_HOLD_STATUSES, getPaymentHoldMinutes()];
   let exclusionSql = "";
   if (excludedReservationId) {
     params.push(excludedReservationId);
@@ -541,7 +582,14 @@ const getReservedSpotIds = async ({ waterBodyId, arrival, departure, excludedRes
     JOIN lake_reservations r ON r.id = rs.reservation_id
     WHERE r.water_body_id = $1
       AND daterange(r.start_date::date, (r.end_date::date + 1)::date, '[)') && daterange($2::date, ($3::date + 1)::date, '[)')
-      AND r.status = ANY($4::text[])
+      AND (
+        r.status = ANY($4::text[])
+        OR (
+          r.status = ANY($5::text[])
+          AND COALESCE(r.payment_status, '') IN ('unpaid', 'checkout_started')
+          AND r.updated_at >= NOW() - ($6::int * interval '1 minute')
+        )
+      )
       ${exclusionSql}
   `, params);
 
@@ -569,7 +617,7 @@ const ensureSelectedSpotAvailability = async ({ spotIds, waterBodyId, arrival, d
 };
 
 const getReservedSpotCount = async ({ waterBodyId, arrival, departure, excludedReservationId = null }) => {
-  const params = [waterBodyId, arrival, departure, ACTIVE_RESERVATION_STATUSES];
+  const params = [waterBodyId, arrival, departure, ACTIVE_RESERVATION_STATUSES, PAYMENT_HOLD_STATUSES, getPaymentHoldMinutes()];
   let exclusionSql = "";
   if (excludedReservationId) {
     params.push(excludedReservationId);
@@ -580,7 +628,14 @@ const getReservedSpotCount = async ({ waterBodyId, arrival, departure, excludedR
     FROM lake_reservations r
     WHERE r.water_body_id = $1
       AND daterange(r.start_date::date, (r.end_date::date + 1)::date, '[)') && daterange($2::date, ($3::date + 1)::date, '[)')
-      AND r.status = ANY($4::text[])
+      AND (
+        r.status = ANY($4::text[])
+        OR (
+          r.status = ANY($5::text[])
+          AND COALESCE(r.payment_status, '') IN ('unpaid', 'checkout_started')
+          AND r.updated_at >= NOW() - ($6::int * interval '1 minute')
+        )
+      )
       ${exclusionSql}
   `, params);
   return Number(q.rows[0]?.reserved_spots || 0);
@@ -588,7 +643,7 @@ const getReservedSpotCount = async ({ waterBodyId, arrival, departure, excludedR
 
 const ensureRoomAvailability = async ({ roomIds, arrival, departure, excludedReservationId = null }) => {
   if (!roomIds.length) return;
-  const params = [roomIds, arrival, departure, ACTIVE_RESERVATION_STATUSES];
+  const params = [roomIds, arrival, departure, ACTIVE_RESERVATION_STATUSES, PAYMENT_HOLD_STATUSES, getPaymentHoldMinutes()];
   let exclusionSql = "";
   if (excludedReservationId) {
     params.push(excludedReservationId);
@@ -601,11 +656,18 @@ const ensureRoomAvailability = async ({ roomIds, arrival, departure, excludedRes
     JOIN lake_rooms rm ON rm.id = rrm.room_id
     WHERE rrm.room_id = ANY($1::uuid[])
       AND daterange(r.start_date::date, (r.end_date::date + 1)::date, '[)') && daterange($2::date, ($3::date + 1)::date, '[)')
-      AND r.status = ANY($4::text[])
+      AND (
+        r.status = ANY($4::text[])
+        OR (
+          r.status = ANY($5::text[])
+          AND COALESCE(r.payment_status, '') IN ('unpaid', 'checkout_started')
+          AND r.updated_at >= NOW() - ($6::int * interval '1 minute')
+        )
+      )
       ${exclusionSql}
   `, params);
   if (q.rows.length) {
-    throw new Error(`Rooms already reserved for these dates: ${q.rows.map((row) => row.name).join(', ')}`);
+    throw new Error(`Следните стаи вече са резервирани за избраните дати: ${q.rows.map((row) => row.name).join(', ')}`);
   }
 };
 
@@ -794,10 +856,20 @@ const getReservationBadgeCounts = async (req, res) => {
 
     const userCountQ = await pool.query(`
       SELECT COUNT(*)::int AS count
-      FROM lake_reservations
-      WHERE user_id = $1
-        AND status IN ('approved', 'rejected')
-        AND COALESCE(end_date, start_date, reservation_date)::timestamp >= CURRENT_TIMESTAMP
+      FROM lake_reservations r
+      WHERE r.user_id = $1
+        AND r.status = 'approved'
+        AND COALESCE(r.end_date, r.start_date, r.reservation_date)::date >= CURRENT_DATE
+        AND (
+          COALESCE(r.payment_method, 'on_arrival') <> 'online'
+          OR r.payment_status = 'paid'
+          OR EXISTS (
+            SELECT 1
+            FROM reservation_payments rp
+            WHERE rp.reservation_id = r.id
+              AND rp.status = 'paid'
+          )
+        )
     `, [req.user]);
 
     const ownerCountQ = await pool.query(`
@@ -806,8 +878,18 @@ const getReservationBadgeCounts = async (req, res) => {
       JOIN water_bodies w ON w.id = r.water_body_id
       WHERE w.owner_id = $1
         AND w.is_private = TRUE
-        AND r.status = 'pending'
-        AND COALESCE(r.end_date, r.start_date, r.reservation_date)::timestamp >= CURRENT_TIMESTAMP
+        AND r.status = 'approved'
+        AND COALESCE(r.end_date, r.start_date, r.reservation_date)::date >= CURRENT_DATE
+        AND (
+          COALESCE(r.payment_method, 'on_arrival') <> 'online'
+          OR r.payment_status = 'paid'
+          OR EXISTS (
+            SELECT 1
+            FROM reservation_payments rp
+            WHERE rp.reservation_id = r.id
+              AND rp.status = 'paid'
+          )
+        )
     `, [req.user]);
 
     res.json({
@@ -843,6 +925,7 @@ const getMyReservationStatus = async (req, res) => {
 const estimateReservation = async (req, res) => {
   try {
     await ensureSchema();
+    await cleanupExpiredPaymentHolds();
     const { water_body_id, room_ids = [], spot_ids = [] } = req.body;
     const { arrival, departure } = normalizeTripDates(req.body);
     const fishingDates = normalizeDateList(req.body.fishing_dates);
@@ -904,6 +987,7 @@ const createReservation = async (req, res) => {
   const client = await pool.connect();
   try {
     await ensureSchema();
+    await cleanupExpiredPaymentHolds();
     const { water_body_id, room_ids = [], spot_ids = [], notes } = req.body;
     const { arrival, departure } = normalizeTripDates(req.body);
     if (!water_body_id) return res.status(400).json({ error: "Водоемът е задължителен" });
@@ -1192,9 +1276,13 @@ const updateReservationStatus = async (req, res) => {
 const createReservationPaymentCheckout = async (req, res) => {
   try {
     await ensureSchema();
+    await cleanupExpiredPaymentHolds();
     const { reservationId } = req.params;
     const reservation = await getReservationById(reservationId);
     if (!reservation) return res.status(404).json({ error: "Резервацията не е намерена" });
+    if (reservation.status === "cancelled" && reservation.payment_status === "expired") {
+      return res.status(400).json({ error: "Временната резервация за онлайн плащане е изтекла. Моля, създайте нова резервация." });
+    }
     if (String(reservation.user_id) !== String(req.user)) return res.status(403).json({ error: "Нямате разрешение" });
     if (isReservationPast(reservation)) return res.status(400).json({ error: "Минали резервации не могат да бъдат платени" });
     if (reservation.status !== "approved_waiting_payment") {
@@ -1257,6 +1345,7 @@ const createReservationPaymentCheckout = async (req, res) => {
       success_url: `${appUrl}/reservations?payment=success`,
       cancel_url: `${appUrl}/reservations?payment=cancelled`,
       payment_intent_data: paymentIntentData,
+      expires_at: Math.floor(Date.now() / 1000) + (getPaymentHoldMinutes() * 60),
       metadata: {
         reservation_id: String(reservation.id),
         user_id: String(req.user),

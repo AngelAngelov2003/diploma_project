@@ -41,3 +41,8 @@ export const openOwnerConnectDashboard = async () => {
   const { data } = await api.post("/billing/owner/connect/login-link");
   return data;
 };
+
+export const setOwnerOnlinePaymentsEnabled = async (enabled) => {
+  const { data } = await api.patch("/billing/owner/online-payments", { enabled });
+  return data;
+};

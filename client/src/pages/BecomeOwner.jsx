@@ -4,6 +4,7 @@ import { notifyError, notifySuccess } from "../ui/toast";
 import { getProfile } from "../api/profileApi";
 import { getMyClaimRequests, submitClaimRequest } from "../api/ownerApi";
 import { searchWaterBodies } from "../api/waterBodiesApi";
+import PageLoadingState from "../components/common/PageLoadingState";
 import styles from "./BecomeOwner.module.css";
 
 const formatWaterTypeLabel = (value) => {
@@ -185,7 +186,7 @@ export default function BecomeOwner() {
   };
 
   if (loading) {
-    return <div className={styles.loading}>Зареждане на заявката за собственик...</div>;
+    return <PageLoadingState title="Зареждане на заявката за собственик..." subtitle="Зареждаме профила и предишните заявки за собственост." cards={2} rows={3} />;
   }
 
   return (

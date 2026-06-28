@@ -82,3 +82,18 @@ export const deleteAdminGalleryPhoto = async (photoId) => {
   const { data } = await api.delete(`/admin/gallery-photos/${photoId}`);
   return data;
 };
+
+export const getAdminUserReports = async () => {
+  const { data } = await api.get("/admin/user-reports");
+  return data;
+};
+
+export const updateAdminUserReport = async (reportId, payload) => {
+  const { data } = await api.patch(`/admin/user-reports/${reportId}`, payload);
+  return data;
+};
+
+export const deleteAdminUserReport = async (reportId) => {
+  const { data } = await api.delete(`/admin/user-reports/${reportId}`);
+  return data;
+};

@@ -96,10 +96,6 @@ export const getOwnerLakeCatches = async (lakeId) => {
   return data;
 };
 
-export const deleteOwnerCatchPhoto = async (lakeId, catchId) => {
-  const { data } = await api.delete(`/owner/lakes/${lakeId}/catches/${catchId}/photo`);
-  return data;
-};
 
 export const reportOwnerLakeCatch = async (lakeId, catchId, payload) => {
   const { data } = await api.post(`/owner/lakes/${lakeId}/catches/${catchId}/report`, payload);

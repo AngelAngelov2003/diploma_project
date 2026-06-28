@@ -12,6 +12,7 @@ import {
   FaFish,
   FaImages,
   FaPlug,
+  FaFlag,
 } from "react-icons/fa";
 import {
   deleteAdminCatchLog,
@@ -26,9 +27,12 @@ import {
   getAdminOwnerClaimRequests,
   getAdminReviews,
   getAdminUsers,
+  getAdminUserReports,
   getAdminWaterBodies,
   updateAdminOwnerClaimRequest,
   updateAdminUser,
+  updateAdminUserReport,
+  deleteAdminUserReport,
   updateAdminWaterBody,
 } from "../api/adminApi";
 import styles from "./AdminDashboard.module.css";
@@ -44,6 +48,7 @@ import StatCard from "../components/ui/StatCard";
 import StatusBadge from "../components/ui/StatusBadge";
 import ZoomableImage from "../components/ui/ZoomableImage";
 import TabButton from "../components/ui/TabButton";
+import { SectionLoadingState } from "../components/common/PageLoadingState";
 import { formatDateTime } from "../utils/date";
 
 const PAGE_SIZE = 3;
@@ -155,6 +160,7 @@ export default function AdminDashboard() {
   const [catchLogs, setCatchLogs] = useState([]);
   const [galleryPhotos, setGalleryPhotos] = useState([]);
   const [ownerClaimRequests, setOwnerClaimRequests] = useState([]);
+  const [userReports, setUserReports] = useState([]);
 
   const [loadingOverview, setLoadingOverview] = useState(false);
   const [loadingWaterBodies, setLoadingWaterBodies] = useState(false);
@@ -163,6 +169,7 @@ export default function AdminDashboard() {
   const [loadingCatchLogs, setLoadingCatchLogs] = useState(false);
   const [loadingGalleryPhotos, setLoadingGalleryPhotos] = useState(false);
   const [loadingOwnerClaims, setLoadingOwnerClaims] = useState(false);
+  const [loadingUserReports, setLoadingUserReports] = useState(false);
 
   const [overviewError, setOverviewError] = useState("");
   const [waterBodiesError, setWaterBodiesError] = useState("");
@@ -171,10 +178,12 @@ export default function AdminDashboard() {
   const [catchLogsError, setCatchLogsError] = useState("");
   const [galleryPhotosError, setGalleryPhotosError] = useState("");
   const [ownerClaimsError, setOwnerClaimsError] = useState("");
+  const [userReportsError, setUserReportsError] = useState("");
 
   const [savingWaterBodyId, setSavingWaterBodyId] = useState("");
   const [savingUserId, setSavingUserId] = useState("");
   const [savingOwnerClaimId, setSavingOwnerClaimId] = useState("");
+  const [savingUserReportId, setSavingUserReportId] = useState("");
   const [deletingId, setDeletingId] = useState("");
 
   const [lakeSearch, setLakeSearch] = useState("");
@@ -184,6 +193,8 @@ export default function AdminDashboard() {
   const [photoSearch, setPhotoSearch] = useState("");
   const [ownerClaimSearch, setOwnerClaimSearch] = useState("");
   const [ownerClaimStatusFilter, setOwnerClaimStatusFilter] = useState("pending");
+  const [userReportSearch, setUserReportSearch] = useState("");
+  const [userReportStatusFilter, setUserReportStatusFilter] = useState("pending");
 
   const [waterBodiesPage, setWaterBodiesPage] = useState(1);
   const [usersPage, setUsersPage] = useState(1);
@@ -192,6 +203,7 @@ export default function AdminDashboard() {
   const [galleryPhotosPage, setGalleryPhotosPage] = useState(1);
   const [ownerClaimsPage, setOwnerClaimsPage] = useState(1);
   const [ownerStatusPage, setOwnerStatusPage] = useState(1);
+  const [userReportsPage, setUserReportsPage] = useState(1);
 
   const waterBodiesSectionRef = useRef(null);
   const usersSectionRef = useRef(null);
@@ -199,6 +211,7 @@ export default function AdminDashboard() {
   const catchLogsSectionRef = useRef(null);
   const galleryPhotosSectionRef = useRef(null);
   const ownerClaimsSectionRef = useRef(null);
+  const userReportsSectionRef = useRef(null);
 
   const scrollToSectionTop = (ref) => {
     setTimeout(() => {
@@ -318,6 +331,21 @@ export default function AdminDashboard() {
     }
   };
 
+  const loadUserReports = async () => {
+    try {
+      setLoadingUserReports(true);
+      setUserReportsError("");
+      const data = await getAdminUserReports();
+      setUserReports(Array.isArray(data) ? data : []);
+    } catch (error) {
+      setUserReportsError(error?.response?.data?.error || "Неуспешно зареждане на докладите");
+      notifyError(error, "Неуспешно зареждане на докладите");
+      setUserReports([]);
+    } finally {
+      setLoadingUserReports(false);
+    }
+  };
+
   useEffect(() => {
     loadOverview();
     loadWaterBodies();
@@ -326,6 +354,7 @@ export default function AdminDashboard() {
     loadCatchLogs();
     loadGalleryPhotos();
     loadOwnerClaims();
+    loadUserReports();
   }, []);
 
   const filteredWaterBodies = useMemo(() => {
@@ -429,6 +458,35 @@ export default function AdminDashboard() {
     });
   }, [ownerClaimRequests, ownerClaimSearch, ownerClaimStatusFilter]);
 
+  const filteredUserReports = useMemo(() => {
+    const query = userReportSearch.trim().toLowerCase();
+
+    return userReports.filter((item) => {
+      const matchesSearch = [
+        item.lake_name,
+        item.reason,
+        item.status,
+        item.admin_note,
+        item.reported_user_name,
+        item.reported_user_email,
+        item.reported_by_name,
+        item.reported_by_email,
+        item.species,
+        item.catch_notes,
+      ]
+        .map((value) => String(value || "").toLowerCase())
+        .join(" ")
+        .includes(query);
+
+      const matchesStatus =
+        userReportStatusFilter === "all"
+          ? true
+          : String(item.status || "pending") === userReportStatusFilter;
+
+      return matchesSearch && matchesStatus;
+    });
+  }, [userReports, userReportSearch, userReportStatusFilter]);
+
   useEffect(() => {
     setWaterBodiesPage(1);
   }, [lakeSearch, waterBodies.length]);
@@ -452,6 +510,10 @@ export default function AdminDashboard() {
   useEffect(() => {
     setOwnerClaimsPage(1);
   }, [ownerClaimSearch, ownerClaimStatusFilter, ownerClaimRequests.length]);
+
+  useEffect(() => {
+    setUserReportsPage(1);
+  }, [userReportSearch, userReportStatusFilter, userReports.length]);
 
   const paginatedWaterBodies = useMemo(
     () => paginateItems(filteredWaterBodies, waterBodiesPage),
@@ -481,6 +543,11 @@ export default function AdminDashboard() {
   const paginatedOwnerClaims = useMemo(
     () => paginateItems(filteredOwnerClaims, ownerClaimsPage),
     [filteredOwnerClaims, ownerClaimsPage],
+  );
+
+  const paginatedUserReports = useMemo(
+    () => paginateItems(filteredUserReports, userReportsPage),
+    [filteredUserReports, userReportsPage],
   );
 
   const connectedOwnerStatuses = useMemo(
@@ -535,6 +602,12 @@ export default function AdminDashboard() {
   const updateOwnerClaimLocal = (requestId, field, value) => {
     setOwnerClaimRequests((prev) =>
       prev.map((item) => (item.id === requestId ? { ...item, [field]: value } : item)),
+    );
+  };
+
+  const updateUserReportLocal = (reportId, field, value) => {
+    setUserReports((prev) =>
+      prev.map((item) => (item.id === reportId ? { ...item, [field]: value } : item)),
     );
   };
 
@@ -711,6 +784,37 @@ export default function AdminDashboard() {
     }
   };
 
+  const reviewUserReport = async (reportId, status) => {
+    try {
+      setSavingUserReportId(reportId);
+      const current = userReports.find((item) => item.id === reportId);
+      await updateAdminUserReport(reportId, {
+        status,
+        admin_note: String(current?.admin_note || "").trim(),
+      });
+      notifySuccess("Докладът е обновен");
+      await loadUserReports();
+    } catch (error) {
+      notifyError(error, "Неуспешно обновяване на доклада");
+    } finally {
+      setSavingUserReportId("");
+    }
+  };
+
+  const deleteUserReport = async (reportId) => {
+    if (!window.confirm("Сигурни ли сте, че искате да изтриете този доклад?")) return;
+    try {
+      setDeletingId(reportId);
+      await deleteAdminUserReport(reportId);
+      notifySuccess("Докладът е изтрит");
+      await loadUserReports();
+    } catch (error) {
+      notifyError(error, "Неуспешно изтриване на доклада");
+    } finally {
+      setDeletingId("");
+    }
+  };
+
   const renderError = (text, onRetry) => (
     <div className={ui.alertError}>
       <div>{text}</div>
@@ -721,6 +825,7 @@ export default function AdminDashboard() {
   );
 
   const pendingOwnerClaimsCount = Number(analytics?.totals?.pending_owner_claims || 0);
+  const pendingUserReportsCount = userReports.filter((item) => String(item.status || "pending") === "pending").length;
 
   return (
     <div className={styles.page}>
@@ -785,6 +890,15 @@ export default function AdminDashboard() {
           </TabButton>
 
           <TabButton
+            active={activeTab === "user-reports"}
+            onClick={() => setActiveTab("user-reports")}
+            icon={<FaFlag />}
+            badge={pendingUserReportsCount > 0 ? pendingUserReportsCount : null}
+          >
+            Доклади
+          </TabButton>
+
+          <TabButton
             active={activeTab === "owner-claims"}
             onClick={() => setActiveTab("owner-claims")}
             icon={<FaFileAlt />}
@@ -799,7 +913,7 @@ export default function AdminDashboard() {
             {overviewError ? (
               renderError(overviewError, loadOverview)
             ) : loadingOverview ? (
-              <Card className={styles.card}>Зареждане на статистика...</Card>
+              <SectionLoadingState title="Зареждане на статистика..." subtitle="Подготвяме обобщените показатели за платформата." cards={3} rows={2} />
             ) : !analytics ? (
               <Card className={styles.card}>Няма налична статистика.</Card>
             ) : (
@@ -895,7 +1009,7 @@ export default function AdminDashboard() {
             {waterBodiesError ? (
               renderError(waterBodiesError, loadWaterBodies)
             ) : loadingWaterBodies ? (
-              <div className={styles.muted}>Зареждане на водоеми...</div>
+              <SectionLoadingState title="Зареждане на водоеми..." subtitle="Зареждаме списъка с водоеми и техните настройки." cards={2} rows={3} />
             ) : !filteredWaterBodies.length ? (
               <div className={styles.muted}>Няма намерени водоеми.</div>
             ) : (
@@ -1117,7 +1231,7 @@ export default function AdminDashboard() {
             {usersError ? (
               renderError(usersError, loadUsers)
             ) : loadingUsers ? (
-              <div className={styles.muted}>Зареждане на потребители...</div>
+              <SectionLoadingState title="Зареждане на потребители..." subtitle="Зареждаме профилите и техните роли." cards={2} rows={3} />
             ) : !filteredUsers.length ? (
               <div className={styles.muted}>Няма намерени потребители.</div>
             ) : (
@@ -1287,7 +1401,7 @@ export default function AdminDashboard() {
             {reviewsError ? (
               renderError(reviewsError, loadReviews)
             ) : loadingReviews ? (
-              <div className={styles.muted}>Зареждане на отзиви...</div>
+              <SectionLoadingState title="Зареждане на отзиви..." subtitle="Зареждаме публикуваните оценки и коментари." cards={2} rows={3} />
             ) : !filteredReviews.length ? (
               <div className={styles.muted}>Няма намерени отзиви.</div>
             ) : (
@@ -1421,7 +1535,7 @@ export default function AdminDashboard() {
             {catchLogsError ? (
               renderError(catchLogsError, loadCatchLogs)
             ) : loadingCatchLogs ? (
-              <div className={styles.muted}>Зареждане на улови...</div>
+              <SectionLoadingState title="Зареждане на улови..." subtitle="Зареждаме потребителските записи и снимки на улови." cards={2} rows={3} />
             ) : !filteredCatchLogs.length ? (
               <div className={styles.muted}>Няма намерени улови.</div>
             ) : (
@@ -1490,7 +1604,7 @@ export default function AdminDashboard() {
             {galleryPhotosError ? (
               renderError(galleryPhotosError, loadGalleryPhotos)
             ) : loadingGalleryPhotos ? (
-              <div className={styles.muted}>Зареждане на снимки от галерията...</div>
+              <SectionLoadingState title="Зареждане на снимки..." subtitle="Зареждаме качените изображения от галериите." cards={2} rows={2} />
             ) : !filteredGalleryPhotos.length ? (
               <div className={styles.muted}>Няма намерени снимки в галерията.</div>
             ) : (
@@ -1559,6 +1673,124 @@ export default function AdminDashboard() {
           </div>
         )}
 
+        {activeTab === "user-reports" && (
+          <div ref={userReportsSectionRef} className={styles.card}>
+            <SectionHeader
+              title={`Доклади за потребители${pendingUserReportsCount > 0 ? ` (${pendingUserReportsCount})` : ""}`}
+              action={
+                <SearchInput
+                  value={userReportSearch}
+                  onChange={(e) => setUserReportSearch(e.target.value)}
+                  placeholder="Търсене по водоем, потребител, собственик, причина..."
+                />
+              }
+            />
+
+            <div className={ui.filterRow}>
+              {[{ key: "pending", label: "Чакащи" }, { key: "reviewed", label: "Прегледани" }, { key: "resolved", label: "Решени" }, { key: "dismissed", label: "Отхвърлени" }, { key: "all", label: "Всички" }].map((filter) => (
+                <button
+                  key={filter.key}
+                  type="button"
+                  onClick={() => setUserReportStatusFilter(filter.key)}
+                  className={[ui.filterButton, userReportStatusFilter === filter.key ? ui.filterButtonActive : ""].filter(Boolean).join(" ")}
+                >
+                  {filter.label}
+                </button>
+              ))}
+            </div>
+
+            {userReportsError ? (
+              renderError(userReportsError, loadUserReports)
+            ) : loadingUserReports ? (
+              <SectionLoadingState title="Зареждане на доклади..." subtitle="Зареждаме подадените сигнали от собственици." cards={2} rows={2} />
+            ) : !filteredUserReports.length ? (
+              <div className={styles.muted}>Няма намерени доклади.</div>
+            ) : (
+              <>
+                <div className={styles.reportsGrid}>
+                  {paginatedUserReports.items.map((report) => {
+                    const imageUrl = report.catch_image_url ? getUploadUrl(report.catch_image_url) : null;
+                    return (
+                      <article key={report.id} className={styles.reportCard}>
+                        <div className={styles.reportHeader}>
+                          <div>
+                            <strong className={styles.reportTitle}>{report.lake_name || "Неизвестен водоем"}</strong>
+                            <div className={ui.metaText}>Докладван потребител: {report.reported_user_name || "Неизвестен"} · {report.reported_user_email || "няма имейл"}</div>
+                            <div className={ui.metaText}>Докладван от собственик: {report.reported_by_name || "Неизвестен"} · {report.reported_by_email || "няма имейл"}</div>
+                          </div>
+                          <StatusBadge status={report.status || "pending"} />
+                        </div>
+
+                        <div className={styles.reportContent}>
+                          {imageUrl ? (
+                            <div className={styles.reportImageWrap}>
+                              <ZoomableImage src={imageUrl} alt={report.species || "Снимка от докладван улов"} imageClassName={styles.reportImage} />
+                            </div>
+                          ) : null}
+
+                          <div className={styles.reportDetails}>
+                            <div className={styles.reportMetaGrid}>
+                              <span>Дата: {formatDateTime(report.created_at)}</span>
+                              <span>Улов: {report.species || "неизвестен вид"}{report.weight_kg ? ` · ${report.weight_kg} кг` : ""}</span>
+                              {report.catch_time ? <span>Час на улова: {formatDateTime(report.catch_time)}</span> : null}
+                            </div>
+                            <div><strong>Причина:</strong> {report.reason || "Няма посочена причина"}</div>
+                            {report.catch_notes ? <div className={ui.metaText}>Бележка към улова: {report.catch_notes}</div> : null}
+                          </div>
+                        </div>
+
+                        <label className={styles.reportNoteLabel}>
+                          <span className={ui.metaText}>Бележка на администратора</span>
+                          <textarea
+                            value={report.admin_note || ""}
+                            onChange={(e) => updateUserReportLocal(report.id, "admin_note", e.target.value)}
+                            rows={2}
+                            className={styles.reportTextarea}
+                          />
+                        </label>
+
+                        <div className={styles.reportActions}>
+                          <ActionButton type="button" disabled={savingUserReportId === report.id} onClick={() => reviewUserReport(report.id, "reviewed")} tone="neutral">
+                            Прегледан
+                          </ActionButton>
+                          <ActionButton type="button" disabled={savingUserReportId === report.id} onClick={() => reviewUserReport(report.id, "resolved")} tone="primary">
+                            Решен
+                          </ActionButton>
+                          <ActionButton type="button" disabled={savingUserReportId === report.id} onClick={() => reviewUserReport(report.id, "dismissed")} tone="neutral">
+                            Отхвърли
+                          </ActionButton>
+                          {report.catch_id ? (
+                            <ActionButton type="button" disabled={deletingId === report.catch_id} onClick={() => deleteCatchLog(report.catch_id)} tone="danger">
+                              <FaTrash className={ui.buttonIcon} />
+                              Премахни улова
+                            </ActionButton>
+                          ) : null}
+                          <ActionButton type="button" disabled={deletingId === report.id} onClick={() => deleteUserReport(report.id)} tone="danger">
+                            <FaTrash className={ui.buttonIcon} />
+                            Изтрий доклада
+                          </ActionButton>
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
+
+                <Pagination
+                  currentPage={paginatedUserReports.currentPage}
+                  totalPages={paginatedUserReports.totalPages}
+                  totalItems={paginatedUserReports.totalItems}
+                  startIndex={paginatedUserReports.startIndex}
+                  endIndex={paginatedUserReports.endIndex}
+                  onPageChange={(page) => {
+                    setUserReportsPage(page);
+                    scrollToSectionTop(userReportsSectionRef);
+                  }}
+                />
+              </>
+            )}
+          </div>
+        )}
+
         {activeTab === "owner-claims" && (
           <div ref={ownerClaimsSectionRef} className={styles.card}>
             <SectionHeader
@@ -1606,7 +1838,7 @@ export default function AdminDashboard() {
             {ownerClaimsError ? (
               renderError(ownerClaimsError, loadOwnerClaims)
             ) : loadingOwnerClaims ? (
-              <div className={styles.muted}>Зареждане на заявки за собственост...</div>
+              <SectionLoadingState title="Зареждане на заявки за собственост..." subtitle="Зареждаме чакащите и обработените заявки." cards={2} rows={3} />
             ) : !filteredOwnerClaims.length ? (
               <div className={styles.muted}>Няма намерени заявки за собственост.</div>
             ) : (

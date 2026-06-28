@@ -724,6 +724,101 @@ const deleteOwnerClaimRequest = async (req, res) => {
   }
 };
 
+
+const getUserReports = async (req, res) => {
+  try {
+    const q = await pool.query(`
+      SELECT
+        r.*,
+        w.name AS lake_name,
+        c.species,
+        c.weight_kg,
+        c.notes AS catch_notes,
+        c.image_url AS catch_image_url,
+        c.catch_time,
+        reported.full_name AS reported_user_name,
+        reported.email AS reported_user_email,
+        owner.full_name AS reported_by_name,
+        owner.email AS reported_by_email,
+        resolver.full_name AS resolved_by_name
+      FROM lake_user_reports r
+      LEFT JOIN water_bodies w ON w.id = r.water_body_id
+      LEFT JOIN catch_logs c ON c.id = r.catch_id
+      LEFT JOIN users reported ON reported.id = r.reported_user_id
+      LEFT JOIN users owner ON owner.id = r.reported_by
+      LEFT JOIN users resolver ON resolver.id = r.resolved_by
+      ORDER BY
+        CASE COALESCE(r.status, 'pending')
+          WHEN 'pending' THEN 1
+          WHEN 'reviewed' THEN 2
+          WHEN 'resolved' THEN 3
+          WHEN 'dismissed' THEN 4
+          ELSE 5
+        END,
+        r.created_at DESC
+    `);
+    res.json(q.rows);
+  } catch (err) {
+    console.error("GET /admin/user-reports failed:", err);
+    res.status(500).json({ error: "Неуспешно зареждане на докладите" });
+  }
+};
+
+const updateUserReport = async (req, res) => {
+  try {
+    const { reportId } = req.params;
+    const status = String(req.body.status || "").trim();
+    const adminNote = typeof req.body.admin_note === "string" ? req.body.admin_note.trim() : null;
+    const allowedStatuses = new Set(["pending", "reviewed", "resolved", "dismissed"]);
+
+    if (!allowedStatuses.has(status)) {
+      return res.status(400).json({ error: "Невалиден статус на доклада" });
+    }
+
+    const q = await pool.query(
+      `
+        UPDATE lake_user_reports
+        SET
+          status = $2,
+          admin_note = COALESCE($3, admin_note),
+          resolved_by = CASE WHEN $2 IN ('resolved', 'dismissed') THEN $4::uuid ELSE resolved_by END,
+          resolved_at = CASE WHEN $2 IN ('resolved', 'dismissed') THEN NOW() ELSE NULL END
+        WHERE id = $1::uuid
+        RETURNING *
+      `,
+      [reportId, status, adminNote, req.user]
+    );
+
+    if (!q.rows.length) {
+      return res.status(404).json({ error: "Докладът не е намерен" });
+    }
+
+    res.json(q.rows[0]);
+  } catch (err) {
+    console.error("PATCH /admin/user-reports/:reportId failed:", err);
+    res.status(500).json({ error: "Неуспешно обновяване на доклада" });
+  }
+};
+
+const deleteUserReport = async (req, res) => {
+  try {
+    const { reportId } = req.params;
+    const q = await pool.query(
+      `DELETE FROM lake_user_reports WHERE id = $1::uuid RETURNING id`,
+      [reportId]
+    );
+
+    if (!q.rows.length) {
+      return res.status(404).json({ error: "Докладът не е намерен" });
+    }
+
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("DELETE /admin/user-reports/:reportId failed:", err);
+    res.status(500).json({ error: "Неуспешно изтриване на доклада" });
+  }
+};
+
 const getCatchLogs = async (req, res) => {
   try {
     const q = await pool.query(`
@@ -787,6 +882,9 @@ module.exports = {
   getOwnerClaimRequests,
   updateOwnerClaimRequest,
   deleteOwnerClaimRequest,
+  getUserReports,
+  updateUserReport,
+  deleteUserReport,
   getCatchLogs,
   deleteCatchLog,
   getGalleryPhotos,

@@ -30,6 +30,7 @@ import { getCurrentUser } from "./api/authApi";
 import { AUTH_EXPIRED_EVENT } from "./api/client";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+import PageLoadingState from "./components/common/PageLoadingState";
 import { notifyInfo } from "./ui/toast";
 
 const shouldResetToMapOnReload = () => {
@@ -146,7 +147,7 @@ function App() {
   };
 
   if (!authChecked) {
-    return <div style={{ padding: 20 }}>Зареждане...</div>;
+    return <PageLoadingState title="Проверка на сесията..." subtitle="Зареждаме потребителския достъп и подготвяме интерфейса." cards={2} rows={2} />;
   }
 
   return (
@@ -215,7 +216,6 @@ function App() {
           }
         >
           <Route path="/owner" element={<OwnerPanel />} />
-          <Route path="/owner/billing" element={<Navigate to="/owner" replace />} />
         </Route>
 
         <Route

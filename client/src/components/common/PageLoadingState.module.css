@@ -1,0 +1,147 @@
+.wrapper {
+  min-height: 45vh;
+  width: 100%;
+  padding: clamp(24px, 5vw, 56px);
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+}
+
+.panel {
+  width: min(1120px, 100%);
+  border: 1px solid #dbe7f5;
+  border-radius: 28px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 22px 54px rgba(15, 23, 42, 0.08);
+  padding: clamp(22px, 4vw, 34px);
+  overflow: hidden;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  align-items: flex-start;
+  margin-bottom: 24px;
+}
+
+.title {
+  margin: 0;
+  color: #0f172a;
+  font-size: clamp(22px, 3vw, 32px);
+  font-weight: 900;
+  letter-spacing: -0.04em;
+}
+
+.subtitle {
+  margin: 8px 0 0;
+  color: #64748b;
+  font-size: 15px;
+  line-height: 1.55;
+  max-width: 720px;
+}
+
+.pill {
+  width: 130px;
+  height: 42px;
+  flex: 0 0 auto;
+  border-radius: 999px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.card {
+  border: 1px solid #e2e8f0;
+  border-radius: 22px;
+  padding: 18px;
+  background: #f8fafc;
+}
+
+.line {
+  height: 14px;
+  border-radius: 999px;
+  margin-bottom: 12px;
+}
+
+.line.short { width: 46%; }
+.line.medium { width: 68%; }
+.line.long { width: 90%; }
+
+.block {
+  height: 110px;
+  border-radius: 18px;
+  margin-top: 14px;
+}
+
+.list {
+  display: grid;
+  gap: 14px;
+}
+
+.listItem {
+  min-height: 86px;
+  border: 1px solid #e2e8f0;
+  border-radius: 20px;
+  padding: 16px;
+  background: #fff;
+}
+
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background: #eaf1f8;
+}
+
+.skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.72), transparent);
+  animation: shimmer 1.35s infinite;
+}
+
+.compactWrapper {
+  width: 100%;
+  min-height: auto;
+  padding: 0;
+}
+
+.compactPanel {
+  box-shadow: none;
+  border-radius: 20px;
+  padding: 18px;
+}
+
+.compactPanel .header {
+  margin-bottom: 16px;
+}
+
+.compactPanel .title {
+  font-size: 18px;
+}
+
+.compactPanel .subtitle {
+  font-size: 13px;
+}
+
+.compactPanel .grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+@keyframes shimmer {
+  100% { transform: translateX(100%); }
+}
+
+@media (max-width: 760px) {
+  .wrapper { padding: 18px; }
+  .header { flex-direction: column; }
+  .pill { width: 100%; }
+  .grid { grid-template-columns: 1fr; }
+  .compactPanel .grid { grid-template-columns: 1fr; }
+}

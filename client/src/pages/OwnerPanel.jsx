@@ -6,7 +6,6 @@ import {
   deleteBlockedDate,
   deleteLakePhoto,
   deleteLakeRoom,
-  deleteOwnerCatchPhoto,
   getOwnerLakeCatches,
   getOwnerLakeReservations,
   getOwnerLakeSpotAvailability,
@@ -30,6 +29,7 @@ import { notifyError, notifySuccess } from "../ui/toast";
 import { formatCurrency } from "../utils/formatCurrency";
 import DatePicker from "../components/ui/DatePicker";
 import ZoomableImage from "../components/ui/ZoomableImage";
+import PageLoadingState from "../components/common/PageLoadingState";
 import styles from "./OwnerPanel.module.css";
 
 const DEFAULT_ROOM_FORM = {
@@ -485,7 +485,8 @@ export default function OwnerPanel() {
         )
       );
       const params = new URLSearchParams(window.location.search);
-      const shouldOpenBilling = ["success", "cancelled"].includes(params.get("checkout")) ||
+      const shouldOpenBilling = params.get("tab") === "billing" ||
+        ["success", "cancelled"].includes(params.get("checkout")) ||
         ["return", "refresh"].includes(params.get("connect"));
 
       setActiveTabByLake(
@@ -862,23 +863,6 @@ export default function OwnerPanel() {
     }
   };
 
-  const handleDeleteCatchPhoto = async (lakeId, catchId) => {
-    if (!window.confirm("Сигурни ли сте, че искате да премахнете снимката към този улов?")) return;
-    try {
-      setBusyLakeId(lakeId);
-      await deleteOwnerCatchPhoto(lakeId, catchId);
-      setCatchPhotosByLake((prev) => ({
-        ...prev,
-        [lakeId]: (prev[lakeId] || []).filter((item) => item.id !== catchId),
-      }));
-      notifySuccess("Снимката към улова на потребителя е премахната");
-    } catch (error) {
-      notifyError(error, "Неуспешно премахване на снимката към улова на потребителя");
-    } finally {
-      setBusyLakeId("");
-    }
-  };
-
 
   const refreshOwnerLakeReservations = async (lakeId) => {
     const reservations = await getOwnerLakeReservations(lakeId).catch(() => []);
@@ -993,6 +977,17 @@ export default function OwnerPanel() {
         if (data?.url) window.location.href = data.url;
         return;
       }
+      if (action === "toggle-online-payments") {
+        const nextEnabled = !ownerBilling?.online_payments_enabled;
+        if (nextEnabled && !ownerBilling?.connect_ready) {
+          notifyError(null, "Първо завършете настройката на Stripe Connect.");
+          return;
+        }
+        const state = await billingApi.setOwnerOnlinePaymentsEnabled(nextEnabled);
+        setOwnerBilling(state);
+        notifySuccess(nextEnabled ? "Онлайн плащанията са включени" : "Онлайн плащанията са изключени");
+        return;
+      }
       if (action === "upgrade") {
         setActiveTabByLake((prev) => {
           const firstLakeId = lakes[0]?.id;
@@ -1011,7 +1006,7 @@ export default function OwnerPanel() {
 
 
   if (loading) {
-    return <div className={styles.loading}>Зареждане на панела на собственика...</div>;
+    return <PageLoadingState title="Зареждане на панела на собственика..." subtitle="Подготвяме водоемите, резервациите, приходите и настройките за управление." cards={3} rows={3} />;
   }
 
   return (
@@ -1195,8 +1190,8 @@ export default function OwnerPanel() {
                               <div className={styles.ownerProActiveTile}>
                                 <FaMoneyBillWave />
                                 <div>
-                                  <strong>Основата за платени резервации е активна</strong>
-                                  <span>Този водоем може да използва Stripe плащане за резервации след завършване на настройката за изплащания.</span>
+                                  <strong>Онлайн плащания: {ownerBilling?.online_payments_enabled ? "включени" : "изключени"}</strong>
+                                  <span>Комисиона на платформата: {Number(ownerBilling?.platform_fee_percent ?? 10)}%. Управлението е в таб „Плащания и приходи“.</span>
                                 </div>
                               </div>
                             </div>
@@ -2076,14 +2071,6 @@ export default function OwnerPanel() {
                                     >
                                       Докладвай потребител
                                     </button>
-                                    <button
-                                      type="button"
-                                      className={styles.dangerButton}
-                                      disabled={busyLakeId === lake.id}
-                                      onClick={() => handleDeleteCatchPhoto(lake.id, item.id)}
-                                    >
-                                      Премахни снимката
-                                    </button>
                                   </div>
                                 </div>
                               ))}
@@ -2097,7 +2084,7 @@ export default function OwnerPanel() {
                     {activeTab === "billing" ? (
                       <SectionCard
                         title="Плащания и приходи"
-                        subtitle="Приходите са част от управлението на собственика, защото идват от резервации, места, нощен риболов и помещения."
+                        subtitle={`Тук са обединени Stripe настройката, комисионната на платформата (${Number(ownerBilling?.platform_fee_percent ?? 10)}%), включването на онлайн плащанията, приходите и месечните отчети.`}
                         actions={
                           <button
                             type="button"
@@ -2180,8 +2167,29 @@ export default function OwnerPanel() {
                                       Управление на изплащанията <FaExternalLinkAlt />
                                     </button>
                                   ) : null}
+                                  <button
+                                    type="button"
+                                    className={ownerBilling?.online_payments_enabled ? styles.dangerButton : styles.filterButton}
+                                    onClick={() => handleOwnerConnect("toggle-online-payments")}
+                                    disabled={!ownerBilling?.online_payments_enabled && !ownerBilling?.connect_ready}
+                                  >
+                                    {ownerBilling?.online_payments_enabled ? "Изключи онлайн плащанията" : "Включи онлайн плащанията"}
+                                  </button>
                                 </>
                               )}
+                            </div>
+                            <div className={styles.stripeSummaryGrid}>
+                              <div className={styles.stripeSummaryItem}>
+                                <span>Онлайн плащания</span>
+                                <strong className={ownerBilling?.online_payments_enabled ? styles.paymentStatusOk : styles.paymentStatusWarn}>
+                                  {ownerBilling?.online_payments_enabled ? "Включени" : "Изключени"}
+                                </strong>
+                              </div>
+                              <div className={styles.stripeCommissionItem}>
+                                <span>Комисиона на платформата</span>
+                                <strong>{Number(ownerBilling?.platform_fee_percent ?? 10)}%</strong>
+                                <small>само при онлайн платена резервация</small>
+                              </div>
                             </div>
                           </div>
 
@@ -2274,7 +2282,11 @@ export default function OwnerPanel() {
                                       <td>{formatCurrency(item.total_amount || 0)}</td>
                                       <td>{formatCurrency(item.platform_fee_amount || 0)}</td>
                                       <td>{formatCurrency(item.owner_amount || 0)}</td>
-                                      <td><span className={styles.successBadge}>{getStatusLabel(item.payment_status || "paid")}</span></td>
+                                      <td>
+                                        <span className={item.cancelled_without_refund ? styles.warningBadge : styles.successBadge}>
+                                          {item.cancelled_without_refund ? "Отменена – без възстановяване" : getStatusLabel(item.payment_status || "paid")}
+                                        </span>
+                                      </td>
                                     </tr>
                                   ))}
                                 </tbody>
